@@ -88,12 +88,19 @@ func (p *Parser) IsComplete() bool {
 }
 
 func (p *Parser) Finish() *Node {
+	if len(p.input) == 0 {
+		return nil
+	}
 	p.lexer = NewLexer(p.input, p.file)
 	p.tokens = nil
 	p.pos = 0
 	p.incomplete = false
 	p.tokenize()
-	return p.entry(p)
+	result := p.entry(p)
+	if p.incomplete {
+		return nil
+	}
+	return result
 }
 
 func (p *Parser) Reset() {
