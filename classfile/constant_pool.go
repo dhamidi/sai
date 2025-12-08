@@ -154,3 +154,139 @@ func (cp ConstantPool) GetString(index uint16) string {
 	}
 	return ""
 }
+
+func (cp ConstantPool) GetModuleName(index uint16) string {
+	if index == 0 || int(index) > len(cp) {
+		return ""
+	}
+	if entry, ok := cp[index-1].(*ConstantModuleInfo); ok {
+		return cp.GetUtf8(entry.NameIndex)
+	}
+	return ""
+}
+
+func (cp ConstantPool) GetPackageName(index uint16) string {
+	if index == 0 || int(index) > len(cp) {
+		return ""
+	}
+	if entry, ok := cp[index-1].(*ConstantPackageInfo); ok {
+		return cp.GetUtf8(entry.NameIndex)
+	}
+	return ""
+}
+
+func (cp ConstantPool) GetInteger(index uint16) (int32, bool) {
+	if index == 0 || int(index) > len(cp) {
+		return 0, false
+	}
+	if entry, ok := cp[index-1].(*ConstantIntegerInfo); ok {
+		return entry.Value, true
+	}
+	return 0, false
+}
+
+func (cp ConstantPool) GetLong(index uint16) (int64, bool) {
+	if index == 0 || int(index) > len(cp) {
+		return 0, false
+	}
+	if entry, ok := cp[index-1].(*ConstantLongInfo); ok {
+		return entry.Value, true
+	}
+	return 0, false
+}
+
+func (cp ConstantPool) GetFloat(index uint16) (float32, bool) {
+	if index == 0 || int(index) > len(cp) {
+		return 0, false
+	}
+	if entry, ok := cp[index-1].(*ConstantFloatInfo); ok {
+		return entry.Value, true
+	}
+	return 0, false
+}
+
+func (cp ConstantPool) GetDouble(index uint16) (float64, bool) {
+	if index == 0 || int(index) > len(cp) {
+		return 0, false
+	}
+	if entry, ok := cp[index-1].(*ConstantDoubleInfo); ok {
+		return entry.Value, true
+	}
+	return 0, false
+}
+
+func (cp ConstantPool) GetFieldref(index uint16) (className, name, descriptor string) {
+	if index == 0 || int(index) > len(cp) {
+		return "", "", ""
+	}
+	if entry, ok := cp[index-1].(*ConstantFieldrefInfo); ok {
+		className = cp.GetClassName(entry.ClassIndex)
+		name, descriptor = cp.GetNameAndType(entry.NameAndTypeIndex)
+		return
+	}
+	return "", "", ""
+}
+
+func (cp ConstantPool) GetMethodref(index uint16) (className, name, descriptor string) {
+	if index == 0 || int(index) > len(cp) {
+		return "", "", ""
+	}
+	if entry, ok := cp[index-1].(*ConstantMethodrefInfo); ok {
+		className = cp.GetClassName(entry.ClassIndex)
+		name, descriptor = cp.GetNameAndType(entry.NameAndTypeIndex)
+		return
+	}
+	return "", "", ""
+}
+
+func (cp ConstantPool) GetInterfaceMethodref(index uint16) (className, name, descriptor string) {
+	if index == 0 || int(index) > len(cp) {
+		return "", "", ""
+	}
+	if entry, ok := cp[index-1].(*ConstantInterfaceMethodrefInfo); ok {
+		className = cp.GetClassName(entry.ClassIndex)
+		name, descriptor = cp.GetNameAndType(entry.NameAndTypeIndex)
+		return
+	}
+	return "", "", ""
+}
+
+func (cp ConstantPool) GetMethodHandle(index uint16) *ConstantMethodHandleInfo {
+	if index == 0 || int(index) > len(cp) {
+		return nil
+	}
+	if entry, ok := cp[index-1].(*ConstantMethodHandleInfo); ok {
+		return entry
+	}
+	return nil
+}
+
+func (cp ConstantPool) GetMethodType(index uint16) string {
+	if index == 0 || int(index) > len(cp) {
+		return ""
+	}
+	if entry, ok := cp[index-1].(*ConstantMethodTypeInfo); ok {
+		return cp.GetUtf8(entry.DescriptorIndex)
+	}
+	return ""
+}
+
+func (cp ConstantPool) GetDynamic(index uint16) *ConstantDynamicInfo {
+	if index == 0 || int(index) > len(cp) {
+		return nil
+	}
+	if entry, ok := cp[index-1].(*ConstantDynamicInfo); ok {
+		return entry
+	}
+	return nil
+}
+
+func (cp ConstantPool) GetInvokeDynamic(index uint16) *ConstantInvokeDynamicInfo {
+	if index == 0 || int(index) > len(cp) {
+		return nil
+	}
+	if entry, ok := cp[index-1].(*ConstantInvokeDynamicInfo); ok {
+		return entry
+	}
+	return nil
+}

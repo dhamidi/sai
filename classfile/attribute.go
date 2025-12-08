@@ -148,8 +148,8 @@ type StackMapFrame struct {
 }
 
 type Annotation struct {
-	TypeIndex            uint16
-	ElementValuePairs    []ElementValuePair
+	TypeIndex         uint16
+	ElementValuePairs []ElementValuePair
 }
 
 type ElementValuePair struct {
@@ -188,10 +188,10 @@ type RuntimeInvisibleParameterAnnotationsAttribute struct {
 }
 
 type TypeAnnotation struct {
-	TargetType uint8
-	TargetInfo []byte
-	TargetPath []TypePathEntry
-	TypeIndex  uint16
+	TargetType        uint8
+	TargetInfo        []byte
+	TargetPath        []TypePathEntry
+	TypeIndex         uint16
 	ElementValuePairs []ElementValuePair
 }
 
