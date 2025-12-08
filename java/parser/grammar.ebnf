@@ -19,6 +19,16 @@ IdentifierChars
     = JavaLetter { JavaLetterOrDigit }
     ;
 
+JavaLetter
+    = (* any Unicode character that is a "Java letter" *)
+    (* Character.isJavaIdentifierStart(codePoint) returns true *)
+    ;
+
+JavaLetterOrDigit
+    = (* any Unicode character that is a "Java letter-or-digit" *)
+    (* Character.isJavaIdentifierPart(codePoint) returns true *)
+    ;
+
 TypeIdentifier
     = Identifier - "permits" - "record" - "sealed" - "var" - "yield"
     ;
@@ -324,6 +334,13 @@ ClassMemberDeclaration
     | ";"
     ;
 
+ClassMemberDeclarationNoMethod
+    = FieldDeclaration
+    | ClassDeclaration
+    | InterfaceDeclaration
+    | ";"
+    ;
+
 FieldDeclaration
     = { FieldModifier } UnannType VariableDeclaratorList ";"
     ;
@@ -496,7 +513,8 @@ SimpleTypeName
     ;
 
 ConstructorBody
-    = "{" [ ExplicitConstructorInvocation ] [ BlockStatements ] "}"
+    = "{" [ BlockStatements ] ExplicitConstructorInvocation [ BlockStatements ] "}"
+    | "{" [ BlockStatements ] "}"
     ;
 
 ExplicitConstructorInvocation

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -673,6 +674,36 @@ func TestExplicitConstructorInvocationNodeKind(t *testing.T) {
 	}
 }
 
+func TestContextualKeywordsAsVariableNames(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"requires as variable name", "class Foo { void bar() { String requires = getValue(); } }"},
+		{"exports as variable name", "class Foo { void bar() { String exports = getValue(); } }"},
+		{"opens as variable name", "class Foo { void bar() { String opens = getValue(); } }"},
+		{"uses as variable name", "class Foo { void bar() { String uses = getValue(); } }"},
+		{"provides as variable name", "class Foo { void bar() { String provides = getValue(); } }"},
+		{"to as variable name", "class Foo { void bar() { String to = getValue(); } }"},
+		{"with as variable name", "class Foo { void bar() { String with = getValue(); } }"},
+		{"transitive as variable name", "class Foo { void bar() { String transitive = getValue(); } }"},
+		{"module as variable name", "class Foo { void bar() { String module = getValue(); } }"},
+		{"var as field name", "class Foo { void bar() { int x = insn.var; } }"},
+		{"switch expr with throw", "class Foo { int bar() { return switch(x) { case A -> throw new E(); case B -> 1; }; } }"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
 func TestTypeAnnotationsOnArrayDimensions(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -711,6 +742,22 @@ func findNode(node *Node, kind NodeKind) *Node {
 		}
 	}
 	return nil
+}
+
+func TestParseMultiPartFormInputStream(t *testing.T) {
+	content, err := os.ReadFile("../../testcases/MultiPartFormInputStream.java")
+	if err != nil {
+		t.Fatalf("failed to read test file: %v", err)
+	}
+	p := ParseCompilationUnit(strings.NewReader(string(content)), WithFile("MultiPartFormInputStream.java"))
+	node := p.Finish()
+	if node.Kind != KindCompilationUnit {
+		t.Errorf("got %v, want CompilationUnit", node.Kind)
+	}
+	if hasError(node) {
+		t.Error("parse error in MultiPartFormInputStream.java")
+		printErrors(t, node, 0)
+	}
 }
 
 func hasError(node *Node) bool {

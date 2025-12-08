@@ -216,11 +216,12 @@ type Error struct {
 }
 
 type Node struct {
-	Kind     NodeKind
-	Span     Span
-	Children []*Node
-	Token    *Token
-	Error    *Error
+	Kind        NodeKind
+	Span        Span
+	Children    []*Node
+	Token       *Token
+	Error       *Error
+	isArrowCase bool
 }
 
 func (n *Node) AddChild(child *Node) {

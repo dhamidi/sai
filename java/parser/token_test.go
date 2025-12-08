@@ -83,7 +83,7 @@ func TestLookupKeyword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.ident, func(t *testing.T) {
-			if got := LookupKeyword(tt.ident); got != tt.want {
+			if got := LookupKeyword(tt.ident, true); got != tt.want {
 				t.Errorf("LookupKeyword(%q) = %v, want %v", tt.ident, got, tt.want)
 			}
 		})

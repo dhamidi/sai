@@ -197,8 +197,13 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 		}
 	}
 
+	total := len(sourceFiles)
+	for _, jarFile := range jarFiles {
+		total += s.countFilesInJar(jarFile)
+	}
+
 	s.mu.Lock()
-	s.scans[id].Total = len(sourceFiles) + len(jarFiles)
+	s.scans[id].Total = total
 	s.mu.Unlock()
 
 	var classes []*java.ClassModel
@@ -248,20 +253,51 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 	}
 
 	for _, jarFile := range jarFiles {
-		jarClasses, jarErrors := s.scanJarInZip(jarFile)
+		onProgress := func() {
+			progress++
+			s.mu.Lock()
+			s.scans[id].Progress = progress
+			s.mu.Unlock()
+		}
+		jarClasses, jarErrors := s.scanJarInZip(jarFile, onProgress)
 		classes = append(classes, jarClasses...)
 		errors = append(errors, jarErrors...)
-
-		progress++
-		s.mu.Lock()
-		s.scans[id].Progress = progress
-		s.mu.Unlock()
 	}
 
 	return classes, errors
 }
 
-func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.ClassModel, []string) {
+func (s *Scanner) countFilesInJar(jarFile *zip.File) int {
+	rc, err := jarFile.Open()
+	if err != nil {
+		return 0
+	}
+	defer rc.Close()
+
+	jarData, err := io.ReadAll(rc)
+	if err != nil {
+		return 0
+	}
+
+	jarReader, err := zip.NewReader(bytes.NewReader(jarData), int64(len(jarData)))
+	if err != nil {
+		return 0
+	}
+
+	count := 0
+	for _, f := range jarReader.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		ext := filepath.Ext(f.Name)
+		if ext == ".class" || ext == ".java" {
+			count++
+		}
+	}
+	return count
+}
+
+func (s *Scanner) scanJarInZip(jarFile *zip.File, onProgress func()) ([]*java.ClassModel, []string) {
 	rc, err := jarFile.Open()
 	if err != nil {
 		return nil, []string{fmt.Sprintf("open jar %s: %v", jarFile.Name, err)}
@@ -292,11 +328,13 @@ func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.ClassModel, []string)
 		fileRC, err := f.Open()
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("open %s in %s: %v", f.Name, jarFile.Name, err))
+			onProgress()
 			continue
 		}
 
 		switch ext {
 		case ".class":
+			fmt.Printf("[DEBUG] Parsing class %d: %s in %s\n", len(classes)+1, f.Name, jarFile.Name)
 			class, err := java.ClassModelFromReader(fileRC)
 			fileRC.Close()
 			if err != nil {
@@ -305,6 +343,7 @@ func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.ClassModel, []string)
 				classes = append(classes, class)
 			}
 		case ".java":
+			fmt.Printf("[DEBUG] Parsing java %d: %s in %s\n", len(classes)+1, f.Name, jarFile.Name)
 			data, err := io.ReadAll(fileRC)
 			fileRC.Close()
 			if err != nil {
@@ -318,6 +357,7 @@ func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.ClassModel, []string)
 				}
 			}
 		}
+		onProgress()
 	}
 
 	return classes, errors

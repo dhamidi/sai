@@ -178,11 +178,38 @@ func (p *Parser) check(kind TokenKind) bool {
 	return p.peek().Kind == kind
 }
 
+// mustProgress returns a function that checks if the parser has advanced.
+// Call it at the start of a loop iteration, then call the returned function
+// at the end to break if no progress was made.
+func (p *Parser) mustProgress() func() bool {
+	saved := p.pos
+	return func() bool {
+		if p.pos == saved {
+			if !p.check(TokenEOF) {
+				p.advance()
+			}
+			return false
+		}
+		return true
+	}
+}
+
 func (p *Parser) match(kinds ...TokenKind) bool {
 	for _, kind := range kinds {
 		if p.check(kind) {
 			return true
 		}
+	}
+	return false
+}
+
+func (p *Parser) isIdentifierLike() bool {
+	switch p.peek().Kind {
+	case TokenIdent,
+		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
+		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
+		TokenVar:
+		return true
 	}
 	return false
 }
@@ -222,10 +249,10 @@ func (p *Parser) errorNode(msg string, recoverTo []TokenKind, expected ...TokenK
 }
 
 func (p *Parser) recoverTo(kinds []TokenKind) {
+	if !p.check(TokenEOF) {
+		p.advance()
+	}
 	if len(kinds) == 0 {
-		if !p.check(TokenEOF) {
-			p.advance()
-		}
 		return
 	}
 	for !p.check(TokenEOF) {
@@ -454,7 +481,7 @@ func (p *Parser) parseImportDecl() *Node {
 	node := p.startNode(KindImportDecl)
 	p.expect(TokenImport)
 
-	if p.check(TokenModule) {
+	if p.check(TokenModule) || (p.check(TokenIdent) && p.peek().Literal == "module") {
 		node.Kind = KindModuleImportDecl
 		p.advance()
 		node.AddChild(p.parseQualifiedName())
@@ -561,11 +588,15 @@ func (p *Parser) parseAnnotation() *Node {
 		if !p.check(TokenRParen) {
 			if p.peekN(1).Kind == TokenAssign {
 				for {
+					progress := p.mustProgress()
 					node.AddChild(p.parseAnnotationElement())
 					if !p.check(TokenComma) {
 						break
 					}
 					p.advance()
+					if !progress() {
+						break
+					}
 				}
 			} else {
 				node.AddChild(p.parseAnnotationValue())
@@ -631,22 +662,30 @@ func (p *Parser) parseClassDecl(modifiers *Node) *Node {
 	if p.check(TokenImplements) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
 	if p.check(TokenPermits) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
@@ -673,22 +712,30 @@ func (p *Parser) parseInterfaceDecl(modifiers *Node) *Node {
 	if p.check(TokenExtends) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
 	if p.check(TokenPermits) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
@@ -711,11 +758,15 @@ func (p *Parser) parseEnumDecl(modifiers *Node) *Node {
 	if p.check(TokenImplements) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
@@ -784,11 +835,15 @@ func (p *Parser) parseRecordDecl(modifiers *Node) *Node {
 	if p.check(TokenImplements) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
@@ -818,11 +873,15 @@ func (p *Parser) parseTypeParameters() *Node {
 	p.expect(TokenLT)
 
 	for {
+		progress := p.mustProgress()
 		node.AddChild(p.parseTypeParameter())
 		if !p.check(TokenComma) {
 			break
 		}
 		p.advance()
+		if !progress() {
+			break
+		}
 	}
 
 	p.expectGT()
@@ -876,6 +935,7 @@ func (p *Parser) parseType() *Node {
 	}
 
 	for p.check(TokenAt) || p.check(TokenLBracket) {
+		progress := p.mustProgress()
 		wrapper := p.startNode(KindArrayType)
 		for p.check(TokenAt) {
 			wrapper.AddChild(p.parseAnnotation())
@@ -887,6 +947,9 @@ func (p *Parser) parseType() *Node {
 		p.expect(TokenRBracket)
 		wrapper.AddChild(node)
 		node = p.finishNode(wrapper)
+		if !progress() {
+			break
+		}
 	}
 
 	return p.finishNode(node)
@@ -897,11 +960,15 @@ func (p *Parser) parseTypeArguments() *Node {
 	p.expect(TokenLT)
 
 	for {
+		progress := p.mustProgress()
 		node.AddChild(p.parseTypeArgument())
 		if !p.check(TokenComma) {
 			break
 		}
 		p.advance()
+		if !progress() {
+			break
+		}
 	}
 
 	p.expectGT()
@@ -1346,6 +1413,7 @@ func (p *Parser) parseField(modifiers *Node, typ *Node) *Node {
 	}
 
 	for {
+		progress := p.mustProgress()
 		if tok := p.expect(TokenIdent); tok != nil {
 			node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 		}
@@ -1364,6 +1432,9 @@ func (p *Parser) parseField(modifiers *Node, typ *Node) *Node {
 			break
 		}
 		p.advance()
+		if !progress() {
+			break
+		}
 	}
 
 	p.expect(TokenSemicolon)
@@ -1513,11 +1584,15 @@ func (p *Parser) parseThrowsList() *Node {
 	p.expect(TokenThrows)
 
 	for {
+		progress := p.mustProgress()
 		node.AddChild(p.parseType())
 		if !p.check(TokenComma) {
 			break
 		}
 		p.advance()
+		if !progress() {
+			break
+		}
 	}
 
 	return p.finishNode(node)
@@ -1610,21 +1685,22 @@ func (p *Parser) isLocalVarDecl() bool {
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
 		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVar:
 		isType = true
-	case TokenIdent:
-		p.parseQualifiedName()
-		if p.check(TokenLT) {
-			p.skipTypeArguments()
-		}
-		for p.check(TokenLBracket) {
-			p.advance()
-			if !p.check(TokenRBracket) {
-				// Content inside brackets means array access, not array type
-				p.pos = save
-				return false
+	default:
+		if p.isIdentifierLike() {
+			p.parseQualifiedName()
+			if p.check(TokenLT) {
+				p.skipTypeArguments()
 			}
-			p.advance()
+			for p.check(TokenLBracket) {
+				p.advance()
+				if !p.check(TokenRBracket) {
+					p.pos = save
+					return false
+				}
+				p.advance()
+			}
+			isType = p.isIdentifierLike() || p.isUnnamedVariable()
 		}
-		isType = p.check(TokenIdent) || p.isUnnamedVariable()
 	}
 
 	p.pos = save
@@ -1664,6 +1740,7 @@ func (p *Parser) parseLocalVarDecl() *Node {
 	}
 
 	for {
+		progress := p.mustProgress()
 		if id := p.parseVariableDeclaratorId(); id != nil {
 			node.AddChild(id)
 		}
@@ -1682,6 +1759,9 @@ func (p *Parser) parseLocalVarDecl() *Node {
 			break
 		}
 		p.advance()
+		if !progress() {
+			break
+		}
 	}
 
 	p.expect(TokenSemicolon)
@@ -1863,6 +1943,7 @@ func (p *Parser) parseLocalVarDeclNoSemi() *Node {
 	}
 
 	for {
+		progress := p.mustProgress()
 		if id := p.parseVariableDeclaratorId(); id != nil {
 			node.AddChild(id)
 		}
@@ -1881,6 +1962,9 @@ func (p *Parser) parseLocalVarDeclNoSemi() *Node {
 			break
 		}
 		p.advance()
+		if !progress() {
+			break
+		}
 	}
 
 	return p.finishNode(node)
@@ -1927,12 +2011,32 @@ func (p *Parser) parseSwitchStmt() *Node {
 func (p *Parser) parseSwitchCase() *Node {
 	node := p.startNode(KindSwitchCase)
 
+	isArrowCase := false
 	for p.check(TokenCase) || p.check(TokenDefault) {
-		node.AddChild(p.parseSwitchLabel())
+		label := p.parseSwitchLabel()
+		node.AddChild(label)
+		if label.isArrowCase {
+			isArrowCase = true
+			break
+		}
 	}
 
-	for !p.check(TokenCase) && !p.check(TokenDefault) && !p.check(TokenRBrace) && !p.check(TokenEOF) {
-		node.AddChild(p.parseStatement())
+	if isArrowCase {
+		switch p.peek().Kind {
+		case TokenLBrace:
+			node.AddChild(p.parseBlock())
+		case TokenThrow:
+			node.AddChild(p.parseThrowStmt())
+		default:
+			exprNode := p.startNode(KindExprStmt)
+			exprNode.AddChild(p.parseExpression())
+			p.expect(TokenSemicolon)
+			node.AddChild(p.finishNode(exprNode))
+		}
+	} else {
+		for !p.check(TokenCase) && !p.check(TokenDefault) && !p.check(TokenRBrace) && !p.check(TokenEOF) {
+			node.AddChild(p.parseStatement())
+		}
 	}
 
 	return p.finishNode(node)
@@ -1944,15 +2048,19 @@ func (p *Parser) parseSwitchLabel() *Node {
 	if p.check(TokenCase) {
 		p.advance()
 		for {
+			progress := p.mustProgress()
 			if p.looksLikePattern() {
 				node.AddChild(p.parsePattern())
 			} else {
-				node.AddChild(p.parseExpression())
+				node.AddChild(p.parseCaseLabelExpression())
 			}
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 		if p.check(TokenWhen) {
 			node.AddChild(p.parseGuard())
@@ -1964,6 +2072,7 @@ func (p *Parser) parseSwitchLabel() *Node {
 	if p.check(TokenArrow) {
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+		node.isArrowCase = true
 	} else {
 		p.expect(TokenColon)
 	}
@@ -2024,11 +2133,15 @@ func (p *Parser) parsePattern() *Node {
 		p.advance() // consume (
 		if !p.check(TokenRParen) {
 			for {
+				progress := p.mustProgress()
 				node.AddChild(p.parsePattern())
 				if !p.check(TokenComma) {
 					break
 				}
 				p.advance()
+				if !progress() {
+					break
+				}
 			}
 		}
 		p.expect(TokenRParen)
@@ -2076,8 +2189,9 @@ func (p *Parser) parseVariableDeclaratorId() *Node {
 		p.advance()
 		return p.finishNode(node)
 	}
-	if tok := p.expect(TokenIdent); tok != nil {
-		return &Node{Kind: KindIdentifier, Token: tok, Span: tok.Span}
+	if p.isIdentifierLike() {
+		tok := p.advance()
+		return &Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span}
 	}
 	return nil
 }
@@ -2254,6 +2368,10 @@ func (p *Parser) parseExpression() *Node {
 	return p.parseAssignmentExpr()
 }
 
+func (p *Parser) parseCaseLabelExpression() *Node {
+	return p.parseTernaryExpr()
+}
+
 func (p *Parser) parseAssignmentExpr() *Node {
 	if p.isLambda() {
 		return p.parseLambdaExpr()
@@ -2347,6 +2465,7 @@ func (p *Parser) parseLambdaParameters() *Node {
 
 	if !p.check(TokenRParen) {
 		for {
+			progress := p.mustProgress()
 			if p.isLambdaTypedParam() {
 				node.AddChild(p.parseParameter())
 			} else {
@@ -2358,6 +2477,9 @@ func (p *Parser) parseLambdaParameters() *Node {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
@@ -2388,7 +2510,11 @@ func (p *Parser) parseTernaryExpr() *Node {
 		p.advance()
 		node.AddChild(p.parseExpression())
 		p.expect(TokenColon)
-		node.AddChild(p.parseTernaryExpr())
+		if p.isLambda() {
+			node.AddChild(p.parseLambdaExpr())
+		} else {
+			node.AddChild(p.parseTernaryExpr())
+		}
 		return p.finishNode(node)
 	}
 
@@ -2654,6 +2780,7 @@ func (p *Parser) parsePostfixExpr() *Node {
 
 func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 	for {
+		progress := p.mustProgress()
 		switch p.peek().Kind {
 		case TokenIncrement, TokenDecrement:
 			node := p.startNode(KindPostfixExpr)
@@ -2679,11 +2806,12 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 				expr = p.finishNode(node)
 			} else if p.check(TokenLT) {
 				typeArgs := p.parseTypeArguments()
-				if tok := p.expect(TokenIdent); tok != nil {
+				if p.isIdentifierLike() {
+					tok := p.advance()
 					node := p.startNode(KindFieldAccess)
 					node.AddChild(expr)
 					node.AddChild(typeArgs)
-					node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+					node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 					expr = p.finishNode(node)
 					if p.check(TokenLParen) {
 						expr = p.parseMethodCall(expr)
@@ -2706,10 +2834,11 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 				tok := p.advance()
 				node.AddChild(&Node{Kind: KindSuper, Token: &tok, Span: tok.Span})
 				expr = p.finishNode(node)
-			} else if tok := p.expect(TokenIdent); tok != nil {
+			} else if p.isIdentifierLike() {
+				tok := p.advance()
 				node := p.startNode(KindFieldAccess)
 				node.AddChild(expr)
-				node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+				node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 				expr = p.finishNode(node)
 				if p.check(TokenLParen) {
 					expr = p.parseMethodCall(expr)
@@ -2729,6 +2858,9 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 		default:
 			return expr
 		}
+		if !progress() {
+			return expr
+		}
 	}
 }
 
@@ -2745,11 +2877,15 @@ func (p *Parser) parseArguments() *Node {
 
 	if !p.check(TokenRParen) {
 		for {
+			progress := p.mustProgress()
 			node.AddChild(p.parseExpression())
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
@@ -2804,7 +2940,10 @@ func (p *Parser) parsePrimaryExpr() *Node {
 	case TokenSwitch:
 		return p.parseSwitchExpr()
 
-	case TokenIdent:
+	case TokenIdent,
+		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
+		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
+		TokenVar:
 		tok := p.advance()
 		return &Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span}
 
@@ -2852,6 +2991,7 @@ func (p *Parser) parseNewExpr() *Node {
 		node := p.startNode(KindNewArrayExpr)
 		node.AddChild(qualName)
 		for p.check(TokenAt) || p.check(TokenLBracket) {
+			progress := p.mustProgress()
 			for p.check(TokenAt) {
 				node.AddChild(p.parseAnnotation())
 			}
@@ -2863,6 +3003,9 @@ func (p *Parser) parseNewExpr() *Node {
 				node.AddChild(p.parseExpression())
 			}
 			p.expect(TokenRBracket)
+			if !progress() {
+				break
+			}
 		}
 		if p.check(TokenLBrace) {
 			node.AddChild(p.parseArrayInitializer())
@@ -2887,6 +3030,7 @@ func (p *Parser) parseNewArrayExpr() *Node {
 	node.AddChild(&Node{Kind: KindType, Token: &tok, Span: tok.Span})
 
 	for p.check(TokenAt) || p.check(TokenLBracket) {
+		progress := p.mustProgress()
 		for p.check(TokenAt) {
 			node.AddChild(p.parseAnnotation())
 		}
@@ -2898,6 +3042,9 @@ func (p *Parser) parseNewArrayExpr() *Node {
 			node.AddChild(p.parseExpression())
 		}
 		p.expect(TokenRBracket)
+		if !progress() {
+			break
+		}
 	}
 
 	if p.check(TokenLBrace) {

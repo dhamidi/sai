@@ -380,8 +380,24 @@ var keywords = map[string]TokenKind{
 	"when":         TokenWhen,
 }
 
-func LookupKeyword(ident string) TokenKind {
+var moduleKeywords = map[string]bool{
+	"module":     true,
+	"open":       true,
+	"requires":   true,
+	"exports":    true,
+	"opens":      true,
+	"uses":       true,
+	"provides":   true,
+	"to":         true,
+	"with":       true,
+	"transitive": true,
+}
+
+func LookupKeyword(ident string, isModuleInfo bool) TokenKind {
 	if kind, ok := keywords[ident]; ok {
+		if !isModuleInfo && moduleKeywords[ident] {
+			return TokenIdent
+		}
 		return kind
 	}
 	return TokenIdent

@@ -6,21 +6,30 @@ import (
 )
 
 type Lexer struct {
-	input  []byte
-	file   string
-	pos    int
-	line   int
-	column int
+	input        []byte
+	file         string
+	pos          int
+	line         int
+	column       int
+	isModuleInfo bool
 }
 
 func NewLexer(input []byte, file string) *Lexer {
 	return &Lexer{
-		input:  input,
-		file:   file,
-		pos:    0,
-		line:   1,
-		column: 1,
+		input:        input,
+		file:         file,
+		pos:          0,
+		line:         1,
+		column:       1,
+		isModuleInfo: isModuleInfoFile(file),
 	}
+}
+
+func isModuleInfoFile(file string) bool {
+	if len(file) < 16 {
+		return file == "module-info.java"
+	}
+	return file[len(file)-16:] == "module-info.java"
 }
 
 func (l *Lexer) Position() Position {
@@ -178,7 +187,7 @@ func (l *Lexer) scanIdentOrKeyword(start Position) Token {
 	}
 	end := l.Position()
 	literal := string(l.input[start.Offset:end.Offset])
-	kind := LookupKeyword(literal)
+	kind := LookupKeyword(literal, l.isModuleInfo)
 	return Token{
 		Kind:    kind,
 		Span:    Span{Start: start, End: end},
