@@ -428,6 +428,26 @@ func readAttributeInfo(r *reader, cp ConstantPool) (*AttributeInfo, error) {
 		attr.Parsed = parsePermittedSubclassesAttribute(info)
 	case "StackMapTable":
 		attr.Parsed = parseStackMapTableAttribute(info)
+	case "RuntimeVisibleAnnotations":
+		attr.Parsed = parseRuntimeVisibleAnnotationsAttribute(info)
+	case "RuntimeInvisibleAnnotations":
+		attr.Parsed = parseRuntimeInvisibleAnnotationsAttribute(info)
+	case "RuntimeVisibleParameterAnnotations":
+		attr.Parsed = parseRuntimeVisibleParameterAnnotationsAttribute(info)
+	case "RuntimeInvisibleParameterAnnotations":
+		attr.Parsed = parseRuntimeInvisibleParameterAnnotationsAttribute(info)
+	case "RuntimeVisibleTypeAnnotations":
+		attr.Parsed = parseRuntimeVisibleTypeAnnotationsAttribute(info)
+	case "RuntimeInvisibleTypeAnnotations":
+		attr.Parsed = parseRuntimeInvisibleTypeAnnotationsAttribute(info)
+	case "AnnotationDefault":
+		attr.Parsed = parseAnnotationDefaultAttribute(info)
+	case "Module":
+		attr.Parsed = parseModuleAttribute(info)
+	case "ModulePackages":
+		attr.Parsed = parseModulePackagesAttribute(info)
+	case "ModuleMainClass":
+		attr.Parsed = parseModuleMainClassAttribute(info)
 	}
 
 	return attr, nil
