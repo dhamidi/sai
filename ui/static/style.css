@@ -3,12 +3,12 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
+    font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
+    line-height: 1.5;
     margin: 0;
     padding: 20px;
-    background: #f5f5f5;
-    color: #333;
+    background: #fff;
+    color: #000;
 }
 
 .container {
@@ -16,14 +16,15 @@ body {
     margin: 0 auto;
     background: #fff;
     padding: 20px 40px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 2px solid #000;
 }
 
 h1 {
     margin-top: 0;
-    border-bottom: 2px solid #333;
+    border-bottom: 3px solid #000;
     padding-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
 
 h1 a {
@@ -32,8 +33,9 @@ h1 a {
 }
 
 h2 {
-    color: #555;
+    color: #000;
     margin-top: 30px;
+    letter-spacing: 1px;
 }
 
 .scan-form .form-group {
@@ -43,33 +45,47 @@ h2 {
 .scan-form label {
     display: block;
     margin-bottom: 5px;
-    font-weight: 500;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 1px;
 }
 
 .scan-form input[type="text"] {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    border: 2px solid #000;
     font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+}
+
+.scan-form input[type="text"]:focus {
+    outline: none;
+    background: #f0f0f0;
 }
 
 .scan-form input[type="file"] {
     padding: 10px 0;
+    font-family: inherit;
 }
 
 .scan-form button {
-    background: #333;
+    background: #000;
     color: #fff;
-    border: none;
+    border: 2px solid #000;
     padding: 12px 24px;
-    border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
 }
 
 .scan-form button:hover {
-    background: #555;
+    background: #fff;
+    color: #000;
 }
 
 table {
@@ -81,20 +97,31 @@ table {
 th, td {
     padding: 10px 12px;
     text-align: left;
-    border-bottom: 1px solid #eee;
+    border: 1px solid #000;
 }
 
 th {
-    background: #f9f9f9;
-    font-weight: 600;
+    background: #000;
+    color: #fff;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 1px;
 }
 
 tr:hover {
-    background: #fafafa;
+    background: #f0f0f0;
 }
 
 a {
-    color: #0066cc;
+    color: #000;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+a:hover {
+    background: #000;
+    color: #fff;
 }
 
 dl {
@@ -104,27 +131,28 @@ dl {
 }
 
 dt {
-    font-weight: 600;
-    color: #555;
+    font-weight: 700;
+    color: #000;
+    text-transform: uppercase;
+    font-size: 12px;
 }
 
-.status-pending { color: #999; }
-.status-in_progress { color: #f90; }
-.status-completed { color: #090; }
-.status-failed { color: #c00; }
+.status-pending { font-style: italic; }
+.status-in_progress { font-weight: 700; }
+.status-completed { text-decoration: line-through; }
+.status-failed { text-transform: uppercase; }
 
 .progress {
-    background: #eee;
-    border-radius: 4px;
+    background: #fff;
+    border: 2px solid #000;
     height: 24px;
     position: relative;
     margin: 20px 0;
 }
 
 .progress-bar {
-    background: #090;
+    background: #000;
     height: 100%;
-    border-radius: 4px;
     transition: width 0.3s;
 }
 
@@ -134,16 +162,23 @@ dt {
     left: 50%;
     transform: translate(-50%, -50%);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 700;
+    mix-blend-mode: difference;
+    color: #fff;
 }
 
 .error {
-    background: #fee;
-    border: 1px solid #c00;
-    color: #900;
+    background: #fff;
+    border: 3px solid #000;
+    color: #000;
     padding: 12px;
-    border-radius: 4px;
     margin: 20px 0;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.error::before {
+    content: "ERROR: ";
 }
 
 /* Class browser layout */
@@ -156,7 +191,7 @@ dt {
 .sidebar {
     width: 280px;
     background: #fff;
-    border-right: 1px solid #ddd;
+    border-right: 3px solid #000;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -165,14 +200,14 @@ dt {
 .sidebar h1 {
     padding: 16px 20px;
     margin: 0;
-    border-bottom: 1px solid #ddd;
-    font-size: 18px;
+    border-bottom: 3px solid #000;
+    font-size: 14px;
 }
 
 .class-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: 0;
 }
 
 .class-item {
@@ -181,17 +216,18 @@ dt {
     gap: 8px;
     padding: 8px 16px;
     text-decoration: none;
-    color: #333;
-    border-left: 3px solid transparent;
+    color: #000;
+    border-bottom: 1px solid #000;
 }
 
 .class-item:hover {
-    background: #f5f5f5;
+    background: #000;
+    color: #fff;
 }
 
 .class-item.active {
-    background: #e8f0fe;
-    border-left-color: #0066cc;
+    background: #000;
+    color: #fff;
 }
 
 .class-type {
@@ -201,14 +237,11 @@ dt {
     width: 20px;
     height: 20px;
     font-size: 11px;
-    font-weight: 600;
-    border-radius: 3px;
-    background: #6b7280;
-    color: #fff;
+    font-weight: 700;
+    border: 1px solid currentColor;
+    background: transparent;
     flex-shrink: 0;
 }
-
-.class-item:has(.class-type:contains("I")) .class-type { background: #059669; }
 
 .class-name {
     overflow: hidden;
@@ -219,8 +252,9 @@ dt {
 
 .sidebar .empty {
     padding: 16px;
-    color: #666;
+    color: #000;
     font-size: 13px;
+    font-style: italic;
 }
 
 .content {
@@ -236,24 +270,21 @@ dt {
 }
 
 .class-header h2 strong {
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .class-meta {
     font-size: 13px;
-    color: #555;
+    color: #000;
     display: flex;
     gap: 16px;
     flex-wrap: wrap;
 }
 
-.class-meta .package {
-    color: #666;
-}
-
+.class-meta .package,
 .class-meta .extends,
 .class-meta .implements {
-    color: #555;
+    color: #000;
 }
 
 .content section {
@@ -262,10 +293,13 @@ dt {
 
 .content section h3 {
     margin: 0 0 12px 0;
-    font-size: 14px;
+    font-size: 12px;
     text-transform: uppercase;
-    color: #666;
-    letter-spacing: 0.5px;
+    color: #000;
+    letter-spacing: 2px;
+    font-weight: 700;
+    border-bottom: 2px solid #000;
+    padding-bottom: 8px;
 }
 
 .content table {
@@ -273,25 +307,28 @@ dt {
 }
 
 .content .visibility {
-    color: #666;
+    color: #000;
     width: 80px;
+    font-style: italic;
 }
 
 .content .type {
-    color: #0066cc;
+    color: #000;
+    font-weight: 700;
 }
 
 .content .name {
-    font-weight: 500;
+    font-weight: 700;
 }
 
 .content .params {
-    color: #555;
+    color: #000;
 }
 
 .content .modifiers {
-    color: #888;
+    color: #000;
     font-size: 12px;
+    font-style: italic;
 }
 
 .no-class {
@@ -299,5 +336,7 @@ dt {
     align-items: center;
     justify-content: center;
     height: 60vh;
-    color: #888;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
