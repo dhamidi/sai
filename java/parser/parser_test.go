@@ -611,6 +611,106 @@ func TestParseUnnamedVariableNodeKind(t *testing.T) {
 	}
 }
 
+func TestReceiverParameter(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"method receiver", "class Foo { void bar(Foo this) {} }"},
+		{"method receiver with annotation", "class Foo { void bar(@NonNull Foo this) {} }"},
+		{"method receiver with other params", "class Foo { void bar(Foo this, int x) {} }"},
+		{"inner class constructor receiver", "class Outer { class Inner { Inner(Outer Outer.this) {} } }"},
+		{"annotated inner receiver", "class Outer { class Inner { Inner(@NonNull Outer Outer.this) {} } }"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit()
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
+func TestReceiverParameterNodeKind(t *testing.T) {
+	input := "class Foo { void bar(Foo this) {} }"
+	p := ParseCompilationUnit()
+	p.Push([]byte(input))
+	node := p.Finish()
+
+	found := findNode(node, KindReceiverParameter)
+	if found == nil {
+		t.Error("expected to find KindReceiverParameter node")
+	}
+}
+
+func TestExplicitConstructorInvocation(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"this call", "class Foo { Foo() { this(1); } Foo(int x) {} }"},
+		{"super call", "class Foo extends Bar { Foo() { super(); } }"},
+		{"super call with args", "class Foo extends Bar { Foo(int x) { super(x); } }"},
+		{"this call with type args", "class Foo { Foo() { <String>this(); } Foo(String s) {} }"},
+		{"super call with statements after", "class Foo extends Bar { Foo() { super(); int x = 1; } }"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit()
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
+func TestExplicitConstructorInvocationNodeKind(t *testing.T) {
+	input := "class Foo extends Bar { Foo() { super(); } }"
+	p := ParseCompilationUnit()
+	p.Push([]byte(input))
+	node := p.Finish()
+
+	found := findNode(node, KindExplicitConstructorInvocation)
+	if found == nil {
+		t.Error("expected to find KindExplicitConstructorInvocation node")
+	}
+}
+
+func TestTypeAnnotationsOnArrayDimensions(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"field with annotated array", "class Foo { int @NonNull [] arr; }"},
+		{"field with multiple annotated dims", "class Foo { int @NonNull [] @Nullable [] arr; }"},
+		{"method return annotated array", "class Foo { int @NonNull [] bar() { return null; } }"},
+		{"parameter with annotated array", "class Foo { void bar(int @NonNull [] arr) {} }"},
+		{"local var with annotated array", "class Foo { void bar() { int @NonNull [] arr = null; } }"},
+		{"new array with annotated type", "class Foo { void bar() { var arr = new int @NonNull [10]; } }"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit()
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
 func findNode(node *Node, kind NodeKind) *Node {
 	if node == nil {
 		return nil

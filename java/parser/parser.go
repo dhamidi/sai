@@ -832,10 +832,16 @@ func (p *Parser) parseType() *Node {
 		return p.errorNode("expected type")
 	}
 
-	for p.check(TokenLBracket) {
+	for p.check(TokenAt) || p.check(TokenLBracket) {
+		wrapper := p.startNode(KindArrayType)
+		for p.check(TokenAt) {
+			wrapper.AddChild(p.parseAnnotation())
+		}
+		if !p.check(TokenLBracket) {
+			break
+		}
 		p.advance()
 		p.expect(TokenRBracket)
-		wrapper := p.startNode(KindArrayType)
 		wrapper.AddChild(node)
 		node = p.finishNode(wrapper)
 	}
@@ -1037,7 +1043,63 @@ func (p *Parser) parseConstructor(modifiers *Node, typeParams *Node) *Node {
 		node.AddChild(p.parseThrowsList())
 	}
 
-	node.AddChild(p.parseBlock())
+	node.AddChild(p.parseConstructorBody())
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseConstructorBody() *Node {
+	node := p.startNode(KindBlock)
+	p.expect(TokenLBrace)
+
+	if p.isExplicitConstructorInvocation() {
+		node.AddChild(p.parseExplicitConstructorInvocation())
+	}
+
+	for !p.check(TokenRBrace) && !p.check(TokenEOF) {
+		node.AddChild(p.parseStatement())
+	}
+
+	p.expect(TokenRBrace)
+	return p.finishNode(node)
+}
+
+func (p *Parser) isExplicitConstructorInvocation() bool {
+	save := p.pos
+
+	if p.check(TokenLT) {
+		p.skipTypeArguments()
+	}
+
+	if p.check(TokenThis) || p.check(TokenSuper) {
+		p.advance()
+		if p.check(TokenLParen) {
+			p.pos = save
+			return true
+		}
+	}
+
+	p.pos = save
+	return false
+}
+
+func (p *Parser) parseExplicitConstructorInvocation() *Node {
+	node := p.startNode(KindExplicitConstructorInvocation)
+
+	if p.check(TokenLT) {
+		node.AddChild(p.parseTypeArguments())
+	}
+
+	if p.check(TokenThis) {
+		tok := p.advance()
+		node.AddChild(&Node{Kind: KindThis, Token: &tok, Span: tok.Span})
+	} else if p.check(TokenSuper) {
+		tok := p.advance()
+		node.AddChild(&Node{Kind: KindSuper, Token: &tok, Span: tok.Span})
+	}
+
+	node.AddChild(p.parseArguments())
+	p.expect(TokenSemicolon)
+
 	return p.finishNode(node)
 }
 
@@ -1146,7 +1208,13 @@ func (p *Parser) parseParameters() *Node {
 	p.expect(TokenLParen)
 
 	if !p.check(TokenRParen) {
-		for {
+		if p.isReceiverParameter() {
+			node.AddChild(p.parseReceiverParameter())
+			if p.check(TokenComma) {
+				p.advance()
+			}
+		}
+		for !p.check(TokenRParen) && !p.check(TokenEOF) {
 			node.AddChild(p.parseParameter())
 			if !p.check(TokenComma) {
 				break
@@ -1156,6 +1224,71 @@ func (p *Parser) parseParameters() *Node {
 	}
 
 	p.expect(TokenRParen)
+	return p.finishNode(node)
+}
+
+func (p *Parser) isReceiverParameter() bool {
+	save := p.pos
+
+	for p.check(TokenAt) {
+		p.parseAnnotation()
+	}
+
+	switch p.peek().Kind {
+	case TokenBoolean, TokenByte, TokenChar, TokenShort,
+		TokenInt, TokenLong, TokenFloat, TokenDouble:
+		p.advance()
+	case TokenIdent:
+		p.parseQualifiedName()
+		if p.check(TokenLT) {
+			p.skipTypeArguments()
+		}
+	default:
+		p.pos = save
+		return false
+	}
+
+	for p.check(TokenLBracket) {
+		p.advance()
+		if p.check(TokenRBracket) {
+			p.advance()
+		}
+	}
+
+	if p.check(TokenIdent) {
+		p.advance()
+		if p.check(TokenDot) {
+			p.advance()
+			if p.check(TokenThis) {
+				p.pos = save
+				return true
+			}
+		}
+	} else if p.check(TokenThis) {
+		p.pos = save
+		return true
+	}
+
+	p.pos = save
+	return false
+}
+
+func (p *Parser) parseReceiverParameter() *Node {
+	node := p.startNode(KindReceiverParameter)
+
+	for p.check(TokenAt) {
+		node.AddChild(p.parseAnnotation())
+	}
+
+	node.AddChild(p.parseType())
+
+	if p.check(TokenIdent) {
+		tok := p.advance()
+		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+		p.expect(TokenDot)
+	}
+
+	p.expect(TokenThis)
 	return p.finishNode(node)
 }
 
@@ -2519,10 +2652,16 @@ func (p *Parser) parseNewExpr() *Node {
 		p.parseTypeArguments()
 	}
 
-	if p.check(TokenLBracket) {
+	if p.check(TokenAt) || p.check(TokenLBracket) {
 		node := p.startNode(KindNewArrayExpr)
 		node.AddChild(qualName)
-		for p.check(TokenLBracket) {
+		for p.check(TokenAt) || p.check(TokenLBracket) {
+			for p.check(TokenAt) {
+				node.AddChild(p.parseAnnotation())
+			}
+			if !p.check(TokenLBracket) {
+				break
+			}
 			p.advance()
 			if !p.check(TokenRBracket) {
 				node.AddChild(p.parseExpression())
@@ -2551,7 +2690,13 @@ func (p *Parser) parseNewArrayExpr() *Node {
 	tok := p.advance()
 	node.AddChild(&Node{Kind: KindType, Token: &tok, Span: tok.Span})
 
-	for p.check(TokenLBracket) {
+	for p.check(TokenAt) || p.check(TokenLBracket) {
+		for p.check(TokenAt) {
+			node.AddChild(p.parseAnnotation())
+		}
+		if !p.check(TokenLBracket) {
+			break
+		}
 		p.advance()
 		if !p.check(TokenRBracket) {
 			node.AddChild(p.parseExpression())
