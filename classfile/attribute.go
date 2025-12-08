@@ -82,6 +82,71 @@ type BootstrapMethod struct {
 	BootstrapArguments []uint16
 }
 
+type EnclosingMethodAttribute struct {
+	ClassIndex  uint16
+	MethodIndex uint16
+}
+
+type SyntheticAttribute struct{}
+
+type DeprecatedAttribute struct{}
+
+type SourceDebugExtensionAttribute struct {
+	DebugExtension string
+}
+
+type LocalVariableTypeTableAttribute struct {
+	LocalVariableTypeTable []LocalVariableTypeEntry
+}
+
+type LocalVariableTypeEntry struct {
+	StartPC        uint16
+	Length         uint16
+	NameIndex      uint16
+	SignatureIndex uint16
+	Index          uint16
+}
+
+type MethodParametersAttribute struct {
+	Parameters []MethodParameter
+}
+
+type MethodParameter struct {
+	NameIndex   uint16
+	AccessFlags AccessFlags
+}
+
+type NestHostAttribute struct {
+	HostClassIndex uint16
+}
+
+type NestMembersAttribute struct {
+	Classes []uint16
+}
+
+type RecordAttribute struct {
+	Components []RecordComponentInfo
+}
+
+type RecordComponentInfo struct {
+	NameIndex       uint16
+	DescriptorIndex uint16
+	Attributes      []AttributeInfo
+}
+
+type PermittedSubclassesAttribute struct {
+	Classes []uint16
+}
+
+type StackMapTableAttribute struct {
+	Entries []StackMapFrame
+}
+
+type StackMapFrame struct {
+	FrameType uint8
+	Data      []byte
+}
+
 func (a *AttributeInfo) AsCode() *CodeAttribute {
 	if a.Parsed != nil {
 		if code, ok := a.Parsed.(*CodeAttribute); ok {
@@ -163,6 +228,105 @@ func (a *AttributeInfo) AsBootstrapMethods() *BootstrapMethodsAttribute {
 	return nil
 }
 
+func (a *AttributeInfo) AsEnclosingMethod() *EnclosingMethodAttribute {
+	if a.Parsed != nil {
+		if em, ok := a.Parsed.(*EnclosingMethodAttribute); ok {
+			return em
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsSynthetic() *SyntheticAttribute {
+	if a.Parsed != nil {
+		if s, ok := a.Parsed.(*SyntheticAttribute); ok {
+			return s
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsDeprecated() *DeprecatedAttribute {
+	if a.Parsed != nil {
+		if d, ok := a.Parsed.(*DeprecatedAttribute); ok {
+			return d
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsSourceDebugExtension() *SourceDebugExtensionAttribute {
+	if a.Parsed != nil {
+		if sde, ok := a.Parsed.(*SourceDebugExtensionAttribute); ok {
+			return sde
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsLocalVariableTypeTable() *LocalVariableTypeTableAttribute {
+	if a.Parsed != nil {
+		if lvtt, ok := a.Parsed.(*LocalVariableTypeTableAttribute); ok {
+			return lvtt
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsMethodParameters() *MethodParametersAttribute {
+	if a.Parsed != nil {
+		if mp, ok := a.Parsed.(*MethodParametersAttribute); ok {
+			return mp
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsNestHost() *NestHostAttribute {
+	if a.Parsed != nil {
+		if nh, ok := a.Parsed.(*NestHostAttribute); ok {
+			return nh
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsNestMembers() *NestMembersAttribute {
+	if a.Parsed != nil {
+		if nm, ok := a.Parsed.(*NestMembersAttribute); ok {
+			return nm
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsRecord() *RecordAttribute {
+	if a.Parsed != nil {
+		if r, ok := a.Parsed.(*RecordAttribute); ok {
+			return r
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsPermittedSubclasses() *PermittedSubclassesAttribute {
+	if a.Parsed != nil {
+		if ps, ok := a.Parsed.(*PermittedSubclassesAttribute); ok {
+			return ps
+		}
+	}
+	return nil
+}
+
+func (a *AttributeInfo) AsStackMapTable() *StackMapTableAttribute {
+	if a.Parsed != nil {
+		if smt, ok := a.Parsed.(*StackMapTableAttribute); ok {
+			return smt
+		}
+	}
+	return nil
+}
+
 func parseCodeAttribute(info []byte, cp ConstantPool) *CodeAttribute {
 	if len(info) < 8 {
 		return nil
@@ -233,6 +397,10 @@ func parseCodeAttribute(info []byte, cp ConstantPool) *CodeAttribute {
 			attr.Parsed = parseLineNumberTableAttribute(attrInfo)
 		case "LocalVariableTable":
 			attr.Parsed = parseLocalVariableTableAttribute(attrInfo)
+		case "LocalVariableTypeTable":
+			attr.Parsed = parseLocalVariableTypeTableAttribute(attrInfo)
+		case "StackMapTable":
+			attr.Parsed = parseStackMapTableAttribute(attrInfo)
 		}
 
 		code.Attributes = append(code.Attributes, attr)
@@ -407,4 +575,282 @@ func parseBootstrapMethodsAttribute(info []byte) *BootstrapMethodsAttribute {
 	}
 
 	return bm
+}
+
+func parseEnclosingMethodAttribute(info []byte) *EnclosingMethodAttribute {
+	if len(info) < 4 {
+		return nil
+	}
+	return &EnclosingMethodAttribute{
+		ClassIndex:  binary.BigEndian.Uint16(info[0:2]),
+		MethodIndex: binary.BigEndian.Uint16(info[2:4]),
+	}
+}
+
+func parseSyntheticAttribute(_ []byte) *SyntheticAttribute {
+	return &SyntheticAttribute{}
+}
+
+func parseDeprecatedAttribute(_ []byte) *DeprecatedAttribute {
+	return &DeprecatedAttribute{}
+}
+
+func parseSourceDebugExtensionAttribute(info []byte) *SourceDebugExtensionAttribute {
+	return &SourceDebugExtensionAttribute{
+		DebugExtension: string(info),
+	}
+}
+
+func parseLocalVariableTypeTableAttribute(info []byte) *LocalVariableTypeTableAttribute {
+	if len(info) < 2 {
+		return nil
+	}
+
+	count := binary.BigEndian.Uint16(info[0:2])
+	if len(info) < 2+int(count)*10 {
+		return nil
+	}
+
+	lvtt := &LocalVariableTypeTableAttribute{
+		LocalVariableTypeTable: make([]LocalVariableTypeEntry, count),
+	}
+
+	offset := 2
+	for i := uint16(0); i < count; i++ {
+		lvtt.LocalVariableTypeTable[i] = LocalVariableTypeEntry{
+			StartPC:        binary.BigEndian.Uint16(info[offset : offset+2]),
+			Length:         binary.BigEndian.Uint16(info[offset+2 : offset+4]),
+			NameIndex:      binary.BigEndian.Uint16(info[offset+4 : offset+6]),
+			SignatureIndex: binary.BigEndian.Uint16(info[offset+6 : offset+8]),
+			Index:          binary.BigEndian.Uint16(info[offset+8 : offset+10]),
+		}
+		offset += 10
+	}
+
+	return lvtt
+}
+
+func parseMethodParametersAttribute(info []byte) *MethodParametersAttribute {
+	if len(info) < 1 {
+		return nil
+	}
+
+	count := uint8(info[0])
+	if len(info) < 1+int(count)*4 {
+		return nil
+	}
+
+	mp := &MethodParametersAttribute{
+		Parameters: make([]MethodParameter, count),
+	}
+
+	offset := 1
+	for i := uint8(0); i < count; i++ {
+		mp.Parameters[i] = MethodParameter{
+			NameIndex:   binary.BigEndian.Uint16(info[offset : offset+2]),
+			AccessFlags: AccessFlags(binary.BigEndian.Uint16(info[offset+2 : offset+4])),
+		}
+		offset += 4
+	}
+
+	return mp
+}
+
+func parseNestHostAttribute(info []byte) *NestHostAttribute {
+	if len(info) < 2 {
+		return nil
+	}
+	return &NestHostAttribute{
+		HostClassIndex: binary.BigEndian.Uint16(info[0:2]),
+	}
+}
+
+func parseNestMembersAttribute(info []byte) *NestMembersAttribute {
+	if len(info) < 2 {
+		return nil
+	}
+	count := binary.BigEndian.Uint16(info[0:2])
+	if len(info) < 2+int(count)*2 {
+		return nil
+	}
+
+	nm := &NestMembersAttribute{
+		Classes: make([]uint16, count),
+	}
+
+	offset := 2
+	for i := uint16(0); i < count; i++ {
+		nm.Classes[i] = binary.BigEndian.Uint16(info[offset : offset+2])
+		offset += 2
+	}
+
+	return nm
+}
+
+func parseRecordAttribute(info []byte, cp ConstantPool) *RecordAttribute {
+	if len(info) < 2 {
+		return nil
+	}
+
+	count := binary.BigEndian.Uint16(info[0:2])
+	rec := &RecordAttribute{
+		Components: make([]RecordComponentInfo, 0, count),
+	}
+
+	offset := 2
+	for i := uint16(0); i < count; i++ {
+		if len(info) < offset+6 {
+			return nil
+		}
+		nameIndex := binary.BigEndian.Uint16(info[offset : offset+2])
+		descriptorIndex := binary.BigEndian.Uint16(info[offset+2 : offset+4])
+		attributesCount := binary.BigEndian.Uint16(info[offset+4 : offset+6])
+		offset += 6
+
+		attrs := make([]AttributeInfo, 0, attributesCount)
+		for j := uint16(0); j < attributesCount; j++ {
+			if len(info) < offset+6 {
+				return nil
+			}
+			attrNameIndex := binary.BigEndian.Uint16(info[offset : offset+2])
+			attrLength := binary.BigEndian.Uint32(info[offset+2 : offset+6])
+			offset += 6
+
+			if len(info) < offset+int(attrLength) {
+				return nil
+			}
+			attrInfo := info[offset : offset+int(attrLength)]
+			offset += int(attrLength)
+
+			attr := AttributeInfo{
+				NameIndex: attrNameIndex,
+				Info:      attrInfo,
+			}
+
+			attrName := cp.GetUtf8(attrNameIndex)
+			switch attrName {
+			case "Signature":
+				attr.Parsed = parseSignatureAttribute(attrInfo)
+			}
+
+			attrs = append(attrs, attr)
+		}
+
+		rec.Components = append(rec.Components, RecordComponentInfo{
+			NameIndex:       nameIndex,
+			DescriptorIndex: descriptorIndex,
+			Attributes:      attrs,
+		})
+	}
+
+	return rec
+}
+
+func parsePermittedSubclassesAttribute(info []byte) *PermittedSubclassesAttribute {
+	if len(info) < 2 {
+		return nil
+	}
+	count := binary.BigEndian.Uint16(info[0:2])
+	if len(info) < 2+int(count)*2 {
+		return nil
+	}
+
+	ps := &PermittedSubclassesAttribute{
+		Classes: make([]uint16, count),
+	}
+
+	offset := 2
+	for i := uint16(0); i < count; i++ {
+		ps.Classes[i] = binary.BigEndian.Uint16(info[offset : offset+2])
+		offset += 2
+	}
+
+	return ps
+}
+
+func parseStackMapTableAttribute(info []byte) *StackMapTableAttribute {
+	if len(info) < 2 {
+		return nil
+	}
+
+	count := binary.BigEndian.Uint16(info[0:2])
+	smt := &StackMapTableAttribute{
+		Entries: make([]StackMapFrame, 0, count),
+	}
+
+	offset := 2
+	for i := uint16(0); i < count; i++ {
+		if len(info) <= offset {
+			return nil
+		}
+		frameType := info[offset]
+		frameStart := offset
+		offset++
+
+		switch {
+		case frameType <= 63:
+			// same_frame
+		case frameType <= 127:
+			// same_locals_1_stack_item_frame
+			offset += verificationTypeInfoSize(info, offset)
+		case frameType == 247:
+			// same_locals_1_stack_item_frame_extended
+			offset += 2 // offset_delta
+			offset += verificationTypeInfoSize(info, offset)
+		case frameType >= 248 && frameType <= 250:
+			// chop_frame
+			offset += 2 // offset_delta
+		case frameType == 251:
+			// same_frame_extended
+			offset += 2 // offset_delta
+		case frameType >= 252 && frameType <= 254:
+			// append_frame
+			offset += 2 // offset_delta
+			numLocals := int(frameType) - 251
+			for k := 0; k < numLocals; k++ {
+				offset += verificationTypeInfoSize(info, offset)
+			}
+		case frameType == 255:
+			// full_frame
+			if len(info) < offset+2 {
+				return nil
+			}
+			offset += 2 // offset_delta
+			numLocals := int(binary.BigEndian.Uint16(info[offset : offset+2]))
+			offset += 2
+			for k := 0; k < numLocals; k++ {
+				offset += verificationTypeInfoSize(info, offset)
+			}
+			if len(info) < offset+2 {
+				return nil
+			}
+			numStack := int(binary.BigEndian.Uint16(info[offset : offset+2]))
+			offset += 2
+			for k := 0; k < numStack; k++ {
+				offset += verificationTypeInfoSize(info, offset)
+			}
+		}
+
+		smt.Entries = append(smt.Entries, StackMapFrame{
+			FrameType: frameType,
+			Data:      info[frameStart:offset],
+		})
+	}
+
+	return smt
+}
+
+func verificationTypeInfoSize(info []byte, offset int) int {
+	if len(info) <= offset {
+		return 1
+	}
+	tag := info[offset]
+	switch tag {
+	case 0, 1, 2, 3, 4, 5, 6:
+		return 1
+	case 7, 8:
+		return 3
+	default:
+		return 1
+	}
 }

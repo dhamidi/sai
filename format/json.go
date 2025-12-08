@@ -32,17 +32,17 @@ func (e *JSONEncoder) MarshalText() ([]byte, error) {
 }
 
 type jsonClass struct {
-	Name        string       `json:"name"`
-	SimpleName  string       `json:"simpleName"`
-	Package     string       `json:"package"`
-	SuperClass  string       `json:"superClass,omitempty"`
-	Interfaces  []string     `json:"interfaces,omitempty"`
-	Visibility  string       `json:"visibility"`
-	Kind        string       `json:"kind"`
-	Modifiers   []string     `json:"modifiers,omitempty"`
-	Version     jsonVersion  `json:"version"`
-	Fields      []jsonField  `json:"fields,omitempty"`
-	Methods     []jsonMethod `json:"methods,omitempty"`
+	Name       string       `json:"name"`
+	SimpleName string       `json:"simpleName"`
+	Package    string       `json:"package"`
+	SuperClass string       `json:"superClass,omitempty"`
+	Interfaces []string     `json:"interfaces,omitempty"`
+	Visibility string       `json:"visibility"`
+	Kind       string       `json:"kind"`
+	Modifiers  []string     `json:"modifiers,omitempty"`
+	Version    jsonVersion  `json:"version"`
+	Fields     []jsonField  `json:"fields,omitempty"`
+	Methods    []jsonMethod `json:"methods,omitempty"`
 }
 
 type jsonVersion struct {

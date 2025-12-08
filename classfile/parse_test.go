@@ -203,10 +203,10 @@ func TestParseFieldDescriptor(t *testing.T) {
 
 func TestParseMethodDescriptor(t *testing.T) {
 	tests := []struct {
-		desc         string
-		numParams    int
-		returnsVoid  bool
-		returnType   string
+		desc        string
+		numParams   int
+		returnsVoid bool
+		returnType  string
 	}{
 		{"()V", 0, true, ""},
 		{"()I", 0, false, "int"},

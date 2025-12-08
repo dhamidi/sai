@@ -406,6 +406,28 @@ func readAttributeInfo(r *reader, cp ConstantPool) (*AttributeInfo, error) {
 		attr.Parsed = parseLineNumberTableAttribute(info)
 	case "LocalVariableTable":
 		attr.Parsed = parseLocalVariableTableAttribute(info)
+	case "EnclosingMethod":
+		attr.Parsed = parseEnclosingMethodAttribute(info)
+	case "Synthetic":
+		attr.Parsed = parseSyntheticAttribute(info)
+	case "Deprecated":
+		attr.Parsed = parseDeprecatedAttribute(info)
+	case "SourceDebugExtension":
+		attr.Parsed = parseSourceDebugExtensionAttribute(info)
+	case "LocalVariableTypeTable":
+		attr.Parsed = parseLocalVariableTypeTableAttribute(info)
+	case "MethodParameters":
+		attr.Parsed = parseMethodParametersAttribute(info)
+	case "NestHost":
+		attr.Parsed = parseNestHostAttribute(info)
+	case "NestMembers":
+		attr.Parsed = parseNestMembersAttribute(info)
+	case "Record":
+		attr.Parsed = parseRecordAttribute(info, cp)
+	case "PermittedSubclasses":
+		attr.Parsed = parsePermittedSubclassesAttribute(info)
+	case "StackMapTable":
+		attr.Parsed = parseStackMapTableAttribute(info)
 	}
 
 	return attr, nil

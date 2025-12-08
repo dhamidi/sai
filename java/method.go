@@ -82,18 +82,18 @@ func (m Method) ParameterCount() int {
 	return len(desc.Parameters)
 }
 
-func (m Method) IsPublic() bool       { return m.info.IsPublic() }
-func (m Method) IsPrivate() bool      { return m.info.IsPrivate() }
-func (m Method) IsProtected() bool    { return m.info.IsProtected() }
-func (m Method) IsStatic() bool       { return m.info.IsStatic() }
-func (m Method) IsFinal() bool        { return m.info.IsFinal() }
-func (m Method) IsSynchronized() bool { return m.info.IsSynchronized() }
-func (m Method) IsBridge() bool       { return m.info.IsBridge() }
-func (m Method) IsVarargs() bool      { return m.info.IsVarargs() }
-func (m Method) IsNative() bool       { return m.info.IsNative() }
-func (m Method) IsAbstract() bool     { return m.info.IsAbstract() }
-func (m Method) IsSynthetic() bool    { return m.info.IsSynthetic() }
-func (m Method) IsConstructor() bool  { return m.info.IsConstructor(m.cp) }
+func (m Method) IsPublic() bool            { return m.info.IsPublic() }
+func (m Method) IsPrivate() bool           { return m.info.IsPrivate() }
+func (m Method) IsProtected() bool         { return m.info.IsProtected() }
+func (m Method) IsStatic() bool            { return m.info.IsStatic() }
+func (m Method) IsFinal() bool             { return m.info.IsFinal() }
+func (m Method) IsSynchronized() bool      { return m.info.IsSynchronized() }
+func (m Method) IsBridge() bool            { return m.info.IsBridge() }
+func (m Method) IsVarargs() bool           { return m.info.IsVarargs() }
+func (m Method) IsNative() bool            { return m.info.IsNative() }
+func (m Method) IsAbstract() bool          { return m.info.IsAbstract() }
+func (m Method) IsSynthetic() bool         { return m.info.IsSynthetic() }
+func (m Method) IsConstructor() bool       { return m.info.IsConstructor(m.cp) }
 func (m Method) IsStaticInitializer() bool { return m.info.IsStaticInitializer(m.cp) }
 
 func (m Method) Visibility() string {
