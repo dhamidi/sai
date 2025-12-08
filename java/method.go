@@ -3,29 +3,19 @@ package java
 import "github.com/dhamidi/javalyzer/classfile"
 
 type Method struct {
-	info   *classfile.MethodInfo
-	cp     classfile.ConstantPool
-	source *sourceMethod
+	info *classfile.MethodInfo
+	cp   classfile.ConstantPool
 }
 
 func (m Method) Name() string {
-	if m.source != nil {
-		return m.source.name
-	}
 	return m.info.Name(m.cp)
 }
 
 func (m Method) Descriptor() string {
-	if m.source != nil {
-		return ""
-	}
 	return m.info.Descriptor(m.cp)
 }
 
 func (m Method) ReturnType() Type {
-	if m.source != nil {
-		return m.source.returnType
-	}
 	desc := m.info.ParsedDescriptor(m.cp)
 	if desc == nil {
 		return Type{Name: "void"}
@@ -34,9 +24,6 @@ func (m Method) ReturnType() Type {
 }
 
 func (m Method) Parameters() []Parameter {
-	if m.source != nil {
-		return m.source.parameters
-	}
 	desc := m.info.ParsedDescriptor(m.cp)
 	if desc == nil {
 		return nil
@@ -96,81 +83,54 @@ func (m Method) ParameterCount() int {
 }
 
 func (m Method) IsPublic() bool {
-	if m.source != nil {
-		return m.source.visibility == "public"
-	}
 	return m.info.IsPublic()
 }
+
 func (m Method) IsPrivate() bool {
-	if m.source != nil {
-		return m.source.visibility == "private"
-	}
 	return m.info.IsPrivate()
 }
+
 func (m Method) IsProtected() bool {
-	if m.source != nil {
-		return m.source.visibility == "protected"
-	}
 	return m.info.IsProtected()
 }
+
 func (m Method) IsStatic() bool {
-	if m.source != nil {
-		return m.source.isStatic
-	}
 	return m.info.IsStatic()
 }
+
 func (m Method) IsFinal() bool {
-	if m.source != nil {
-		return m.source.isFinal
-	}
 	return m.info.IsFinal()
 }
+
 func (m Method) IsSynchronized() bool {
-	if m.source != nil {
-		return false
-	}
 	return m.info.IsSynchronized()
 }
+
 func (m Method) IsBridge() bool {
-	if m.source != nil {
-		return false
-	}
 	return m.info.IsBridge()
 }
+
 func (m Method) IsVarargs() bool {
-	if m.source != nil {
-		return false
-	}
 	return m.info.IsVarargs()
 }
+
 func (m Method) IsNative() bool {
-	if m.source != nil {
-		return false
-	}
 	return m.info.IsNative()
 }
+
 func (m Method) IsAbstract() bool {
-	if m.source != nil {
-		return m.source.isAbstract
-	}
 	return m.info.IsAbstract()
 }
+
 func (m Method) IsSynthetic() bool {
-	if m.source != nil {
-		return false
-	}
 	return m.info.IsSynthetic()
 }
+
 func (m Method) IsConstructor() bool {
-	if m.source != nil {
-		return m.source.name == "<init>"
-	}
 	return m.info.IsConstructor(m.cp)
 }
+
 func (m Method) IsStaticInitializer() bool {
-	if m.source != nil {
-		return m.source.name == "<clinit>"
-	}
 	return m.info.IsStaticInitializer(m.cp)
 }
 
@@ -221,9 +181,6 @@ func (m Method) String() string {
 }
 
 func (m Method) Signature() string {
-	if m.source != nil {
-		return ""
-	}
 	attr := m.info.GetAttribute(m.cp, "Signature")
 	if attr == nil {
 		return ""
@@ -235,16 +192,10 @@ func (m Method) Signature() string {
 }
 
 func (m Method) IsDeprecated() bool {
-	if m.source != nil {
-		return false
-	}
 	return m.info.GetAttribute(m.cp, "Deprecated") != nil
 }
 
 func (m Method) Annotations() []Annotation {
-	if m.source != nil {
-		return nil
-	}
 	attr := m.info.GetAttribute(m.cp, "RuntimeVisibleAnnotations")
 	if attr == nil {
 		return nil
@@ -256,9 +207,6 @@ func (m Method) Annotations() []Annotation {
 }
 
 func (m Method) InvisibleAnnotations() []Annotation {
-	if m.source != nil {
-		return nil
-	}
 	attr := m.info.GetAttribute(m.cp, "RuntimeInvisibleAnnotations")
 	if attr == nil {
 		return nil
@@ -270,9 +218,6 @@ func (m Method) InvisibleAnnotations() []Annotation {
 }
 
 func (m Method) ParameterAnnotations() [][]Annotation {
-	if m.source != nil {
-		return nil
-	}
 	attr := m.info.GetAttribute(m.cp, "RuntimeVisibleParameterAnnotations")
 	if attr == nil {
 		return nil
@@ -288,9 +233,6 @@ func (m Method) ParameterAnnotations() [][]Annotation {
 }
 
 func (m Method) Exceptions() []string {
-	if m.source != nil {
-		return nil
-	}
 	attr := m.info.GetAttribute(m.cp, "Exceptions")
 	if attr == nil {
 		return nil

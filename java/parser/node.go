@@ -258,3 +258,28 @@ func (n *Node) TokenLiteral() string {
 	}
 	return ""
 }
+
+func (n *Node) String() string {
+	return n.stringIndent(0)
+}
+
+func (n *Node) stringIndent(indent int) string {
+	prefix := ""
+	for i := 0; i < indent; i++ {
+		prefix += "  "
+	}
+
+	result := prefix + n.Kind.String()
+	if n.Token != nil {
+		result += " " + n.Token.Literal
+	}
+	if n.Error != nil {
+		result += " ERROR: " + n.Error.Message
+	}
+	result += "\n"
+
+	for _, child := range n.Children {
+		result += child.stringIndent(indent + 1)
+	}
+	return result
+}
