@@ -291,9 +291,16 @@ func (l *Lexer) scanCharLiteral(start Position) Token {
 
 func (l *Lexer) scanStringLiteral(start Position) Token {
 	l.advance()
+	hasEmbeddedExpr := false
 	for l.peek() != 0 && l.peek() != '"' && l.peek() != '\n' {
 		if l.peek() == '\\' {
 			l.advance()
+			if l.peek() == '{' {
+				hasEmbeddedExpr = true
+				l.advance()
+				l.skipEmbeddedExpression()
+				continue
+			}
 		}
 		l.advance()
 	}
@@ -301,8 +308,12 @@ func (l *Lexer) scanStringLiteral(start Position) Token {
 		l.advance()
 	}
 	end := l.Position()
+	kind := TokenStringLiteral
+	if hasEmbeddedExpr {
+		kind = TokenStringTemplate
+	}
 	return Token{
-		Kind:    TokenStringLiteral,
+		Kind:    kind,
 		Span:    Span{Start: start, End: end},
 		Literal: string(l.input[start.Offset:end.Offset]),
 	}
@@ -310,6 +321,7 @@ func (l *Lexer) scanStringLiteral(start Position) Token {
 
 func (l *Lexer) scanTextBlock(start Position) Token {
 	l.advanceN(3)
+	hasEmbeddedExpr := false
 	for l.peek() != 0 {
 		if l.peek() == '"' && l.peekN(1) == '"' && l.peekN(2) == '"' {
 			l.advanceN(3)
@@ -317,14 +329,96 @@ func (l *Lexer) scanTextBlock(start Position) Token {
 		}
 		if l.peek() == '\\' {
 			l.advance()
+			if l.peek() == '{' {
+				hasEmbeddedExpr = true
+				l.advance()
+				l.skipEmbeddedExpression()
+				continue
+			}
 		}
 		l.advance()
 	}
 	end := l.Position()
+	kind := TokenTextBlock
+	if hasEmbeddedExpr {
+		kind = TokenTextBlockTemplate
+	}
 	return Token{
-		Kind:    TokenTextBlock,
+		Kind:    kind,
 		Span:    Span{Start: start, End: end},
 		Literal: string(l.input[start.Offset:end.Offset]),
+	}
+}
+
+func (l *Lexer) skipEmbeddedExpression() {
+	depth := 1
+	for l.peek() != 0 && depth > 0 {
+		ch := l.peek()
+		switch ch {
+		case '{':
+			depth++
+			l.advance()
+		case '}':
+			depth--
+			if depth > 0 {
+				l.advance()
+			}
+		case '"':
+			if l.peekN(1) == '"' && l.peekN(2) == '"' {
+				l.advanceN(3)
+				for l.peek() != 0 {
+					if l.peek() == '"' && l.peekN(1) == '"' && l.peekN(2) == '"' {
+						l.advanceN(3)
+						break
+					}
+					if l.peek() == '\\' {
+						l.advance()
+					}
+					l.advance()
+				}
+			} else {
+				l.advance()
+				for l.peek() != 0 && l.peek() != '"' && l.peek() != '\n' {
+					if l.peek() == '\\' {
+						l.advance()
+					}
+					l.advance()
+				}
+				if l.peek() == '"' {
+					l.advance()
+				}
+			}
+		case '\'':
+			l.advance()
+			for l.peek() != 0 && l.peek() != '\'' {
+				if l.peek() == '\\' {
+					l.advance()
+				}
+				l.advance()
+			}
+			if l.peek() == '\'' {
+				l.advance()
+			}
+		case '/':
+			if l.peekN(1) == '/' {
+				for l.peek() != 0 && l.peek() != '\n' {
+					l.advance()
+				}
+			} else if l.peekN(1) == '*' {
+				l.advanceN(2)
+				for l.peek() != 0 {
+					if l.peek() == '*' && l.peekN(1) == '/' {
+						l.advanceN(2)
+						break
+					}
+					l.advance()
+				}
+			} else {
+				l.advance()
+			}
+		default:
+			l.advance()
+		}
 	}
 }
 

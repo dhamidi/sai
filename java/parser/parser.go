@@ -2308,6 +2308,18 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 			p.advance()
 			if p.check(TokenNew) {
 				expr = p.parseInnerNewExpr(expr)
+			} else if p.match(TokenStringTemplate, TokenTextBlockTemplate) {
+				node := p.startNode(KindTemplateExpr)
+				node.AddChild(expr)
+				tok := p.advance()
+				node.AddChild(&Node{Kind: KindLiteral, Token: &tok, Span: tok.Span})
+				expr = p.finishNode(node)
+			} else if p.match(TokenStringLiteral, TokenTextBlock) {
+				node := p.startNode(KindFieldAccess)
+				node.AddChild(expr)
+				tok := p.advance()
+				node.AddChild(&Node{Kind: KindLiteral, Token: &tok, Span: tok.Span})
+				expr = p.finishNode(node)
 			} else if p.check(TokenLT) {
 				typeArgs := p.parseTypeArguments()
 				if tok := p.expect(TokenIdent); tok != nil {

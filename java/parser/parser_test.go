@@ -28,6 +28,10 @@ func TestLexer(t *testing.T) {
 		{"::", []TokenKind{TokenColonColon, TokenEOF}},
 		{"...", []TokenKind{TokenEllipsis, TokenEOF}},
 		{"@", []TokenKind{TokenAt, TokenEOF}},
+		{`"Hello \{name}"`, []TokenKind{TokenStringTemplate, TokenEOF}},
+		{`"Hello world"`, []TokenKind{TokenStringLiteral, TokenEOF}},
+		{"\"\"\"Hello \\{name}\"\"\"", []TokenKind{TokenTextBlockTemplate, TokenEOF}},
+		{"\"\"\"Hello world\"\"\"", []TokenKind{TokenTextBlock, TokenEOF}},
 	}
 
 	for _, tt := range tests {
@@ -192,6 +196,103 @@ func TestParseCompilationUnit(t *testing.T) {
 			}
 			if hasError(node) {
 				t.Errorf("parse error in: %s", tt.input)
+			}
+		})
+	}
+}
+
+func TestParseStringTemplates(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"simple string template",
+			`STR."Hello \{name}"`,
+		},
+		{
+			"string template with expression",
+			`STR."The sum is \{a + b}"`,
+		},
+		{
+			"text block template",
+			`STR."""
+			Hello \{name}
+			"""`,
+		},
+		{
+			"nested template expression",
+			`STR."Value: \{obj.getValue()}"`,
+		},
+		{
+			"template with empty expression",
+			`STR."Is \{} null?"`,
+		},
+		{
+			"FMT template processor",
+			`FMT."%-10s\{name}"`,
+		},
+		{
+			"template in statement",
+			`class Foo { void m() { String s = STR."Hello \{name}"; } }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var node *Node
+			if strings.HasPrefix(tt.input, "class") {
+				p := ParseCompilationUnit()
+				p.Push([]byte(tt.input))
+				node = p.Finish()
+			} else {
+				p := ParseExpression()
+				p.Push([]byte(tt.input))
+				node = p.Finish()
+			}
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
+func TestParseStringTemplateNodeKind(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantKind NodeKind
+	}{
+		{
+			"simple string template produces TemplateExpr",
+			`STR."Hello \{name}"`,
+			KindTemplateExpr,
+		},
+		{
+			"text block template produces TemplateExpr",
+			`STR."""
+			Hello \{name}
+			"""`,
+			KindTemplateExpr,
+		},
+		{
+			"plain string is still FieldAccess",
+			`STR."Hello"`,
+			KindFieldAccess,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseExpression()
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if node == nil {
+				t.Fatal("got nil node")
+			}
+			if node.Kind != tt.wantKind {
+				t.Errorf("got %v, want %v", node.Kind, tt.wantKind)
 			}
 		})
 	}
