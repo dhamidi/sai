@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/dhamidi/javalyzer/format"
 	"github.com/dhamidi/javalyzer/java"
+	"github.com/dhamidi/javalyzer/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +47,23 @@ func main() {
 	}
 	parseCmd.Flags().StringVarP(&outputFormat, "format", "f", "json", "output format (json, java)")
 
+	var addr string
+	uiCmd := &cobra.Command{
+		Use:   "ui",
+		Short: "Start the web UI server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			server, err := ui.NewServer()
+			if err != nil {
+				return fmt.Errorf("create server: %w", err)
+			}
+			fmt.Printf("Starting server at http://%s\n", addr)
+			return http.ListenAndServe(addr, server)
+		},
+	}
+	uiCmd.Flags().StringVarP(&addr, "addr", "a", ":8080", "address to listen on")
+
 	rootCmd.AddCommand(parseCmd)
+	rootCmd.AddCommand(uiCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

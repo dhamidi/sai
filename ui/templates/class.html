@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .ActiveClass}}{{.ActiveClass.SimpleName}} - {{end}}Javalyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <h1><a href="/">Javalyzer</a></h1>
+            <nav class="class-list">
+                {{range .Classes}}
+                <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}">
+                    <span class="class-type">{{if .IsInterface}}I{{else if .IsEnum}}E{{else if .IsAnnotation}}@{{else if .IsRecord}}R{{else}}C{{end}}</span>
+                    <span class="class-name" title="{{.Name}}">{{.SimpleName}}</span>
+                </a>
+                {{else}}
+                <p class="empty">No classes loaded. <a href="/">Start a scan</a></p>
+                {{end}}
+            </nav>
+        </aside>
+        <main class="content">
+            {{if .ActiveClass}}
+            <header class="class-header">
+                <h2>
+                    {{if .ActiveClass.IsInterface}}interface{{else if .ActiveClass.IsEnum}}enum{{else if .ActiveClass.IsAnnotation}}@interface{{else if .ActiveClass.IsRecord}}record{{else}}class{{end}}
+                    <strong>{{.ActiveClass.SimpleName}}</strong>
+                </h2>
+                <div class="class-meta">
+                    <span class="package">{{.ActiveClass.Package}}</span>
+                    {{if .ActiveClass.SuperClass}}
+                    <span class="extends">extends {{linkifyClasses .KnownClasses .ActiveClass.SuperClass}}</span>
+                    {{end}}
+                    {{if .ActiveClass.Interfaces}}
+                    <span class="implements">implements 
+                        {{range $i, $iface := .ActiveClass.Interfaces}}{{if $i}}, {{end}}{{linkifyClasses $.KnownClasses $iface}}{{end}}
+                    </span>
+                    {{end}}
+                </div>
+            </header>
+
+            {{with .ActiveClass.Fields}}
+            <section class="fields">
+                <h3>Fields</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Visibility</th>
+                            <th>Type</th>
+                            <th>Name</th>
+                            <th>Modifiers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="visibility">{{.Visibility}}</td>
+                            <td class="type">{{linkifyClasses $.KnownClasses .Type.String}}</td>
+                            <td class="name">{{.Name}}</td>
+                            <td class="modifiers">
+                                {{if .IsStatic}}static{{end}}
+                                {{if .IsFinal}}final{{end}}
+                                {{if .IsVolatile}}volatile{{end}}
+                                {{if .IsTransient}}transient{{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
+            {{with .ActiveClass.Constructors}}
+            <section class="constructors">
+                <h3>Constructors</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Visibility</th>
+                            <th>Signature</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="visibility">{{.Visibility}}</td>
+                            <td class="signature">
+                                {{$.ActiveClass.SimpleName}}({{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyClasses $.KnownClasses $p.Type.String}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}})
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
+            <section class="methods">
+                <h3>Methods</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Visibility</th>
+                            <th>Return</th>
+                            <th>Name</th>
+                            <th>Parameters</th>
+                            <th>Modifiers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .ActiveClass.Methods}}
+                        {{if not .IsConstructor}}{{if not .IsStaticInitializer}}{{if not .IsSynthetic}}{{if not .IsBridge}}
+                        <tr>
+                            <td class="visibility">{{.Visibility}}</td>
+                            <td class="type">{{linkifyClasses $.KnownClasses .ReturnType.String}}</td>
+                            <td class="name">{{.Name}}</td>
+                            <td class="params">
+                                {{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyClasses $.KnownClasses $p.Type.String}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}}
+                            </td>
+                            <td class="modifiers">
+                                {{if .IsStatic}}static{{end}}
+                                {{if .IsFinal}}final{{end}}
+                                {{if .IsAbstract}}abstract{{end}}
+                                {{if .IsSynchronized}}synchronized{{end}}
+                                {{if .IsNative}}native{{end}}
+                            </td>
+                        </tr>
+                        {{end}}{{end}}{{end}}{{end}}
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{else}}
+            <div class="no-class">
+                <p>Select a class from the sidebar to view its details.</p>
+            </div>
+            {{end}}
+        </main>
+    </div>
+</body>
+</html>

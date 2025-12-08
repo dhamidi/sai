@@ -32,27 +32,27 @@ func (e *JSONEncoder) MarshalText() ([]byte, error) {
 }
 
 type jsonClass struct {
-	Name                string             `json:"name"`
-	SimpleName          string             `json:"simpleName"`
-	Package             string             `json:"package"`
-	SuperClass          string             `json:"superClass,omitempty"`
-	Interfaces          []string           `json:"interfaces,omitempty"`
-	Visibility          string             `json:"visibility"`
-	Kind                string             `json:"kind"`
-	Modifiers           []string           `json:"modifiers,omitempty"`
-	Version             jsonVersion        `json:"version"`
-	Signature           string             `json:"signature,omitempty"`
-	SourceFile          string             `json:"sourceFile,omitempty"`
-	Deprecated          bool               `json:"deprecated,omitempty"`
-	Annotations         []jsonAnnotation   `json:"annotations,omitempty"`
-	RecordComponents    []jsonRecordComp   `json:"recordComponents,omitempty"`
-	PermittedSubclasses []string           `json:"permittedSubclasses,omitempty"`
-	NestHost            string             `json:"nestHost,omitempty"`
-	NestMembers         []string           `json:"nestMembers,omitempty"`
-	EnclosingClass      string             `json:"enclosingClass,omitempty"`
-	InnerClasses        []jsonInnerClass   `json:"innerClasses,omitempty"`
-	Fields              []jsonField        `json:"fields,omitempty"`
-	Methods             []jsonMethod       `json:"methods,omitempty"`
+	Name                string           `json:"name"`
+	SimpleName          string           `json:"simpleName"`
+	Package             string           `json:"package"`
+	SuperClass          string           `json:"superClass,omitempty"`
+	Interfaces          []string         `json:"interfaces,omitempty"`
+	Visibility          string           `json:"visibility"`
+	Kind                string           `json:"kind"`
+	Modifiers           []string         `json:"modifiers,omitempty"`
+	Version             jsonVersion      `json:"version"`
+	Signature           string           `json:"signature,omitempty"`
+	SourceFile          string           `json:"sourceFile,omitempty"`
+	Deprecated          bool             `json:"deprecated,omitempty"`
+	Annotations         []jsonAnnotation `json:"annotations,omitempty"`
+	RecordComponents    []jsonRecordComp `json:"recordComponents,omitempty"`
+	PermittedSubclasses []string         `json:"permittedSubclasses,omitempty"`
+	NestHost            string           `json:"nestHost,omitempty"`
+	NestMembers         []string         `json:"nestMembers,omitempty"`
+	EnclosingClass      string           `json:"enclosingClass,omitempty"`
+	InnerClasses        []jsonInnerClass `json:"innerClasses,omitempty"`
+	Fields              []jsonField      `json:"fields,omitempty"`
+	Methods             []jsonMethod     `json:"methods,omitempty"`
 }
 
 type jsonVersion struct {

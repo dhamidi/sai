@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan {{.ID}} - Javalyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    {{if or (eq .Status "pending") (eq .Status "in_progress")}}
+    <meta http-equiv="refresh" content="2">
+    {{end}}
+</head>
+<body>
+    <div class="container">
+        <h1><a href="/">Javalyzer</a></h1>
+        
+        <section class="scan-details">
+            <h2>Scan #{{.ID}}</h2>
+            
+            <dl>
+                <dt>Status</dt>
+                <dd class="status-{{.Status}}">{{.Status}}</dd>
+                
+                {{if .Request.Path}}
+                <dt>Path</dt>
+                <dd>{{.Request.Path}}</dd>
+                {{end}}
+                
+                {{if .Request.ZipFile}}
+                <dt>Zip File</dt>
+                <dd>{{.Request.ZipFile}}</dd>
+                {{end}}
+                
+                <dt>Created</dt>
+                <dd>{{.Request.CreatedAt.Format "2006-01-02 15:04:05"}}</dd>
+                
+                {{if not .StartedAt.IsZero}}
+                <dt>Started</dt>
+                <dd>{{.StartedAt.Format "2006-01-02 15:04:05"}}</dd>
+                {{end}}
+                
+                {{if not .EndedAt.IsZero}}
+                <dt>Ended</dt>
+                <dd>{{.EndedAt.Format "2006-01-02 15:04:05"}}</dd>
+                {{end}}
+            </dl>
+
+            {{if eq .Status "in_progress"}}
+            <div class="progress">
+                <div class="progress-bar" style="width: {{.ProgressPercent}}%"></div>
+                <span>{{.Progress}} / {{.Total}} classes</span>
+            </div>
+            {{end}}
+
+            {{if .Error}}
+            <div class="error">
+                <strong>Error:</strong> {{.Error}}
+            </div>
+            {{end}}
+
+            {{if .Classes}}
+            <h3>Classes ({{len .Classes}})</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Package</th>
+                        <th>Type</th>
+                        <th>Visibility</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Classes}}
+                    <tr>
+                        <td><a href="/c/{{.Name}}">{{.SimpleName}}</a></td>
+                        <td>{{.Package}}</td>
+                        <td>
+                            {{if .IsInterface}}interface{{else if .IsEnum}}enum{{else if .IsAnnotation}}annotation{{else if .IsRecord}}record{{else}}class{{end}}
+                        </td>
+                        <td>{{.Visibility}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{end}}
+        </section>
+    </div>
+</body>
+</html>

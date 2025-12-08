@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -eux
 goimports -w .
+git add -u
 go build ./...
 go test ./...

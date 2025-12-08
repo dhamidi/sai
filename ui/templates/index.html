@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Javalyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Javalyzer</h1>
+        
+        <section class="scan-form">
+            <h2>New Scan</h2>
+            <form action="/scan" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="path">Directory Path</label>
+                    <input type="text" id="path" name="path" placeholder="/path/to/classes">
+                </div>
+                <div class="form-group">
+                    <label for="zipfile">Or upload a JAR/ZIP file</label>
+                    <input type="file" id="zipfile" name="zipfile" accept=".jar,.zip">
+                </div>
+                <button type="submit">Start Scan</button>
+            </form>
+        </section>
+
+        {{if .Scans}}
+        <section class="scans-list">
+            <h2>Scans</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th>Path</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Scans}}
+                    <tr>
+                        <td><a href="/scans/{{.ID}}">{{.ID}}</a></td>
+                        <td class="status-{{.Status}}">{{.Status}}</td>
+                        <td>{{.Request.Path}}</td>
+                        <td>{{.Request.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </section>
+        {{end}}
+    </div>
+</body>
+</html>

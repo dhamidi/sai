@@ -264,7 +264,7 @@ func (e *JavaEncoder) writeAnnotationValue(sb *strings.Builder, v interface{}) {
 					"", "", -1),
 				"", "", -1),
 			"", "", -1),
-		"", "", -1), "", "", -1), "", "", -1)))
+			"", "", -1), "", "", -1), "", "", -1)))
 		sb.WriteString(itoa(int(val)))
 	case int64:
 		sb.WriteString(itoa64(val))
