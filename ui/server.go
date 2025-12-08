@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -231,21 +230,29 @@ type Server struct {
 	funcMap    template.FuncMap
 }
 
-var classNamePattern = regexp.MustCompile(`\b(([a-z][a-z0-9]*\.)+)?[A-Z][A-Za-z0-9]*\b`)
-
 func NewServer() (*Server, error) {
 	staticFS := overlayFS("ui/static", mustSub(embeddedFS, "static"))
 	templateFS := overlayFS("ui/templates", mustSub(embeddedFS, "templates"))
 
 	funcMap := template.FuncMap{
-		"linkifyClasses": func(knownClasses map[string]bool, text string) template.HTML {
-			result := template.HTMLEscapeString(text)
-			result = classNamePattern.ReplaceAllStringFunc(result, func(match string) string {
-				if knownClasses[match] {
-					return fmt.Sprintf(`<a href="/c/%s">%s</a>`, match, match)
-				}
-				return match
-			})
+		"linkifyClass": func(knownClasses map[string]bool, className string) template.HTML {
+			escaped := template.HTMLEscapeString(className)
+			if knownClasses[className] {
+				return template.HTML(fmt.Sprintf(`<a href="/c/%s">%s</a>`, escaped, escaped))
+			}
+			return template.HTML(escaped)
+		},
+		"linkifyType": func(knownClasses map[string]bool, t java.Type) template.HTML {
+			escaped := template.HTMLEscapeString(t.Name)
+			var result string
+			if knownClasses[t.Name] {
+				result = fmt.Sprintf(`<a href="/c/%s">%s</a>`, escaped, escaped)
+			} else {
+				result = escaped
+			}
+			for i := 0; i < t.ArrayDepth; i++ {
+				result += "[]"
+			}
 			return template.HTML(result)
 		},
 	}

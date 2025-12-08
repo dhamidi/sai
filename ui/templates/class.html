@@ -31,11 +31,11 @@
                 <div class="class-meta">
                     <span class="package">{{.ActiveClass.Package}}</span>
                     {{if .ActiveClass.SuperClass}}
-                    <span class="extends">extends {{linkifyClasses .KnownClasses .ActiveClass.SuperClass}}</span>
+                    <span class="extends">extends {{linkifyClass .KnownClasses .ActiveClass.SuperClass}}</span>
                     {{end}}
                     {{if .ActiveClass.Interfaces}}
                     <span class="implements">implements 
-                        {{range $i, $iface := .ActiveClass.Interfaces}}{{if $i}}, {{end}}{{linkifyClasses $.KnownClasses $iface}}{{end}}
+                        {{range $i, $iface := .ActiveClass.Interfaces}}{{if $i}}, {{end}}{{linkifyClass $.KnownClasses $iface}}{{end}}
                     </span>
                     {{end}}
                 </div>
@@ -57,7 +57,7 @@
                         {{range .}}
                         <tr>
                             <td class="visibility">{{.Visibility}}</td>
-                            <td class="type">{{linkifyClasses $.KnownClasses .Type.String}}</td>
+                            <td class="type">{{linkifyType $.KnownClasses .Type}}</td>
                             <td class="name">{{.Name}}</td>
                             <td class="modifiers">
                                 {{if .IsStatic}}static{{end}}
@@ -87,7 +87,7 @@
                         <tr>
                             <td class="visibility">{{.Visibility}}</td>
                             <td class="signature">
-                                {{$.ActiveClass.SimpleName}}({{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyClasses $.KnownClasses $p.Type.String}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}})
+                                {{$.ActiveClass.SimpleName}}({{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyType $.KnownClasses $p.Type}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}})
                             </td>
                         </tr>
                         {{end}}
@@ -113,10 +113,10 @@
                         {{if not .IsConstructor}}{{if not .IsStaticInitializer}}{{if not .IsSynthetic}}{{if not .IsBridge}}
                         <tr>
                             <td class="visibility">{{.Visibility}}</td>
-                            <td class="type">{{linkifyClasses $.KnownClasses .ReturnType.String}}</td>
+                            <td class="type">{{linkifyType $.KnownClasses .ReturnType}}</td>
                             <td class="name">{{.Name}}</td>
                             <td class="params">
-                                {{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyClasses $.KnownClasses $p.Type.String}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}}
+                                {{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyType $.KnownClasses $p.Type}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}}
                             </td>
                             <td class="modifiers">
                                 {{if .IsStatic}}static{{end}}
