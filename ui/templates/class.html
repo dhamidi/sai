@@ -15,6 +15,7 @@
                 <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}">
                     <span class="class-type">{{if .IsInterface}}I{{else if .IsEnum}}E{{else if .IsAnnotation}}@{{else if .IsRecord}}R{{else}}C{{end}}</span>
                     <span class="class-name" title="{{.Name}}">{{.SimpleName}}</span>
+                    {{if .Package}}<span class="class-package">{{.Package}}</span>{{end}}
                 </a>
                 {{else}}
                 <p class="empty">No classes loaded. <a href="/">Start a scan</a></p>

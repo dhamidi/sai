@@ -1603,7 +1603,9 @@ func (p *Parser) parseSwitchLabel() *Node {
 	if p.check(TokenCase) {
 		p.advance()
 		for {
-			if p.looksLikeTypePattern() {
+			if p.looksLikeMatchAllPattern() {
+				node.AddChild(p.parseMatchAllPattern())
+			} else if p.looksLikeTypePattern() {
 				node.AddChild(p.parseTypePattern())
 			} else {
 				node.AddChild(p.parseExpression())
@@ -1676,6 +1678,17 @@ func (p *Parser) parseGuard() *Node {
 	node := p.startNode(KindGuard)
 	p.expect(TokenWhen)
 	node.AddChild(p.parseExpression())
+	return p.finishNode(node)
+}
+
+func (p *Parser) looksLikeMatchAllPattern() bool {
+	return p.check(TokenIdent) && p.peek().Literal == "_" &&
+		(p.peekN(1).Kind == TokenColon || p.peekN(1).Kind == TokenArrow || p.peekN(1).Kind == TokenComma)
+}
+
+func (p *Parser) parseMatchAllPattern() *Node {
+	node := p.startNode(KindMatchAllPattern)
+	p.advance() // consume _
 	return p.finishNode(node)
 }
 

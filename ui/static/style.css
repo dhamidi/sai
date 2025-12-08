@@ -250,6 +250,20 @@ dt {
     font-size: 13px;
 }
 
+.class-package {
+    font-size: 10px;
+    color: #999;
+    margin-left: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.class-item:hover .class-package,
+.class-item.active .class-package {
+    color: #666;
+}
+
 .sidebar .empty {
     padding: 16px;
     color: #000;
