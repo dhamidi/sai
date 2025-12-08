@@ -9,6 +9,7 @@ const (
 	KindCompilationUnit
 	KindPackageDecl
 	KindImportDecl
+	KindModuleImportDecl
 
 	// Type declarations
 	KindClassDecl
@@ -63,6 +64,7 @@ const (
 	KindTypePattern
 	KindRecordPattern
 	KindMatchAllPattern
+	KindUnnamedVariable
 	KindGuard
 	KindReturnStmt
 	KindBreakStmt
@@ -110,6 +112,7 @@ var nodeKindNames = map[NodeKind]string{
 	KindCompilationUnit:   "CompilationUnit",
 	KindPackageDecl:       "PackageDecl",
 	KindImportDecl:        "ImportDecl",
+	KindModuleImportDecl:  "ModuleImportDecl",
 	KindClassDecl:         "ClassDecl",
 	KindInterfaceDecl:     "InterfaceDecl",
 	KindEnumDecl:          "EnumDecl",
@@ -154,6 +157,7 @@ var nodeKindNames = map[NodeKind]string{
 	KindTypePattern:       "TypePattern",
 	KindRecordPattern:     "RecordPattern",
 	KindMatchAllPattern:   "MatchAllPattern",
+	KindUnnamedVariable:   "UnnamedVariable",
 	KindGuard:             "Guard",
 	KindReturnStmt:        "ReturnStmt",
 	KindBreakStmt:         "BreakStmt",

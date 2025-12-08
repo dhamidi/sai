@@ -13,6 +13,7 @@ func TestNodeKindString(t *testing.T) {
 		{KindCompilationUnit, "CompilationUnit"},
 		{KindPackageDecl, "PackageDecl"},
 		{KindImportDecl, "ImportDecl"},
+		{KindModuleImportDecl, "ModuleImportDecl"},
 		{KindClassDecl, "ClassDecl"},
 		{KindInterfaceDecl, "InterfaceDecl"},
 		{KindEnumDecl, "EnumDecl"},

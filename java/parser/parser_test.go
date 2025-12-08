@@ -117,6 +117,10 @@ func TestParseCompilationUnit(t *testing.T) {
 			"import java.util.List;\nclass Foo {}",
 		},
 		{
+			"class with module import",
+			"import module java.base;\nclass Foo {}",
+		},
+		{
 			"class with field",
 			"class Foo { int x; }",
 		},
@@ -562,6 +566,64 @@ func TestModularCompilationUnit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseUnnamedVariables(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"local var with underscore", "class Foo { void m() { var _ = getValue(); } }"},
+		{"local var int underscore", "class Foo { void m() { int _ = getValue(); } }"},
+		{"multiple unnamed vars", "class Foo { void m() { var _ = a(); var _ = b(); } }"},
+		{"enhanced for underscore", "class Foo { void m() { for (var _ : list) {} } }"},
+		{"enhanced for int underscore", "class Foo { void m() { for (int _ : list) {} } }"},
+		{"try-with-resources underscore", "class Foo { void m() { try (var _ = resource()) {} } }"},
+		{"catch underscore", "class Foo { void m() { try {} catch (Exception _) {} } }"},
+		{"parameter underscore", "class Foo { void m(String _) {} }"},
+		{"lambda underscore", "class Foo { void m() { Consumer<String> c = _ -> {}; } }"},
+		{"lambda multiple underscore", "class Foo { void m() { BiConsumer<String, Integer> c = (_, _) -> {}; } }"},
+		{"for init underscore", "class Foo { void m() { for (var _ = init();;) {} } }"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit()
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
+func TestParseUnnamedVariableNodeKind(t *testing.T) {
+	input := "class Foo { void m() { var _ = getValue(); } }"
+	p := ParseCompilationUnit()
+	p.Push([]byte(input))
+	node := p.Finish()
+
+	found := findNode(node, KindUnnamedVariable)
+	if found == nil {
+		t.Error("expected to find KindUnnamedVariable node")
+	}
+}
+
+func findNode(node *Node, kind NodeKind) *Node {
+	if node == nil {
+		return nil
+	}
+	if node.Kind == kind {
+		return node
+	}
+	for _, child := range node.Children {
+		if found := findNode(child, kind); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 func hasError(node *Node) bool {

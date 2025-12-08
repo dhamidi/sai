@@ -414,6 +414,14 @@ func (p *Parser) parseImportDecl() *Node {
 	node := p.startNode(KindImportDecl)
 	p.expect(TokenImport)
 
+	if p.check(TokenModule) {
+		node.Kind = KindModuleImportDecl
+		p.advance()
+		node.AddChild(p.parseQualifiedName())
+		p.expect(TokenSemicolon)
+		return p.finishNode(node)
+	}
+
 	if p.check(TokenStatic) {
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
@@ -1162,8 +1170,8 @@ func (p *Parser) parseParameter() *Node {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
-		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+	if id := p.parseVariableDeclaratorId(); id != nil {
+		node.AddChild(id)
 	}
 
 	for p.check(TokenLBracket) {
@@ -1287,7 +1295,7 @@ func (p *Parser) isLocalVarDecl() bool {
 				p.advance()
 			}
 		}
-		isType = p.check(TokenIdent)
+		isType = p.check(TokenIdent) || p.isUnnamedVariable()
 	}
 
 	p.pos = save
@@ -1327,8 +1335,8 @@ func (p *Parser) parseLocalVarDecl() *Node {
 	}
 
 	for {
-		if tok := p.expect(TokenIdent); tok != nil {
-			node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+		if id := p.parseVariableDeclaratorId(); id != nil {
+			node.AddChild(id)
 		}
 
 		for p.check(TokenLBracket) {
@@ -1486,6 +1494,10 @@ func (p *Parser) isEnhancedFor() bool {
 	return result
 }
 
+func (p *Parser) isLocalVarDeclWithUnderscore() bool {
+	return p.check(TokenIdent) && p.peek().Literal == "_" && p.peekN(1).Kind == TokenAssign
+}
+
 func (p *Parser) parseEnhancedForStmt() *Node {
 	node := p.startNode(KindEnhancedForStmt)
 
@@ -1498,8 +1510,8 @@ func (p *Parser) parseEnhancedForStmt() *Node {
 		node.AddChild(p.parseType())
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
-		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+	if id := p.parseVariableDeclaratorId(); id != nil {
+		node.AddChild(id)
 	}
 
 	p.expect(TokenColon)
@@ -1522,8 +1534,8 @@ func (p *Parser) parseLocalVarDeclNoSemi() *Node {
 	}
 
 	for {
-		if tok := p.expect(TokenIdent); tok != nil {
-			node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+		if id := p.parseVariableDeclaratorId(); id != nil {
+			node.AddChild(id)
 		}
 
 		for p.check(TokenLBracket) {
@@ -1725,6 +1737,22 @@ func (p *Parser) parseMatchAllPattern() *Node {
 	return p.finishNode(node)
 }
 
+func (p *Parser) isUnnamedVariable() bool {
+	return p.check(TokenIdent) && p.peek().Literal == "_"
+}
+
+func (p *Parser) parseVariableDeclaratorId() *Node {
+	if p.isUnnamedVariable() {
+		node := p.startNode(KindUnnamedVariable)
+		p.advance()
+		return p.finishNode(node)
+	}
+	if tok := p.expect(TokenIdent); tok != nil {
+		return &Node{Kind: KindIdentifier, Token: tok, Span: tok.Span}
+	}
+	return nil
+}
+
 func (p *Parser) parseReturnStmt() *Node {
 	node := p.startNode(KindReturnStmt)
 	p.expect(TokenReturn)
@@ -1805,8 +1833,8 @@ func (p *Parser) parseResource() *Node {
 		node := p.startNode(KindLocalVarDecl)
 		node.AddChild(p.parseModifiers())
 		node.AddChild(p.parseType())
-		if tok := p.expect(TokenIdent); tok != nil {
-			node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+		if id := p.parseVariableDeclaratorId(); id != nil {
+			node.AddChild(id)
 		}
 		if p.check(TokenAssign) {
 			p.advance()
@@ -1832,8 +1860,8 @@ func (p *Parser) parseCatchClause() *Node {
 	}
 	node.AddChild(p.finishNode(typeNode))
 
-	if tok := p.expect(TokenIdent); tok != nil {
-		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+	if id := p.parseVariableDeclaratorId(); id != nil {
+		node.AddChild(id)
 	}
 
 	p.expect(TokenRParen)
