@@ -90,6 +90,8 @@ func classModelFromClassDecl(node *parser.Node, pkg string) *ClassModel {
 			} else {
 				model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
 			}
+		case parser.KindBlock:
+			extractClassBodyMembers(child, model)
 		case parser.KindFieldDecl:
 			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child)...)
 		case parser.KindMethodDecl:
@@ -113,6 +115,30 @@ func classModelFromClassDecl(node *parser.Node, pkg string) *ClassModel {
 	}
 
 	return model
+}
+
+func extractClassBodyMembers(block *parser.Node, model *ClassModel) {
+	for _, child := range block.Children {
+		switch child.Kind {
+		case parser.KindFieldDecl:
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child)...)
+		case parser.KindMethodDecl:
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child))
+		case parser.KindConstructorDecl:
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName))
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			inner := classModelFromClassDeclNested(child, model.Name)
+			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
+				InnerClass: inner.Name,
+				OuterClass: model.Name,
+				InnerName:  inner.SimpleName,
+				Visibility: inner.Visibility,
+				IsStatic:   inner.IsStatic,
+				IsFinal:    inner.IsFinal,
+				IsAbstract: inner.IsAbstract,
+			})
+		}
+	}
 }
 
 func classModelFromClassDeclNested(node *parser.Node, outerName string) *ClassModel {
@@ -177,6 +203,8 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string) *ClassModel {
 			model.TypeParameters = typeParametersFromNode(child)
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+		case parser.KindBlock:
+			extractInterfaceBodyMembers(child, model)
 		case parser.KindFieldDecl:
 			fields := fieldModelsFromFieldDecl(child)
 			for i := range fields {
@@ -198,6 +226,28 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string) *ClassModel {
 	}
 
 	return model
+}
+
+func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel) {
+	for _, child := range block.Children {
+		switch child.Kind {
+		case parser.KindFieldDecl:
+			fields := fieldModelsFromFieldDecl(child)
+			for i := range fields {
+				fields[i].IsStatic = true
+				fields[i].IsFinal = true
+				fields[i].Visibility = VisibilityPublic
+			}
+			model.Fields = append(model.Fields, fields...)
+		case parser.KindMethodDecl:
+			method := methodModelFromMethodDecl(child)
+			if !method.IsStatic && !method.IsDefault {
+				method.IsAbstract = true
+			}
+			method.Visibility = VisibilityPublic
+			model.Methods = append(model.Methods, method)
+		}
+	}
 }
 
 func classModelFromEnumDecl(node *parser.Node, pkg string) *ClassModel {

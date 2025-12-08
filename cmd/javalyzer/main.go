@@ -20,6 +20,7 @@ func main() {
 	}
 
 	var outputFormat string
+	var jsonOutput bool
 	parseCmd := &cobra.Command{
 		Use:   "parse <file>",
 		Short: "Parse a .class or .java file and dump the result",
@@ -53,13 +54,31 @@ func main() {
 				if err != nil {
 					return fmt.Errorf("read java file: %w", err)
 				}
-				p := parser.ParseCompilationUnit(parser.WithFile(filename))
-				p.Push(data)
-				node := p.Finish()
-				if node == nil {
-					return fmt.Errorf("parse java file: incomplete or invalid syntax")
+
+				if jsonOutput {
+					models, err := java.ClassModelsFromSource(data, parser.WithFile(filename))
+					if err != nil {
+						return fmt.Errorf("parse java file: %w", err)
+					}
+					if len(models) == 0 {
+						return fmt.Errorf("parse java file: no classes found")
+					}
+					encoder := format.NewJSONModelEncoder(os.Stdout)
+					for _, model := range models {
+						if err := encoder.Encode(model); err != nil {
+							return fmt.Errorf("encode: %w", err)
+						}
+						fmt.Println()
+					}
+				} else {
+					p := parser.ParseCompilationUnit(parser.WithFile(filename))
+					p.Push(data)
+					node := p.Finish()
+					if node == nil {
+						return fmt.Errorf("parse java file: incomplete or invalid syntax")
+					}
+					fmt.Println(node.String())
 				}
-				fmt.Println(node.String())
 			default:
 				return fmt.Errorf("unsupported file extension: %s (expected .class or .java)", ext)
 			}
@@ -68,6 +87,7 @@ func main() {
 		},
 	}
 	parseCmd.Flags().StringVarP(&outputFormat, "format", "f", "json", "output format (json, java)")
+	parseCmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON for .java files")
 
 	var addr string
 	uiCmd := &cobra.Command{

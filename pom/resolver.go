@@ -631,44 +631,17 @@ func CompareVersions(a, b *Version) int {
 
 	for i := 0; i < maxLen; i++ {
 		var tokA, tokB VersionToken
-		var aExists, bExists bool
 
 		if i < len(a.Tokens) {
 			tokA = a.Tokens[i]
-			aExists = true
 		} else {
-			tokA = nullToken()
-			aExists = false
+			tokA = paddingToken(b.Tokens[i])
 		}
 
 		if i < len(b.Tokens) {
 			tokB = b.Tokens[i]
-			bExists = true
 		} else {
-			tokB = nullToken()
-			bExists = false
-		}
-
-		if aExists != bExists {
-			existing := tokA
-			if bExists {
-				existing = tokB
-			}
-			if !existing.IsNumeric {
-				order := qualifierOrder(strings.ToLower(existing.Value))
-				releaseOrder := qualifierOrder("")
-				if aExists {
-					if order < releaseOrder {
-						return -1
-					}
-					return 1
-				} else {
-					if order < releaseOrder {
-						return 1
-					}
-					return -1
-				}
-			}
+			tokB = paddingToken(a.Tokens[i])
 		}
 
 		cmp := compareTokens(tokA, tokB)
@@ -680,8 +653,11 @@ func CompareVersions(a, b *Version) int {
 	return 0
 }
 
-func nullToken() VersionToken {
-	return VersionToken{Value: "", IsNumeric: false}
+func paddingToken(existing VersionToken) VersionToken {
+	if existing.IsNumeric {
+		return VersionToken{Value: "0", IsNumeric: true, Separator: existing.Separator}
+	}
+	return VersionToken{Value: "", IsNumeric: false, Separator: existing.Separator}
 }
 
 func compareTokens(a, b VersionToken) int {
