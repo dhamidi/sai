@@ -2,6 +2,7 @@ package ui
 
 import (
 	"archive/zip"
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -158,18 +159,27 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
 	defer r.Close()
 
 	var classFiles []*zip.File
+	var jarFiles []*zip.File
 	for _, f := range r.File {
-		if !f.FileInfo().IsDir() && filepath.Ext(f.Name) == ".class" {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		ext := filepath.Ext(f.Name)
+		if ext == ".class" {
 			classFiles = append(classFiles, f)
+		} else if ext == ".jar" {
+			jarFiles = append(jarFiles, f)
 		}
 	}
 
 	s.mu.Lock()
-	s.scans[id].Total = len(classFiles)
+	s.scans[id].Total = len(classFiles) + len(jarFiles)
 	s.mu.Unlock()
 
 	var classes []*java.Class
-	for i, f := range classFiles {
+	progress := 0
+
+	for _, f := range classFiles {
 		rc, err := f.Open()
 		if err != nil {
 			return nil, fmt.Errorf("open %s: %w", f.Name, err)
@@ -185,10 +195,67 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
 			classes = append(classes, class)
 		}
 
+		progress++
 		s.mu.Lock()
-		s.scans[id].Progress = i + 1
+		s.scans[id].Progress = progress
 		s.mu.Unlock()
 	}
+
+	for _, jarFile := range jarFiles {
+		jarClasses, err := s.scanJarInZip(jarFile)
+		if err != nil {
+			return nil, fmt.Errorf("scan jar %s: %w", jarFile.Name, err)
+		}
+		classes = append(classes, jarClasses...)
+
+		progress++
+		s.mu.Lock()
+		s.scans[id].Progress = progress
+		s.mu.Unlock()
+	}
+
+	return classes, nil
+}
+
+func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.Class, error) {
+	rc, err := jarFile.Open()
+	if err != nil {
+		return nil, fmt.Errorf("open jar: %w", err)
+	}
+	defer rc.Close()
+
+	jarData, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, fmt.Errorf("read jar: %w", err)
+	}
+
+	jarReader, err := zip.NewReader(bytes.NewReader(jarData), int64(len(jarData)))
+	if err != nil {
+		return nil, fmt.Errorf("open jar as zip: %w", err)
+	}
+
+	var classes []*java.Class
+	for _, f := range jarReader.File {
+		if f.FileInfo().IsDir() || filepath.Ext(f.Name) != ".class" {
+			continue
+		}
+
+		classRC, err := f.Open()
+		if err != nil {
+			return nil, fmt.Errorf("open %s: %w", f.Name, err)
+		}
+
+		class, err := java.ParseClass(classRC)
+		classRC.Close()
+
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", f.Name, err)
+		}
+		if class != nil {
+			classes = append(classes, class)
+		}
+	}
+
 	return classes, nil
 }
 

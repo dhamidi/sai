@@ -276,6 +276,8 @@ func classModelFromEnumDecl(node *parser.Node, pkg string) *ClassModel {
 			}
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+		case parser.KindBlock:
+			extractClassBodyMembers(child, model)
 		case parser.KindFieldDecl:
 			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child)...)
 		case parser.KindMethodDecl:
@@ -321,6 +323,8 @@ func classModelFromRecordDecl(node *parser.Node, pkg string) *ClassModel {
 			model.RecordComponents = recordComponentsFromParameters(child)
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+		case parser.KindBlock:
+			extractClassBodyMembers(child, model)
 		case parser.KindMethodDecl:
 			model.Methods = append(model.Methods, methodModelFromMethodDecl(child))
 		case parser.KindConstructorDecl:
@@ -358,6 +362,8 @@ func classModelFromAnnotationDecl(node *parser.Node, pkg string) *ClassModel {
 					model.Name = model.SimpleName
 				}
 			}
+		case parser.KindBlock:
+			extractAnnotationBodyMembers(child, model)
 		case parser.KindMethodDecl:
 			method := methodModelFromMethodDecl(child)
 			method.IsAbstract = true
@@ -369,6 +375,17 @@ func classModelFromAnnotationDecl(node *parser.Node, pkg string) *ClassModel {
 	}
 
 	return model
+}
+
+func extractAnnotationBodyMembers(block *parser.Node, model *ClassModel) {
+	for _, child := range block.Children {
+		if child.Kind == parser.KindMethodDecl {
+			method := methodModelFromMethodDecl(child)
+			method.IsAbstract = true
+			method.Visibility = VisibilityPublic
+			model.Methods = append(model.Methods, method)
+		}
+	}
 }
 
 func applyModifiersToClass(modifiers *parser.Node, model *ClassModel) {
@@ -436,6 +453,18 @@ func typeModelFromTypeNode(node *parser.Node) TypeModel {
 		return model
 	}
 
+	if node.Kind == parser.KindArrayType {
+		for _, ac := range node.Children {
+			if ac.Kind == parser.KindType || ac.Kind == parser.KindQualifiedName || ac.Kind == parser.KindIdentifier {
+				inner := typeModelFromTypeNode(ac)
+				model.Name = inner.Name
+				model.ArrayDepth = inner.ArrayDepth + 1
+				model.TypeArguments = inner.TypeArguments
+				return model
+			}
+		}
+	}
+
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindIdentifier:
@@ -448,10 +477,15 @@ func typeModelFromTypeNode(node *parser.Node) TypeModel {
 		case parser.KindQualifiedName:
 			model.Name = qualifiedNameToString(child)
 		case parser.KindArrayType:
-			inner := typeModelFromTypeNode(child)
-			model.Name = inner.Name
-			model.ArrayDepth = inner.ArrayDepth + 1
-			model.TypeArguments = inner.TypeArguments
+			for _, ac := range child.Children {
+				if ac.Kind == parser.KindType || ac.Kind == parser.KindQualifiedName || ac.Kind == parser.KindIdentifier {
+					inner := typeModelFromTypeNode(ac)
+					model.Name = inner.Name
+					model.ArrayDepth = inner.ArrayDepth + 1
+					model.TypeArguments = inner.TypeArguments
+					break
+				}
+			}
 		case parser.KindParameterizedType:
 			for _, pc := range child.Children {
 				switch pc.Kind {
@@ -701,6 +735,8 @@ func parameterFromNode(node *parser.Node) ParameterModel {
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindType:
+			param.Type = typeModelFromTypeNode(child)
+		case parser.KindArrayType:
 			param.Type = typeModelFromTypeNode(child)
 		case parser.KindIdentifier:
 			if child.Token != nil {
