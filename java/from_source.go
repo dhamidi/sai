@@ -1,14 +1,14 @@
 package java
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/dhamidi/javalyzer/java/parser"
 )
 
 func ClassModelsFromSource(source []byte, opts ...parser.Option) ([]*ClassModel, error) {
-	p := parser.ParseCompilationUnit(opts...)
-	p.Push(source)
+	p := parser.ParseCompilationUnit(bytes.NewReader(source), opts...)
 	node := p.Finish()
 	if node == nil {
 		return nil, nil

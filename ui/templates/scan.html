@@ -51,10 +51,17 @@
             </div>
             {{end}}
 
-            {{if .Error}}
-            <div class="error">
-                <strong>Error:</strong> {{.Error}}
-            </div>
+            {{if .Errors}}
+            <details class="errors" {{if not .Classes}}open{{end}}>
+                <summary>Errors ({{len .Errors}})</summary>
+                <ul>
+                    {{range .Errors}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </details>
+            {{else if .Error}}
+            <div class="error">{{.Error}}</div>
             {{end}}
 
             {{if .Classes}}
@@ -74,7 +81,7 @@
                         <td><a href="/c/{{.Name}}">{{.SimpleName}}</a></td>
                         <td>{{.Package}}</td>
                         <td>
-                            {{if .IsInterface}}interface{{else if .IsEnum}}enum{{else if .IsAnnotation}}annotation{{else if .IsRecord}}record{{else}}class{{end}}
+                            {{if eq .Kind "interface"}}interface{{else if eq .Kind "enum"}}enum{{else if eq .Kind "annotation"}}annotation{{else if eq .Kind "record"}}record{{else}}class{{end}}
                         </td>
                         <td>{{.Visibility}}</td>
                     </tr>

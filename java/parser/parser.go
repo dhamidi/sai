@@ -1,5 +1,7 @@
 package parser
 
+import "io"
+
 type Option func(*Parser)
 
 func WithFile(path string) Option {
@@ -19,6 +21,7 @@ type parseFunc func(*Parser) *Node
 type Parser struct {
 	file       string
 	startLine  int
+	reader     io.Reader
 	input      []byte
 	lexer      *Lexer
 	tokens     []Token
@@ -27,9 +30,10 @@ type Parser struct {
 	incomplete bool
 }
 
-func ParseCompilationUnit(opts ...Option) *Parser {
+func ParseCompilationUnit(r io.Reader, opts ...Option) *Parser {
 	p := &Parser{
 		startLine: 1,
+		reader:    r,
 		entry:     (*Parser).parseCompilationUnit,
 	}
 	for _, opt := range opts {
@@ -38,9 +42,10 @@ func ParseCompilationUnit(opts ...Option) *Parser {
 	return p
 }
 
-func ParseExpression(opts ...Option) *Parser {
+func ParseExpression(r io.Reader, opts ...Option) *Parser {
 	p := &Parser{
 		startLine: 1,
+		reader:    r,
 		entry:     (*Parser).parseExpression,
 	}
 	for _, opt := range opts {
@@ -49,9 +54,16 @@ func ParseExpression(opts ...Option) *Parser {
 	return p
 }
 
-func (p *Parser) Push(data []byte) int {
-	p.input = append(p.input, data...)
-	return len(data)
+func (p *Parser) readAll() error {
+	if p.input != nil {
+		return nil
+	}
+	data, err := io.ReadAll(p.reader)
+	if err != nil {
+		return err
+	}
+	p.input = data
+	return nil
 }
 
 // IsComplete reports whether it is safe to call Finish.
@@ -59,6 +71,9 @@ func (p *Parser) Push(data []byte) int {
 // without blocking. For example, "1 + " returns false because the
 // expression is incomplete.
 func (p *Parser) IsComplete() bool {
+	if err := p.readAll(); err != nil {
+		return false
+	}
 	if len(p.input) == 0 {
 		return false
 	}
@@ -88,6 +103,9 @@ func (p *Parser) IsComplete() bool {
 }
 
 func (p *Parser) Finish() *Node {
+	if err := p.readAll(); err != nil {
+		return nil
+	}
 	if len(p.input) == 0 {
 		return nil
 	}
@@ -103,7 +121,8 @@ func (p *Parser) Finish() *Node {
 	return result
 }
 
-func (p *Parser) Reset() {
+func (p *Parser) Reset(r io.Reader) {
+	p.reader = r
 	p.input = nil
 	p.lexer = nil
 	p.tokens = nil

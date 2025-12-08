@@ -13,7 +13,7 @@
             <nav class="class-list">
                 {{range .Classes}}
                 <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}">
-                    <span class="class-type">{{if .IsInterface}}I{{else if .IsEnum}}E{{else if .IsAnnotation}}@{{else if .IsRecord}}R{{else}}C{{end}}</span>
+                    <span class="class-type">{{if eq .Kind "interface"}}I{{else if eq .Kind "enum"}}E{{else if eq .Kind "annotation"}}@{{else if eq .Kind "record"}}R{{else}}C{{end}}</span>
                     <span class="class-name" title="{{.Name}}">{{.SimpleName}}</span>
                     {{if .Package}}<span class="class-package">{{.Package}}</span>{{end}}
                 </a>
@@ -26,7 +26,7 @@
             {{if .ActiveClass}}
             <header class="class-header">
                 <h2>
-                    {{if .ActiveClass.IsInterface}}interface{{else if .ActiveClass.IsEnum}}enum{{else if .ActiveClass.IsAnnotation}}@interface{{else if .ActiveClass.IsRecord}}record{{else}}class{{end}}
+                    {{if eq .ActiveClass.Kind "interface"}}interface{{else if eq .ActiveClass.Kind "enum"}}enum{{else if eq .ActiveClass.Kind "annotation"}}@interface{{else if eq .ActiveClass.Kind "record"}}record{{else}}class{{end}}
                     <strong>{{.ActiveClass.SimpleName}}</strong>
                 </h2>
                 <div class="class-meta">
@@ -84,7 +84,7 @@
             </section>
             {{end}}
 
-            {{with .ActiveClass.Constructors}}
+            {{with constructors .ActiveClass}}
             <section class="constructors">
                 <h3>Constructors</h3>
                 <table>
@@ -122,7 +122,7 @@
                     </thead>
                     <tbody>
                         {{range .ActiveClass.Methods}}
-                        {{if not .IsConstructor}}{{if not .IsStaticInitializer}}{{if not .IsSynthetic}}{{if not .IsBridge}}
+                        {{if not (isConstructor .)}}{{if not (isStaticInitializer .)}}{{if not .IsSynthetic}}{{if not .IsBridge}}
                         <tr>
                             <td class="visibility">{{.Visibility}}</td>
                             <td class="type">{{linkifyType $.KnownClasses .ReturnType}}</td>

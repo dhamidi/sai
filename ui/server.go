@@ -43,8 +43,9 @@ type ScanResult struct {
 	ID        string
 	Status    ScanStatus
 	Request   ScanRequest
-	Classes   []*java.Class
+	Classes   []*java.ClassModel
 	Error     string
+	Errors    []string
 	StartedAt time.Time
 	EndedAt   time.Time
 	Progress  int
@@ -87,112 +88,157 @@ func (s *Scanner) processScan(req ScanRequest) {
 	result.StartedAt = time.Now()
 	s.mu.Unlock()
 
-	var classes []*java.Class
-	var scanErr error
+	var classes []*java.ClassModel
+	var errors []string
 
 	if req.Path != "" {
-		classes, scanErr = s.scanDirectory(req.ID, req.Path)
+		classes, errors = s.scanDirectory(req.ID, req.Path)
 	} else if len(req.ClassFiles) > 0 {
-		classes, scanErr = s.scanFiles(req.ID, req.ClassFiles)
+		classes, errors = s.scanFiles(req.ID, req.ClassFiles)
 	} else if req.ZipFile != "" {
-		classes, scanErr = s.scanZipFile(req.ID, req.ZipFile)
+		classes, errors = s.scanZipFile(req.ID, req.ZipFile)
 	} else {
-		scanErr = fmt.Errorf("no path, class files, or zip file provided")
+		errors = append(errors, "no path, class files, or zip file provided")
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result.EndedAt = time.Now()
-	if scanErr != nil {
+	result.Classes = classes
+	result.Errors = errors
+	if len(errors) > 0 && len(classes) == 0 {
 		result.Status = ScanStatusFailed
-		result.Error = scanErr.Error()
+		result.Error = errors[0]
 	} else {
 		result.Status = ScanStatusCompleted
-		result.Classes = classes
 	}
 }
 
-func (s *Scanner) scanDirectory(id, path string) ([]*java.Class, error) {
+func (s *Scanner) scanDirectory(id, path string) ([]*java.ClassModel, []string) {
 	var files []string
+	var errors []string
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			errors = append(errors, fmt.Sprintf("walk %s: %v", p, err))
+			return nil
 		}
-		if !info.IsDir() && filepath.Ext(p) == ".class" {
-			files = append(files, p)
+		if !info.IsDir() {
+			ext := filepath.Ext(p)
+			if ext == ".class" || ext == ".java" {
+				files = append(files, p)
+			}
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		errors = append(errors, fmt.Sprintf("walk %s: %v", path, err))
 	}
-	return s.scanFiles(id, files)
+	classes, scanErrors := s.scanFiles(id, files)
+	return classes, append(errors, scanErrors...)
 }
 
-func (s *Scanner) scanFiles(id string, files []string) ([]*java.Class, error) {
+func (s *Scanner) scanFiles(id string, files []string) ([]*java.ClassModel, []string) {
 	s.mu.Lock()
 	s.scans[id].Total = len(files)
 	s.mu.Unlock()
 
-	var classes []*java.Class
+	var classes []*java.ClassModel
+	var errors []string
 	for i, file := range files {
-		class, err := java.ParseClassFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("parse %s: %w", file, err)
-		}
-		if class != nil {
-			classes = append(classes, class)
+		ext := filepath.Ext(file)
+		switch ext {
+		case ".class":
+			class, err := java.ClassModelFromFile(file)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("parse %s: %v", file, err))
+			} else if class != nil {
+				classes = append(classes, class)
+			}
+		case ".java":
+			data, err := os.ReadFile(file)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("read %s: %v", file, err))
+			} else {
+				models, err := java.ClassModelsFromSource(data)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("parse %s: %v", file, err))
+				} else {
+					classes = append(classes, models...)
+				}
+			}
 		}
 
 		s.mu.Lock()
 		s.scans[id].Progress = i + 1
 		s.mu.Unlock()
 	}
-	return classes, nil
+	return classes, errors
 }
 
-func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
+func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 	r, err := zip.OpenReader(path)
 	if err != nil {
-		return nil, fmt.Errorf("open zip: %w", err)
+		return nil, []string{fmt.Sprintf("open zip: %v", err)}
 	}
 	defer r.Close()
 
-	var classFiles []*zip.File
+	var sourceFiles []*zip.File
 	var jarFiles []*zip.File
 	for _, f := range r.File {
 		if f.FileInfo().IsDir() {
 			continue
 		}
 		ext := filepath.Ext(f.Name)
-		if ext == ".class" {
-			classFiles = append(classFiles, f)
-		} else if ext == ".jar" {
+		switch ext {
+		case ".class", ".java":
+			sourceFiles = append(sourceFiles, f)
+		case ".jar":
 			jarFiles = append(jarFiles, f)
 		}
 	}
 
 	s.mu.Lock()
-	s.scans[id].Total = len(classFiles) + len(jarFiles)
+	s.scans[id].Total = len(sourceFiles) + len(jarFiles)
 	s.mu.Unlock()
 
-	var classes []*java.Class
+	var classes []*java.ClassModel
+	var errors []string
 	progress := 0
 
-	for _, f := range classFiles {
+	for _, f := range sourceFiles {
 		rc, err := f.Open()
 		if err != nil {
-			return nil, fmt.Errorf("open %s: %w", f.Name, err)
+			errors = append(errors, fmt.Sprintf("open %s: %v", f.Name, err))
+			progress++
+			s.mu.Lock()
+			s.scans[id].Progress = progress
+			s.mu.Unlock()
+			continue
 		}
 
-		class, err := java.ParseClass(rc)
-		rc.Close()
-
-		if err != nil {
-			return nil, fmt.Errorf("parse %s: %w", f.Name, err)
-		}
-		if class != nil {
-			classes = append(classes, class)
+		ext := filepath.Ext(f.Name)
+		switch ext {
+		case ".class":
+			class, err := java.ClassModelFromReader(rc)
+			rc.Close()
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("parse %s: %v", f.Name, err))
+			} else if class != nil {
+				classes = append(classes, class)
+			}
+		case ".java":
+			data, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("read %s: %v", f.Name, err))
+			} else {
+				models, err := java.ClassModelsFromSource(data)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("parse %s: %v", f.Name, err))
+				} else {
+					classes = append(classes, models...)
+				}
+			}
 		}
 
 		progress++
@@ -202,11 +248,9 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
 	}
 
 	for _, jarFile := range jarFiles {
-		jarClasses, err := s.scanJarInZip(jarFile)
-		if err != nil {
-			return nil, fmt.Errorf("scan jar %s: %w", jarFile.Name, err)
-		}
+		jarClasses, jarErrors := s.scanJarInZip(jarFile)
 		classes = append(classes, jarClasses...)
+		errors = append(errors, jarErrors...)
 
 		progress++
 		s.mu.Lock()
@@ -214,49 +258,69 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
 		s.mu.Unlock()
 	}
 
-	return classes, nil
+	return classes, errors
 }
 
-func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.Class, error) {
+func (s *Scanner) scanJarInZip(jarFile *zip.File) ([]*java.ClassModel, []string) {
 	rc, err := jarFile.Open()
 	if err != nil {
-		return nil, fmt.Errorf("open jar: %w", err)
+		return nil, []string{fmt.Sprintf("open jar %s: %v", jarFile.Name, err)}
 	}
 	defer rc.Close()
 
 	jarData, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, fmt.Errorf("read jar: %w", err)
+		return nil, []string{fmt.Sprintf("read jar %s: %v", jarFile.Name, err)}
 	}
 
 	jarReader, err := zip.NewReader(bytes.NewReader(jarData), int64(len(jarData)))
 	if err != nil {
-		return nil, fmt.Errorf("open jar as zip: %w", err)
+		return nil, []string{fmt.Sprintf("open jar %s as zip: %v", jarFile.Name, err)}
 	}
 
-	var classes []*java.Class
+	var classes []*java.ClassModel
+	var errors []string
 	for _, f := range jarReader.File {
-		if f.FileInfo().IsDir() || filepath.Ext(f.Name) != ".class" {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		ext := filepath.Ext(f.Name)
+		if ext != ".class" && ext != ".java" {
 			continue
 		}
 
-		classRC, err := f.Open()
+		fileRC, err := f.Open()
 		if err != nil {
-			return nil, fmt.Errorf("open %s: %w", f.Name, err)
+			errors = append(errors, fmt.Sprintf("open %s in %s: %v", f.Name, jarFile.Name, err))
+			continue
 		}
 
-		class, err := java.ParseClass(classRC)
-		classRC.Close()
-
-		if err != nil {
-			return nil, fmt.Errorf("parse %s: %w", f.Name, err)
-		}
-		if class != nil {
-			classes = append(classes, class)
+		switch ext {
+		case ".class":
+			class, err := java.ClassModelFromReader(fileRC)
+			fileRC.Close()
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
+			} else if class != nil {
+				classes = append(classes, class)
+			}
+		case ".java":
+			data, err := io.ReadAll(fileRC)
+			fileRC.Close()
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("read %s in %s: %v", f.Name, jarFile.Name, err))
+			} else {
+				models, err := java.ClassModelsFromSource(data)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
+				} else {
+					classes = append(classes, models...)
+				}
+			}
 		}
 	}
 
-	return classes, nil
+	return classes, errors
 }
 
 func (s *Scanner) Submit(req ScanRequest) string {
@@ -315,7 +379,7 @@ func NewServer() (*Server, error) {
 			}
 			return template.HTML(escaped)
 		},
-		"linkifyType": func(knownClasses map[string]bool, t java.Type) template.HTML {
+		"linkifyType": func(knownClasses map[string]bool, t java.TypeModel) template.HTML {
 			escaped := template.HTMLEscapeString(t.Name)
 			var result string
 			if knownClasses[t.Name] {
@@ -327,6 +391,21 @@ func NewServer() (*Server, error) {
 				result += "[]"
 			}
 			return template.HTML(result)
+		},
+		"constructors": func(m *java.ClassModel) []java.MethodModel {
+			var ctors []java.MethodModel
+			for _, method := range m.Methods {
+				if method.Name == "<init>" {
+					ctors = append(ctors, method)
+				}
+			}
+			return ctors
+		},
+		"isConstructor": func(m java.MethodModel) bool {
+			return m.Name == "<init>"
+		},
+		"isStaticInitializer": func(m java.MethodModel) bool {
+			return m.Name == "<clinit>"
 		},
 	}
 
@@ -463,28 +542,28 @@ func (o *overlayFSType) Open(name string) (fs.File, error) {
 	return o.secondary.Open(name)
 }
 
-func (s *Scanner) AllClasses() []*java.Class {
+func (s *Scanner) AllClasses() []*java.ClassModel {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var all []*java.Class
+	var all []*java.ClassModel
 	for _, scan := range s.scans {
 		if scan.Status == ScanStatusCompleted {
 			all = append(all, scan.Classes...)
 		}
 	}
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].Name() < all[j].Name()
+		return all[i].Name < all[j].Name
 	})
 	return all
 }
 
-func (s *Scanner) FindClass(name string) *java.Class {
+func (s *Scanner) FindClass(name string) *java.ClassModel {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, scan := range s.scans {
 		if scan.Status == ScanStatusCompleted {
 			for _, c := range scan.Classes {
-				if c.Name() == name {
+				if c.Name == name {
 					return c
 				}
 			}
@@ -494,10 +573,10 @@ func (s *Scanner) FindClass(name string) *java.Class {
 }
 
 type ClassViewData struct {
-	Classes      []*java.Class
-	ActiveClass  *java.Class
+	Classes      []*java.ClassModel
+	ActiveClass  *java.ClassModel
 	KnownClasses map[string]bool
-	Implementers []*java.Class
+	Implementers []*java.ClassModel
 }
 
 func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
@@ -506,7 +585,7 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 
 	knownClasses := make(map[string]bool)
 	for _, c := range classes {
-		knownClasses[c.Name()] = true
+		knownClasses[c.Name] = true
 	}
 
 	data := ClassViewData{
@@ -520,9 +599,9 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "class not found", http.StatusNotFound)
 			return
 		}
-		if data.ActiveClass.IsInterface() {
+		if data.ActiveClass.Kind == java.ClassKindInterface {
 			for _, c := range classes {
-				for _, iface := range c.Interfaces() {
+				for _, iface := range c.Interfaces {
 					if iface == className {
 						data.Implementers = append(data.Implementers, c)
 						break

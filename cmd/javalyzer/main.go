@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"os"
@@ -71,8 +72,7 @@ func main() {
 						fmt.Println()
 					}
 				} else {
-					p := parser.ParseCompilationUnit(parser.WithFile(filename))
-					p.Push(data)
+					p := parser.ParseCompilationUnit(bytes.NewReader(data), parser.WithFile(filename))
 					node := p.Finish()
 					if node == nil {
 						return fmt.Errorf("parse java file: incomplete or invalid syntax")

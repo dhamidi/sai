@@ -19,17 +19,13 @@
 //	                    │  Tracking   │     │  Recovery   │
 //	                    └─────────────┘     └─────────────┘
 //
-// # Streaming Interface
+// # Reader Interface
 //
-// The parser implements a push-based streaming model:
+// The parser reads from an io.Reader:
 //
 //	type Parser struct {
 //	    // unexported fields
 //	}
-//
-//	// Push feeds bytes into the parser. May be called multiple times
-//	// with chunks of input. Returns the number of bytes consumed.
-//	func (p *Parser) Push(data []byte) int
 //
 //	// IsComplete reports whether it is safe to call Finish.
 //	// Returns true when the input can be parsed to produce a complete
@@ -37,13 +33,11 @@
 //	// the expression is incomplete, while "1 + 2" returns true.
 //	func (p *Parser) IsComplete() bool
 //
-//	// Finish signals end of input and finalizes the parse tree.
-//	// Must be called after all Push calls are complete.
-//	// Use IsComplete to check if calling Finish is safe.
+//	// Finish reads all input and finalizes the parse tree.
 //	func (p *Parser) Finish() *Node
 //
-//	// Reset clears parser state for reuse with new input.
-//	func (p *Parser) Reset()
+//	// Reset clears parser state for reuse with a new reader.
+//	func (p *Parser) Reset(r io.Reader)
 //
 // # Source Context
 //
@@ -98,13 +92,13 @@
 //	// Grammar: CompilationUnit → OrdinaryCompilationUnit
 //	//                          | CompactCompilationUnit
 //	//                          | ModularCompilationUnit
-//	func ParseCompilationUnit(opts ...Option) *Parser
+//	func ParseCompilationUnit(r io.Reader, opts ...Option) *Parser
 //
 //	// ParseExpression parses a standalone expression.
 //	// Useful for evaluating snippets, REPL input, or template expressions.
 //	//
 //	// Grammar: Expression → LambdaExpression | AssignmentExpression
-//	func ParseExpression(opts ...Option) *Parser
+//	func ParseExpression(r io.Reader, opts ...Option) *Parser
 //
 // # Completion Support
 //
@@ -193,19 +187,16 @@
 // # Example Usage
 //
 //	// Parse a complete file
-//	p := parser.ParseCompilationUnit(parser.WithFile("Main.java"))
-//	p.Push([]byte("package com.example;\n"))
-//	p.Push([]byte("public class Main {}\n"))
+//	f, _ := os.Open("Main.java")
+//	p := parser.ParseCompilationUnit(f, parser.WithFile("Main.java"))
 //	tree := p.Finish()
 //
 //	// Parse an expression
-//	p := parser.ParseExpression()
-//	p.Push([]byte("x + y * 2"))
+//	p := parser.ParseExpression(strings.NewReader("x + y * 2"))
 //	tree := p.Finish()
 //
 //	// Get completion context
-//	p := parser.ParseCompilationUnit(parser.WithFile("Main.java"))
-//	p.Push([]byte("obj."))
+//	p := parser.ParseCompilationUnit(strings.NewReader("obj."), parser.WithFile("Main.java"))
 //	ctx := p.CompletionAt(4) // after the dot
 //	// ctx.Expected contains method/field tokens
 package parser

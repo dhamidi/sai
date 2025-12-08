@@ -89,8 +89,7 @@ func TestParseExpression(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			p := ParseExpression()
-			p.Push([]byte(tt.input))
+			p := ParseExpression(strings.NewReader(tt.input))
 			node := p.Finish()
 			if node.Kind != tt.kind {
 				t.Errorf("got %v, want %v", node.Kind, tt.kind)
@@ -192,8 +191,7 @@ func TestParseCompilationUnit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit(WithFile("test.java"))
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input), WithFile("test.java"))
 			node := p.Finish()
 			if node.Kind != KindCompilationUnit {
 				t.Errorf("got %v, want CompilationUnit", node.Kind)
@@ -246,12 +244,10 @@ func TestParseStringTemplates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var node *Node
 			if strings.HasPrefix(tt.input, "class") {
-				p := ParseCompilationUnit()
-				p.Push([]byte(tt.input))
+				p := ParseCompilationUnit(strings.NewReader(tt.input))
 				node = p.Finish()
 			} else {
-				p := ParseExpression()
-				p.Push([]byte(tt.input))
+				p := ParseExpression(strings.NewReader(tt.input))
 				node = p.Finish()
 			}
 			if hasError(node) {
@@ -289,8 +285,7 @@ func TestParseStringTemplateNodeKind(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseExpression()
-			p.Push([]byte(tt.input))
+			p := ParseExpression(strings.NewReader(tt.input))
 			node := p.Finish()
 			if node == nil {
 				t.Fatal("got nil node")
@@ -333,8 +328,7 @@ func TestParseStatements(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit()
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
 			node := p.Finish()
 			if hasError(node) {
 				t.Errorf("parse error in: %s", tt.input)
@@ -345,8 +339,7 @@ func TestParseStatements(t *testing.T) {
 
 func TestPositionTracking(t *testing.T) {
 	input := "class Foo {\n    int x;\n}"
-	p := ParseCompilationUnit(WithFile("test.java"))
-	p.Push([]byte(input))
+	p := ParseCompilationUnit(strings.NewReader(input), WithFile("test.java"))
 	node := p.Finish()
 
 	if node.Span.Start.Line != 1 {
@@ -394,8 +387,7 @@ func TestCompactCompilationUnit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit(WithFile("test.java"))
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input), WithFile("test.java"))
 			node := p.Finish()
 			if node.Kind != KindCompilationUnit {
 				t.Errorf("got %v, want CompilationUnit", node.Kind)
@@ -447,8 +439,7 @@ public class Example<T extends Comparable<T>> implements Runnable {
     }
 }
 `
-	p := ParseCompilationUnit(WithFile("Example.java"))
-	p.Push([]byte(input))
+	p := ParseCompilationUnit(strings.NewReader(input), WithFile("Example.java"))
 	node := p.Finish()
 
 	if node.Kind != KindCompilationUnit {
@@ -543,8 +534,7 @@ func TestModularCompilationUnit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit(WithFile("module-info.java"))
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input), WithFile("module-info.java"))
 			node := p.Finish()
 			if node.Kind != KindCompilationUnit {
 				t.Errorf("got %v, want CompilationUnit", node.Kind)
@@ -588,8 +578,7 @@ func TestParseUnnamedVariables(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit()
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
 			node := p.Finish()
 			if hasError(node) {
 				t.Errorf("parse error in: %s", tt.input)
@@ -601,8 +590,7 @@ func TestParseUnnamedVariables(t *testing.T) {
 
 func TestParseUnnamedVariableNodeKind(t *testing.T) {
 	input := "class Foo { void m() { var _ = getValue(); } }"
-	p := ParseCompilationUnit()
-	p.Push([]byte(input))
+	p := ParseCompilationUnit(strings.NewReader(input))
 	node := p.Finish()
 
 	found := findNode(node, KindUnnamedVariable)
@@ -625,8 +613,7 @@ func TestReceiverParameter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit()
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
 			node := p.Finish()
 			if hasError(node) {
 				t.Errorf("parse error in: %s", tt.input)
@@ -638,8 +625,7 @@ func TestReceiverParameter(t *testing.T) {
 
 func TestReceiverParameterNodeKind(t *testing.T) {
 	input := "class Foo { void bar(Foo this) {} }"
-	p := ParseCompilationUnit()
-	p.Push([]byte(input))
+	p := ParseCompilationUnit(strings.NewReader(input))
 	node := p.Finish()
 
 	found := findNode(node, KindReceiverParameter)
@@ -666,8 +652,7 @@ func TestExplicitConstructorInvocation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit()
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
 			node := p.Finish()
 			if hasError(node) {
 				t.Errorf("parse error in: %s", tt.input)
@@ -679,8 +664,7 @@ func TestExplicitConstructorInvocation(t *testing.T) {
 
 func TestExplicitConstructorInvocationNodeKind(t *testing.T) {
 	input := "class Foo extends Bar { Foo() { super(); } }"
-	p := ParseCompilationUnit()
-	p.Push([]byte(input))
+	p := ParseCompilationUnit(strings.NewReader(input))
 	node := p.Finish()
 
 	found := findNode(node, KindExplicitConstructorInvocation)
@@ -704,8 +688,7 @@ func TestTypeAnnotationsOnArrayDimensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := ParseCompilationUnit()
-			p.Push([]byte(tt.input))
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
 			node := p.Finish()
 			if hasError(node) {
 				t.Errorf("parse error in: %s", tt.input)
