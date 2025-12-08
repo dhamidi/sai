@@ -373,6 +373,7 @@ var keywords = map[string]TokenKind{
 	"to":           TokenTo,
 	"with":         TokenWith,
 	"transitive":   TokenTransitive,
+	"when":         TokenWhen,
 }
 
 func LookupKeyword(ident string) TokenKind {

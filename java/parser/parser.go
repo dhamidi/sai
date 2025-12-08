@@ -1603,11 +1603,18 @@ func (p *Parser) parseSwitchLabel() *Node {
 	if p.check(TokenCase) {
 		p.advance()
 		for {
-			node.AddChild(p.parseExpression())
+			if p.looksLikeTypePattern() {
+				node.AddChild(p.parseTypePattern())
+			} else {
+				node.AddChild(p.parseExpression())
+			}
 			if !p.check(TokenComma) {
 				break
 			}
 			p.advance()
+		}
+		if p.check(TokenWhen) {
+			node.AddChild(p.parseGuard())
 		}
 	} else {
 		p.expect(TokenDefault)
@@ -1620,6 +1627,55 @@ func (p *Parser) parseSwitchLabel() *Node {
 		p.expect(TokenColon)
 	}
 
+	return p.finishNode(node)
+}
+
+func (p *Parser) looksLikeTypePattern() bool {
+	save := p.pos
+	defer func() { p.pos = save }()
+
+	for p.check(TokenAt) {
+		p.parseAnnotation()
+	}
+
+	switch p.peek().Kind {
+	case TokenBoolean, TokenByte, TokenChar, TokenShort,
+		TokenInt, TokenLong, TokenFloat, TokenDouble:
+		p.advance()
+	case TokenIdent:
+		p.parseQualifiedName()
+		if p.check(TokenLT) {
+			p.parseTypeArguments()
+		}
+	default:
+		return false
+	}
+
+	for p.check(TokenLBracket) {
+		p.advance()
+		if !p.check(TokenRBracket) {
+			return false
+		}
+		p.advance()
+	}
+
+	return p.check(TokenIdent)
+}
+
+func (p *Parser) parseTypePattern() *Node {
+	node := p.startNode(KindTypePattern)
+	node.AddChild(p.parseType())
+	if p.check(TokenIdent) {
+		tok := p.advance()
+		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+	}
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseGuard() *Node {
+	node := p.startNode(KindGuard)
+	p.expect(TokenWhen)
+	node.AddChild(p.parseExpression())
 	return p.finishNode(node)
 }
 

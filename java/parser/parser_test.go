@@ -209,6 +209,7 @@ func TestParseStatements(t *testing.T) {
 		{"while stmt", "class Foo { void m() { while (true) {} } }"},
 		{"do-while stmt", "class Foo { void m() { do {} while (true); } }"},
 		{"switch stmt", "class Foo { void m() { switch (x) { case 1: break; default: break; } } }"},
+		{"switch pattern", "class Foo { void m() { switch (x) { case Integer i: break; case String s when s.isEmpty(): break; default: break; } } }"},
 		{"try-catch", "class Foo { void m() { try {} catch (Exception e) {} } }"},
 		{"try-finally", "class Foo { void m() { try {} finally {} } }"},
 		{"try-with-resources", "class Foo { void m() { try (var r = new R()) {} } }"},
