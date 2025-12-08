@@ -204,7 +204,9 @@ func (p *Parser) parseCompilationUnit() *Node {
 		node.AddChild(p.parseImportDecl())
 	}
 
-	if p.isCompactCompilationUnit() {
+	if p.isModularCompilationUnit() {
+		node.AddChild(p.parseModuleDecl())
+	} else if p.isCompactCompilationUnit() {
 		for !p.check(TokenEOF) {
 			node.AddChild(p.parseClassMember())
 		}
@@ -248,6 +250,143 @@ func (p *Parser) isCompactCompilationUnit() bool {
 
 	p.pos = save
 	return !isTypeDecl
+}
+
+func (p *Parser) isModularCompilationUnit() bool {
+	if p.check(TokenEOF) {
+		return false
+	}
+
+	save := p.pos
+
+	for p.check(TokenAt) {
+		p.parseAnnotation()
+	}
+
+	if p.check(TokenOpen) {
+		p.advance()
+	}
+
+	isModule := p.check(TokenModule)
+	p.pos = save
+	return isModule
+}
+
+func (p *Parser) parseModuleDecl() *Node {
+	node := p.startNode(KindModuleDecl)
+
+	for p.check(TokenAt) {
+		node.AddChild(p.parseAnnotation())
+	}
+
+	if p.check(TokenOpen) {
+		tok := p.advance()
+		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+	}
+
+	p.expect(TokenModule)
+	node.AddChild(p.parseQualifiedName())
+
+	p.expect(TokenLBrace)
+	for !p.check(TokenRBrace) && !p.check(TokenEOF) {
+		node.AddChild(p.parseModuleDirective())
+	}
+	p.expect(TokenRBrace)
+
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseModuleDirective() *Node {
+	switch {
+	case p.check(TokenRequires):
+		return p.parseRequiresDirective()
+	case p.check(TokenExports):
+		return p.parseExportsDirective()
+	case p.check(TokenOpens):
+		return p.parseOpensDirective()
+	case p.check(TokenUses):
+		return p.parseUsesDirective()
+	case p.check(TokenProvides):
+		return p.parseProvidesDirective()
+	default:
+		return p.errorNode("expected module directive")
+	}
+}
+
+func (p *Parser) parseRequiresDirective() *Node {
+	node := p.startNode(KindRequiresDirective)
+	p.expect(TokenRequires)
+
+	for p.check(TokenTransitive) || p.check(TokenStatic) {
+		tok := p.advance()
+		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+	}
+
+	node.AddChild(p.parseQualifiedName())
+	p.expect(TokenSemicolon)
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseExportsDirective() *Node {
+	node := p.startNode(KindExportsDirective)
+	p.expect(TokenExports)
+
+	node.AddChild(p.parseQualifiedName())
+
+	if p.check(TokenTo) {
+		p.advance()
+		node.AddChild(p.parseQualifiedName())
+		for p.check(TokenComma) {
+			p.advance()
+			node.AddChild(p.parseQualifiedName())
+		}
+	}
+
+	p.expect(TokenSemicolon)
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseOpensDirective() *Node {
+	node := p.startNode(KindOpensDirective)
+	p.expect(TokenOpens)
+
+	node.AddChild(p.parseQualifiedName())
+
+	if p.check(TokenTo) {
+		p.advance()
+		node.AddChild(p.parseQualifiedName())
+		for p.check(TokenComma) {
+			p.advance()
+			node.AddChild(p.parseQualifiedName())
+		}
+	}
+
+	p.expect(TokenSemicolon)
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseUsesDirective() *Node {
+	node := p.startNode(KindUsesDirective)
+	p.expect(TokenUses)
+	node.AddChild(p.parseQualifiedName())
+	p.expect(TokenSemicolon)
+	return p.finishNode(node)
+}
+
+func (p *Parser) parseProvidesDirective() *Node {
+	node := p.startNode(KindProvidesDirective)
+	p.expect(TokenProvides)
+	node.AddChild(p.parseQualifiedName())
+
+	p.expect(TokenWith)
+	node.AddChild(p.parseQualifiedName())
+	for p.check(TokenComma) {
+		p.advance()
+		node.AddChild(p.parseQualifiedName())
+	}
+
+	p.expect(TokenSemicolon)
+	return p.finishNode(node)
 }
 
 func (p *Parser) parsePackageDecl() *Node {

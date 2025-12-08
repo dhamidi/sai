@@ -363,6 +363,16 @@ var keywords = map[string]TokenKind{
 	"record":       TokenRecord,
 	"sealed":       TokenSealed,
 	"permits":      TokenPermits,
+	"module":       TokenModule,
+	"open":         TokenOpen,
+	"requires":     TokenRequires,
+	"exports":      TokenExports,
+	"opens":        TokenOpens,
+	"uses":         TokenUses,
+	"provides":     TokenProvides,
+	"to":           TokenTo,
+	"with":         TokenWith,
+	"transitive":   TokenTransitive,
 }
 
 func LookupKeyword(ident string) TokenKind {

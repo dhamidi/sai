@@ -16,6 +16,12 @@ const (
 	KindEnumDecl
 	KindRecordDecl
 	KindAnnotationDecl
+	KindModuleDecl
+	KindRequiresDirective
+	KindExportsDirective
+	KindOpensDirective
+	KindUsesDirective
+	KindProvidesDirective
 
 	// Members
 	KindFieldDecl
@@ -104,6 +110,12 @@ var nodeKindNames = map[NodeKind]string{
 	KindEnumDecl:          "EnumDecl",
 	KindRecordDecl:        "RecordDecl",
 	KindAnnotationDecl:    "AnnotationDecl",
+	KindModuleDecl:        "ModuleDecl",
+	KindRequiresDirective: "RequiresDirective",
+	KindExportsDirective:  "ExportsDirective",
+	KindOpensDirective:    "OpensDirective",
+	KindUsesDirective:     "UsesDirective",
+	KindProvidesDirective: "ProvidesDirective",
 	KindFieldDecl:         "FieldDecl",
 	KindMethodDecl:        "MethodDecl",
 	KindConstructorDecl:   "ConstructorDecl",

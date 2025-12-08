@@ -351,6 +351,114 @@ public class Example<T extends Comparable<T>> implements Runnable {
 	}
 }
 
+func TestModularCompilationUnit(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"simple module",
+			"module com.example {}",
+		},
+		{
+			"open module",
+			"open module com.example {}",
+		},
+		{
+			"module with import",
+			"import java.util.List;\nmodule com.example {}",
+		},
+		{
+			"module with annotation",
+			"@Deprecated\nmodule com.example {}",
+		},
+		{
+			"module with requires",
+			"module com.example {\n  requires java.base;\n}",
+		},
+		{
+			"module with requires transitive",
+			"module com.example {\n  requires transitive java.logging;\n}",
+		},
+		{
+			"module with requires static",
+			"module com.example {\n  requires static java.compiler;\n}",
+		},
+		{
+			"module with exports",
+			"module com.example {\n  exports com.example.api;\n}",
+		},
+		{
+			"module with exports to",
+			"module com.example {\n  exports com.example.internal to com.example.test;\n}",
+		},
+		{
+			"module with opens",
+			"module com.example {\n  opens com.example.internal;\n}",
+		},
+		{
+			"module with opens to",
+			"module com.example {\n  opens com.example.internal to com.example.test, com.example.other;\n}",
+		},
+		{
+			"module with uses",
+			"module com.example {\n  uses com.example.spi.Service;\n}",
+		},
+		{
+			"module with provides",
+			"module com.example {\n  provides com.example.spi.Service with com.example.impl.ServiceImpl;\n}",
+		},
+		{
+			"module with provides multiple impls",
+			"module com.example {\n  provides com.example.spi.Service with com.example.impl.Impl1, com.example.impl.Impl2;\n}",
+		},
+		{
+			"complete module",
+			`module com.example.app {
+  requires java.base;
+  requires transitive java.logging;
+  requires static java.compiler;
+  
+  exports com.example.api;
+  exports com.example.internal to com.example.test;
+  
+  opens com.example.model;
+  opens com.example.internal to com.example.reflection;
+  
+  uses com.example.spi.Service;
+  
+  provides com.example.spi.Service with com.example.impl.ServiceImpl;
+}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit(WithFile("module-info.java"))
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if node.Kind != KindCompilationUnit {
+				t.Errorf("got %v, want CompilationUnit", node.Kind)
+			}
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+			// Verify we have a ModuleDecl child
+			hasModuleDecl := false
+			for _, child := range node.Children {
+				if child.Kind == KindModuleDecl {
+					hasModuleDecl = true
+					break
+				}
+			}
+			if !hasModuleDecl {
+				t.Error("expected ModuleDecl child in CompilationUnit")
+			}
+		})
+	}
+}
+
 func hasError(node *Node) bool {
 	if node == nil {
 		return false
