@@ -211,6 +211,8 @@ func TestParseStatements(t *testing.T) {
 		{"switch stmt", "class Foo { void m() { switch (x) { case 1: break; default: break; } } }"},
 		{"switch pattern", "class Foo { void m() { switch (x) { case Integer i: break; case String s when s.isEmpty(): break; default: break; } } }"},
 		{"switch match-all", "class Foo { void m() { switch (x) { case Integer i: break; case _: break; } } }"},
+		{"switch record pattern", "class Foo { void m() { switch (x) { case Point(int x, int y): break; case Box(Point p1, Point p2): break; } } }"},
+		{"switch nested record", "class Foo { void m() { switch (x) { case Box(Point(int x, int y), _): break; } } }"},
 		{"try-catch", "class Foo { void m() { try {} catch (Exception e) {} } }"},
 		{"try-finally", "class Foo { void m() { try {} finally {} } }"},
 		{"try-with-resources", "class Foo { void m() { try (var r = new R()) {} } }"},

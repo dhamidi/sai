@@ -7,7 +7,8 @@ import (
 )
 
 type Class struct {
-	cf *classfile.ClassFile
+	cf     *classfile.ClassFile
+	source *sourceClass
 }
 
 func ParseClass(r io.Reader) (*Class, error) {
@@ -27,10 +28,16 @@ func ParseClassFile(path string) (*Class, error) {
 }
 
 func (c *Class) Name() string {
+	if c.source != nil {
+		return c.source.name
+	}
 	return classfile.InternalToSourceName(c.cf.ClassName())
 }
 
 func (c *Class) SimpleName() string {
+	if c.source != nil {
+		return c.source.simpleName
+	}
 	name := c.Name()
 	for i := len(name) - 1; i >= 0; i-- {
 		if name[i] == '.' {
@@ -41,6 +48,9 @@ func (c *Class) SimpleName() string {
 }
 
 func (c *Class) Package() string {
+	if c.source != nil {
+		return c.source.pkg
+	}
 	name := c.Name()
 	for i := len(name) - 1; i >= 0; i-- {
 		if name[i] == '.' {
@@ -51,6 +61,9 @@ func (c *Class) Package() string {
 }
 
 func (c *Class) SuperClass() string {
+	if c.source != nil {
+		return c.source.superClass
+	}
 	super := c.cf.SuperClassName()
 	if super == "" {
 		return ""
@@ -59,6 +72,9 @@ func (c *Class) SuperClass() string {
 }
 
 func (c *Class) Interfaces() []string {
+	if c.source != nil {
+		return c.source.interfaces
+	}
 	internal := c.cf.InterfaceNames()
 	result := make([]string, len(internal))
 	for i, name := range internal {
@@ -67,16 +83,61 @@ func (c *Class) Interfaces() []string {
 	return result
 }
 
-func (c *Class) IsClass() bool      { return c.cf.IsClass() }
-func (c *Class) IsInterface() bool  { return c.cf.IsInterface() }
-func (c *Class) IsAnnotation() bool { return c.cf.IsAnnotation() }
-func (c *Class) IsEnum() bool       { return c.cf.IsEnum() }
-func (c *Class) IsModule() bool     { return c.cf.IsModule() }
+func (c *Class) IsClass() bool {
+	if c.source != nil {
+		return c.source.kind == "class"
+	}
+	return c.cf.IsClass()
+}
+func (c *Class) IsInterface() bool {
+	if c.source != nil {
+		return c.source.kind == "interface"
+	}
+	return c.cf.IsInterface()
+}
+func (c *Class) IsAnnotation() bool {
+	if c.source != nil {
+		return c.source.kind == "annotation"
+	}
+	return c.cf.IsAnnotation()
+}
+func (c *Class) IsEnum() bool {
+	if c.source != nil {
+		return c.source.kind == "enum"
+	}
+	return c.cf.IsEnum()
+}
+func (c *Class) IsModule() bool {
+	if c.source != nil {
+		return c.source.kind == "module"
+	}
+	return c.cf.IsModule()
+}
 
-func (c *Class) IsPublic() bool    { return c.cf.AccessFlags.IsPublic() }
-func (c *Class) IsFinal() bool     { return c.cf.AccessFlags.IsFinal() }
-func (c *Class) IsAbstract() bool  { return c.cf.AccessFlags.IsAbstract() }
-func (c *Class) IsSynthetic() bool { return c.cf.AccessFlags.IsSynthetic() }
+func (c *Class) IsPublic() bool {
+	if c.source != nil {
+		return c.source.visibility == "public"
+	}
+	return c.cf.AccessFlags.IsPublic()
+}
+func (c *Class) IsFinal() bool {
+	if c.source != nil {
+		return c.source.isFinal
+	}
+	return c.cf.AccessFlags.IsFinal()
+}
+func (c *Class) IsAbstract() bool {
+	if c.source != nil {
+		return c.source.isAbstract
+	}
+	return c.cf.AccessFlags.IsAbstract()
+}
+func (c *Class) IsSynthetic() bool {
+	if c.source != nil {
+		return false
+	}
+	return c.cf.AccessFlags.IsSynthetic()
+}
 
 func (c *Class) Methods() []Method {
 	methods := make([]Method, len(c.cf.Methods))

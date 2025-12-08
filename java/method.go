@@ -3,8 +3,9 @@ package java
 import "github.com/dhamidi/javalyzer/classfile"
 
 type Method struct {
-	info *classfile.MethodInfo
-	cp   classfile.ConstantPool
+	info   *classfile.MethodInfo
+	cp     classfile.ConstantPool
+	source *sourceMethod
 }
 
 func (m Method) Name() string {

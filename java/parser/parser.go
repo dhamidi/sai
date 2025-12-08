@@ -1603,10 +1603,8 @@ func (p *Parser) parseSwitchLabel() *Node {
 	if p.check(TokenCase) {
 		p.advance()
 		for {
-			if p.looksLikeMatchAllPattern() {
-				node.AddChild(p.parseMatchAllPattern())
-			} else if p.looksLikeTypePattern() {
-				node.AddChild(p.parseTypePattern())
+			if p.looksLikePattern() {
+				node.AddChild(p.parsePattern())
 			} else {
 				node.AddChild(p.parseExpression())
 			}
@@ -1632,7 +1630,11 @@ func (p *Parser) parseSwitchLabel() *Node {
 	return p.finishNode(node)
 }
 
-func (p *Parser) looksLikeTypePattern() bool {
+func (p *Parser) looksLikePattern() bool {
+	if p.looksLikeMatchAllPattern() {
+		return true
+	}
+
 	save := p.pos
 	defer func() { p.pos = save }()
 
@@ -1661,12 +1663,40 @@ func (p *Parser) looksLikeTypePattern() bool {
 		p.advance()
 	}
 
-	return p.check(TokenIdent)
+	// TypePattern: Type identifier
+	// RecordPattern: Type ( ... )
+	return p.check(TokenIdent) || p.check(TokenLParen)
 }
 
-func (p *Parser) parseTypePattern() *Node {
+func (p *Parser) parsePattern() *Node {
+	if p.looksLikeMatchAllPattern() {
+		return p.parseMatchAllPattern()
+	}
+
+	// Parse the type first, then decide based on what follows
+	typeNode := p.parseType()
+
+	if p.check(TokenLParen) {
+		// RecordPattern: Type ( ComponentPatternList )
+		node := p.startNode(KindRecordPattern)
+		node.AddChild(typeNode)
+		p.advance() // consume (
+		if !p.check(TokenRParen) {
+			for {
+				node.AddChild(p.parsePattern())
+				if !p.check(TokenComma) {
+					break
+				}
+				p.advance()
+			}
+		}
+		p.expect(TokenRParen)
+		return p.finishNode(node)
+	}
+
+	// TypePattern: Type identifier
 	node := p.startNode(KindTypePattern)
-	node.AddChild(p.parseType())
+	node.AddChild(typeNode)
 	if p.check(TokenIdent) {
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
@@ -1682,8 +1712,11 @@ func (p *Parser) parseGuard() *Node {
 }
 
 func (p *Parser) looksLikeMatchAllPattern() bool {
-	return p.check(TokenIdent) && p.peek().Literal == "_" &&
-		(p.peekN(1).Kind == TokenColon || p.peekN(1).Kind == TokenArrow || p.peekN(1).Kind == TokenComma)
+	if !p.check(TokenIdent) || p.peek().Literal != "_" {
+		return false
+	}
+	next := p.peekN(1).Kind
+	return next == TokenColon || next == TokenArrow || next == TokenComma || next == TokenRParen
 }
 
 func (p *Parser) parseMatchAllPattern() *Node {

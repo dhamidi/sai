@@ -61,6 +61,7 @@ const (
 	KindSwitchCase
 	KindSwitchLabel
 	KindTypePattern
+	KindRecordPattern
 	KindMatchAllPattern
 	KindGuard
 	KindReturnStmt
@@ -150,6 +151,7 @@ var nodeKindNames = map[NodeKind]string{
 	KindSwitchCase:        "SwitchCase",
 	KindSwitchLabel:       "SwitchLabel",
 	KindTypePattern:       "TypePattern",
+	KindRecordPattern:     "RecordPattern",
 	KindMatchAllPattern:   "MatchAllPattern",
 	KindGuard:             "Guard",
 	KindReturnStmt:        "ReturnStmt",
