@@ -63,3 +63,65 @@ func (f Field) String() string {
 	result += f.Type().String() + " " + f.Name()
 	return result
 }
+
+func (f Field) Signature() string {
+	attr := f.info.GetAttribute(f.cp, "Signature")
+	if attr == nil {
+		return ""
+	}
+	if sig := attr.AsSignature(); sig != nil {
+		return f.cp.GetUtf8(sig.SignatureIndex)
+	}
+	return ""
+}
+
+func (f Field) IsDeprecated() bool {
+	return f.info.GetAttribute(f.cp, "Deprecated") != nil
+}
+
+func (f Field) Annotations() []Annotation {
+	attr := f.info.GetAttribute(f.cp, "RuntimeVisibleAnnotations")
+	if attr == nil {
+		return nil
+	}
+	if rva := attr.AsRuntimeVisibleAnnotations(); rva != nil {
+		return annotationsFromClassfile(rva.Annotations, f.cp)
+	}
+	return nil
+}
+
+func (f Field) InvisibleAnnotations() []Annotation {
+	attr := f.info.GetAttribute(f.cp, "RuntimeInvisibleAnnotations")
+	if attr == nil {
+		return nil
+	}
+	if ria := attr.AsRuntimeInvisibleAnnotations(); ria != nil {
+		return annotationsFromClassfile(ria.Annotations, f.cp)
+	}
+	return nil
+}
+
+func (f Field) ConstantValue() interface{} {
+	attr := f.info.GetAttribute(f.cp, "ConstantValue")
+	if attr == nil {
+		return nil
+	}
+	if cv := attr.AsConstantValue(); cv != nil {
+		if val, ok := f.cp.GetInteger(cv.ConstantValueIndex); ok {
+			return val
+		}
+		if val, ok := f.cp.GetLong(cv.ConstantValueIndex); ok {
+			return val
+		}
+		if val, ok := f.cp.GetFloat(cv.ConstantValueIndex); ok {
+			return val
+		}
+		if val, ok := f.cp.GetDouble(cv.ConstantValueIndex); ok {
+			return val
+		}
+		if val := f.cp.GetString(cv.ConstantValueIndex); val != "" {
+			return val
+		}
+	}
+	return nil
+}

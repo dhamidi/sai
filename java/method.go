@@ -141,3 +141,70 @@ func (m Method) String() string {
 	result += ")"
 	return result
 }
+
+func (m Method) Signature() string {
+	attr := m.info.GetAttribute(m.cp, "Signature")
+	if attr == nil {
+		return ""
+	}
+	if sig := attr.AsSignature(); sig != nil {
+		return m.cp.GetUtf8(sig.SignatureIndex)
+	}
+	return ""
+}
+
+func (m Method) IsDeprecated() bool {
+	return m.info.GetAttribute(m.cp, "Deprecated") != nil
+}
+
+func (m Method) Annotations() []Annotation {
+	attr := m.info.GetAttribute(m.cp, "RuntimeVisibleAnnotations")
+	if attr == nil {
+		return nil
+	}
+	if rva := attr.AsRuntimeVisibleAnnotations(); rva != nil {
+		return annotationsFromClassfile(rva.Annotations, m.cp)
+	}
+	return nil
+}
+
+func (m Method) InvisibleAnnotations() []Annotation {
+	attr := m.info.GetAttribute(m.cp, "RuntimeInvisibleAnnotations")
+	if attr == nil {
+		return nil
+	}
+	if ria := attr.AsRuntimeInvisibleAnnotations(); ria != nil {
+		return annotationsFromClassfile(ria.Annotations, m.cp)
+	}
+	return nil
+}
+
+func (m Method) ParameterAnnotations() [][]Annotation {
+	attr := m.info.GetAttribute(m.cp, "RuntimeVisibleParameterAnnotations")
+	if attr == nil {
+		return nil
+	}
+	if rvpa := attr.AsRuntimeVisibleParameterAnnotations(); rvpa != nil {
+		result := make([][]Annotation, len(rvpa.ParameterAnnotations))
+		for i, anns := range rvpa.ParameterAnnotations {
+			result[i] = annotationsFromClassfile(anns, m.cp)
+		}
+		return result
+	}
+	return nil
+}
+
+func (m Method) Exceptions() []string {
+	attr := m.info.GetAttribute(m.cp, "Exceptions")
+	if attr == nil {
+		return nil
+	}
+	if ex := attr.AsExceptions(); ex != nil {
+		result := make([]string, len(ex.ExceptionIndexTable))
+		for i, idx := range ex.ExceptionIndexTable {
+			result[i] = classfile.InternalToSourceName(m.cp.GetClassName(idx))
+		}
+		return result
+	}
+	return nil
+}

@@ -32,17 +32,27 @@ func (e *JSONEncoder) MarshalText() ([]byte, error) {
 }
 
 type jsonClass struct {
-	Name       string       `json:"name"`
-	SimpleName string       `json:"simpleName"`
-	Package    string       `json:"package"`
-	SuperClass string       `json:"superClass,omitempty"`
-	Interfaces []string     `json:"interfaces,omitempty"`
-	Visibility string       `json:"visibility"`
-	Kind       string       `json:"kind"`
-	Modifiers  []string     `json:"modifiers,omitempty"`
-	Version    jsonVersion  `json:"version"`
-	Fields     []jsonField  `json:"fields,omitempty"`
-	Methods    []jsonMethod `json:"methods,omitempty"`
+	Name                string             `json:"name"`
+	SimpleName          string             `json:"simpleName"`
+	Package             string             `json:"package"`
+	SuperClass          string             `json:"superClass,omitempty"`
+	Interfaces          []string           `json:"interfaces,omitempty"`
+	Visibility          string             `json:"visibility"`
+	Kind                string             `json:"kind"`
+	Modifiers           []string           `json:"modifiers,omitempty"`
+	Version             jsonVersion        `json:"version"`
+	Signature           string             `json:"signature,omitempty"`
+	SourceFile          string             `json:"sourceFile,omitempty"`
+	Deprecated          bool               `json:"deprecated,omitempty"`
+	Annotations         []jsonAnnotation   `json:"annotations,omitempty"`
+	RecordComponents    []jsonRecordComp   `json:"recordComponents,omitempty"`
+	PermittedSubclasses []string           `json:"permittedSubclasses,omitempty"`
+	NestHost            string             `json:"nestHost,omitempty"`
+	NestMembers         []string           `json:"nestMembers,omitempty"`
+	EnclosingClass      string             `json:"enclosingClass,omitempty"`
+	InnerClasses        []jsonInnerClass   `json:"innerClasses,omitempty"`
+	Fields              []jsonField        `json:"fields,omitempty"`
+	Methods             []jsonMethod       `json:"methods,omitempty"`
 }
 
 type jsonVersion struct {
@@ -51,18 +61,27 @@ type jsonVersion struct {
 }
 
 type jsonField struct {
-	Name       string   `json:"name"`
-	Type       jsonType `json:"type"`
-	Visibility string   `json:"visibility"`
-	Modifiers  []string `json:"modifiers,omitempty"`
+	Name          string           `json:"name"`
+	Type          jsonType         `json:"type"`
+	Visibility    string           `json:"visibility"`
+	Modifiers     []string         `json:"modifiers,omitempty"`
+	Signature     string           `json:"signature,omitempty"`
+	Deprecated    bool             `json:"deprecated,omitempty"`
+	Annotations   []jsonAnnotation `json:"annotations,omitempty"`
+	ConstantValue interface{}      `json:"constantValue,omitempty"`
 }
 
 type jsonMethod struct {
-	Name       string          `json:"name"`
-	ReturnType jsonType        `json:"returnType"`
-	Parameters []jsonParameter `json:"parameters,omitempty"`
-	Visibility string          `json:"visibility"`
-	Modifiers  []string        `json:"modifiers,omitempty"`
+	Name                 string             `json:"name"`
+	ReturnType           jsonType           `json:"returnType"`
+	Parameters           []jsonParameter    `json:"parameters,omitempty"`
+	Visibility           string             `json:"visibility"`
+	Modifiers            []string           `json:"modifiers,omitempty"`
+	Signature            string             `json:"signature,omitempty"`
+	Deprecated           bool               `json:"deprecated,omitempty"`
+	Annotations          []jsonAnnotation   `json:"annotations,omitempty"`
+	ParameterAnnotations [][]jsonAnnotation `json:"parameterAnnotations,omitempty"`
+	Exceptions           []string           `json:"exceptions,omitempty"`
 }
 
 type jsonParameter struct {
@@ -75,23 +94,47 @@ type jsonType struct {
 	ArrayDepth int    `json:"arrayDepth,omitempty"`
 }
 
+type jsonAnnotation struct {
+	Type   string                 `json:"type"`
+	Values map[string]interface{} `json:"values,omitempty"`
+}
+
+type jsonRecordComp struct {
+	Name string   `json:"name"`
+	Type jsonType `json:"type"`
+}
+
+type jsonInnerClass struct {
+	InnerClass string   `json:"innerClass"`
+	OuterClass string   `json:"outerClass,omitempty"`
+	InnerName  string   `json:"innerName,omitempty"`
+	Modifiers  []string `json:"modifiers,omitempty"`
+}
+
 func (e *JSONEncoder) buildClassData() jsonClass {
 	c := e.class
 	data := jsonClass{
-		Name:       c.Name(),
-		SimpleName: c.SimpleName(),
-		Package:    c.Package(),
-		SuperClass: c.SuperClass(),
-		Interfaces: c.Interfaces(),
-		Visibility: c.Visibility(),
-		Kind:       e.classKind(),
-		Modifiers:  e.classModifiers(),
-		Version: jsonVersion{
-			Major: c.MajorVersion(),
-			Minor: c.MinorVersion(),
-		},
-		Fields:  e.buildFields(),
-		Methods: e.buildMethods(),
+		Name:                c.Name(),
+		SimpleName:          c.SimpleName(),
+		Package:             c.Package(),
+		SuperClass:          c.SuperClass(),
+		Interfaces:          c.Interfaces(),
+		Visibility:          c.Visibility(),
+		Kind:                e.classKind(),
+		Modifiers:           e.classModifiers(),
+		Version:             jsonVersion{Major: c.MajorVersion(), Minor: c.MinorVersion()},
+		Signature:           c.Signature(),
+		SourceFile:          c.SourceFile(),
+		Deprecated:          c.IsDeprecated(),
+		Annotations:         buildAnnotations(c.Annotations()),
+		RecordComponents:    e.buildRecordComponents(),
+		PermittedSubclasses: c.PermittedSubclasses(),
+		NestHost:            c.NestHost(),
+		NestMembers:         c.NestMembers(),
+		EnclosingClass:      c.EnclosingClass(),
+		InnerClasses:        e.buildInnerClasses(),
+		Fields:              e.buildFields(),
+		Methods:             e.buildMethods(),
 	}
 	return data
 }
@@ -133,13 +176,14 @@ func (e *JSONEncoder) buildFields() []jsonField {
 	for i, f := range fields {
 		t := f.Type()
 		result[i] = jsonField{
-			Name: f.Name(),
-			Type: jsonType{
-				Name:       t.Name,
-				ArrayDepth: t.ArrayDepth,
-			},
-			Visibility: f.Visibility(),
-			Modifiers:  fieldModifiers(f),
+			Name:          f.Name(),
+			Type:          jsonType{Name: t.Name, ArrayDepth: t.ArrayDepth},
+			Visibility:    f.Visibility(),
+			Modifiers:     fieldModifiers(f),
+			Signature:     f.Signature(),
+			Deprecated:    f.IsDeprecated(),
+			Annotations:   buildAnnotations(f.Annotations()),
+			ConstantValue: f.ConstantValue(),
 		}
 	}
 	return result
@@ -174,14 +218,16 @@ func (e *JSONEncoder) buildMethods() []jsonMethod {
 	for i, m := range methods {
 		rt := m.ReturnType()
 		result[i] = jsonMethod{
-			Name: m.Name(),
-			ReturnType: jsonType{
-				Name:       rt.Name,
-				ArrayDepth: rt.ArrayDepth,
-			},
-			Parameters: buildParameters(m.Parameters()),
-			Visibility: m.Visibility(),
-			Modifiers:  methodModifiers(m),
+			Name:                 m.Name(),
+			ReturnType:           jsonType{Name: rt.Name, ArrayDepth: rt.ArrayDepth},
+			Parameters:           buildParameters(m.Parameters()),
+			Visibility:           m.Visibility(),
+			Modifiers:            methodModifiers(m),
+			Signature:            m.Signature(),
+			Deprecated:           m.IsDeprecated(),
+			Annotations:          buildAnnotations(m.Annotations()),
+			ParameterAnnotations: buildParameterAnnotations(m.ParameterAnnotations()),
+			Exceptions:           m.Exceptions(),
 		}
 	}
 	return result
@@ -226,6 +272,98 @@ func methodModifiers(m java.Method) []string {
 	}
 	if m.IsSynthetic() {
 		mods = append(mods, "synthetic")
+	}
+	return mods
+}
+
+func buildAnnotations(anns []java.Annotation) []jsonAnnotation {
+	if len(anns) == 0 {
+		return nil
+	}
+	result := make([]jsonAnnotation, len(anns))
+	for i, a := range anns {
+		result[i] = jsonAnnotation{
+			Type:   a.Type,
+			Values: buildAnnotationValues(a.ElementValuePairs),
+		}
+	}
+	return result
+}
+
+func buildAnnotationValues(pairs []java.ElementValuePair) map[string]interface{} {
+	if len(pairs) == 0 {
+		return nil
+	}
+	result := make(map[string]interface{})
+	for _, p := range pairs {
+		result[p.Name] = p.Value
+	}
+	return result
+}
+
+func buildParameterAnnotations(paramAnns [][]java.Annotation) [][]jsonAnnotation {
+	if len(paramAnns) == 0 {
+		return nil
+	}
+	result := make([][]jsonAnnotation, len(paramAnns))
+	for i, anns := range paramAnns {
+		result[i] = buildAnnotations(anns)
+	}
+	return result
+}
+
+func (e *JSONEncoder) buildRecordComponents() []jsonRecordComp {
+	comps := e.class.RecordComponents()
+	if len(comps) == 0 {
+		return nil
+	}
+	result := make([]jsonRecordComp, len(comps))
+	for i, c := range comps {
+		t := c.Type()
+		result[i] = jsonRecordComp{
+			Name: c.Name,
+			Type: jsonType{Name: t.Name, ArrayDepth: t.ArrayDepth},
+		}
+	}
+	return result
+}
+
+func (e *JSONEncoder) buildInnerClasses() []jsonInnerClass {
+	classes := e.class.InnerClasses()
+	if len(classes) == 0 {
+		return nil
+	}
+	result := make([]jsonInnerClass, len(classes))
+	for i, c := range classes {
+		result[i] = jsonInnerClass{
+			InnerClass: c.InnerClass,
+			OuterClass: c.OuterClass,
+			InnerName:  c.InnerName,
+			Modifiers:  innerClassModifiers(c),
+		}
+	}
+	return result
+}
+
+func innerClassModifiers(c java.InnerClass) []string {
+	var mods []string
+	if c.AccessFlags.IsPublic() {
+		mods = append(mods, "public")
+	}
+	if c.AccessFlags.IsPrivate() {
+		mods = append(mods, "private")
+	}
+	if c.AccessFlags.IsProtected() {
+		mods = append(mods, "protected")
+	}
+	if c.AccessFlags.IsStatic() {
+		mods = append(mods, "static")
+	}
+	if c.AccessFlags.IsFinal() {
+		mods = append(mods, "final")
+	}
+	if c.AccessFlags.IsAbstract() {
+		mods = append(mods, "abstract")
 	}
 	return mods
 }
