@@ -184,12 +184,12 @@ func (p *Parser) finishNode(n *Node) *Node {
 	return n
 }
 
-func (p *Parser) errorNode(msg string, expected ...TokenKind) *Node {
+func (p *Parser) errorNode(msg string, recoverTo []TokenKind, expected ...TokenKind) *Node {
 	tok := p.peek()
 	if tok.Kind == TokenEOF {
 		p.incomplete = true
 	}
-	return &Node{
+	node := &Node{
 		Kind: KindError,
 		Span: Span{Start: tok.Span.Start, End: tok.Span.End},
 		Error: &Error{
@@ -197,6 +197,25 @@ func (p *Parser) errorNode(msg string, expected ...TokenKind) *Node {
 			Expected: expected,
 			Got:      &tok,
 		},
+	}
+	p.recoverTo(recoverTo)
+	return node
+}
+
+func (p *Parser) recoverTo(kinds []TokenKind) {
+	if len(kinds) == 0 {
+		if !p.check(TokenEOF) {
+			p.advance()
+		}
+		return
+	}
+	for !p.check(TokenEOF) {
+		for _, kind := range kinds {
+			if p.check(kind) {
+				return
+			}
+		}
+		p.advance()
 	}
 }
 
@@ -316,7 +335,9 @@ func (p *Parser) parseModuleDirective() *Node {
 	case p.check(TokenProvides):
 		return p.parseProvidesDirective()
 	default:
-		return p.errorNode("expected module directive")
+		return p.errorNode("expected module directive", []TokenKind{
+			TokenRequires, TokenExports, TokenOpens, TokenUses, TokenProvides, TokenRBrace,
+		})
 	}
 }
 
@@ -446,7 +467,7 @@ func (p *Parser) parseQualifiedName() *Node {
 	if tok := p.expect(TokenIdent); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	} else {
-		return p.errorNode("expected identifier")
+		return p.errorNode("expected identifier", nil)
 	}
 
 	for p.check(TokenDot) && p.peekN(1).Kind == TokenIdent {
@@ -476,13 +497,16 @@ func (p *Parser) parseTypeDecl() *Node {
 		}
 	}
 
+	recoverTokens := []TokenKind{
+		TokenAt, TokenPublic, TokenPrivate, TokenProtected,
+		TokenAbstract, TokenStatic, TokenFinal, TokenStrictfp,
+		TokenClass, TokenInterface, TokenEnum, TokenRecord,
+	}
 	if modifiers != nil && len(modifiers.Children) > 0 {
-		p.advance()
-		return p.errorNode("expected class, interface, enum, record, or @interface")
+		return p.errorNode("expected class, interface, enum, record, or @interface", recoverTokens)
 	}
 
-	p.advance()
-	return p.errorNode("expected type declaration")
+	return p.errorNode("expected type declaration", recoverTokens)
 }
 
 func (p *Parser) parseModifiers() *Node {
@@ -829,7 +853,7 @@ func (p *Parser) parseType() *Node {
 			node.AddChild(p.parseTypeArguments())
 		}
 	default:
-		return p.errorNode("expected type")
+		return p.errorNode("expected type", []TokenKind{TokenIdent, TokenSemicolon, TokenRParen, TokenComma, TokenRBrace})
 	}
 
 	for p.check(TokenAt) || p.check(TokenLBracket) {
@@ -1012,7 +1036,16 @@ func (p *Parser) parseClassMember() *Node {
 		return p.parseField(modifiers, typ)
 	}
 
-	return p.errorNode("expected member declaration")
+	return p.errorNode("expected member declaration", []TokenKind{
+		TokenAt, TokenPublic, TokenPrivate, TokenProtected,
+		TokenAbstract, TokenStatic, TokenFinal, TokenNative,
+		TokenSynchronized, TokenTransient, TokenVolatile,
+		TokenStrictfp, TokenDefault, TokenSealed, TokenNonSealed,
+		TokenClass, TokenInterface, TokenEnum, TokenRecord,
+		TokenIdent, TokenVoid, TokenBoolean, TokenByte,
+		TokenChar, TokenShort, TokenInt, TokenLong,
+		TokenFloat, TokenDouble, TokenLT, TokenRBrace,
+	})
 }
 
 func (p *Parser) parseMethodOrConstructor(modifiers *Node, typeParams *Node) *Node {
@@ -1565,9 +1598,12 @@ func (p *Parser) isLocalVarDecl() bool {
 		}
 		for p.check(TokenLBracket) {
 			p.advance()
-			if p.check(TokenRBracket) {
-				p.advance()
+			if !p.check(TokenRBracket) {
+				// Content inside brackets means array access, not array type
+				p.pos = save
+				return false
 			}
+			p.advance()
 		}
 		isType = p.check(TokenIdent) || p.isUnnamedVariable()
 	}
@@ -2758,7 +2794,7 @@ func (p *Parser) parsePrimaryExpr() *Node {
 		return p.parsePrimitiveClassLiteral()
 
 	default:
-		return p.errorNode("expected expression")
+		return p.errorNode("expected expression", []TokenKind{TokenSemicolon, TokenComma, TokenRParen, TokenRBrace, TokenRBracket})
 	}
 }
 
