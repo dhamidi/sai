@@ -19,19 +19,20 @@ func ClassModelsFromSource(source []byte, opts ...parser.Option) ([]*ClassModel,
 func classModelsFromCompilationUnit(cu *parser.Node) []*ClassModel {
 	var models []*ClassModel
 	pkg := packageFromCompilationUnit(cu)
+	resolver := newTypeResolver(pkg, importsFromCompilationUnit(cu))
 
 	for _, child := range cu.Children {
 		switch child.Kind {
 		case parser.KindClassDecl:
-			models = append(models, classModelFromClassDecl(child, pkg))
+			models = append(models, classModelFromClassDecl(child, pkg, resolver))
 		case parser.KindInterfaceDecl:
-			models = append(models, classModelFromInterfaceDecl(child, pkg))
+			models = append(models, classModelFromInterfaceDecl(child, pkg, resolver))
 		case parser.KindEnumDecl:
-			models = append(models, classModelFromEnumDecl(child, pkg))
+			models = append(models, classModelFromEnumDecl(child, pkg, resolver))
 		case parser.KindRecordDecl:
-			models = append(models, classModelFromRecordDecl(child, pkg))
+			models = append(models, classModelFromRecordDecl(child, pkg, resolver))
 		case parser.KindAnnotationDecl:
-			models = append(models, classModelFromAnnotationDecl(child, pkg))
+			models = append(models, classModelFromAnnotationDecl(child, pkg, resolver))
 		}
 	}
 	return models
@@ -59,7 +60,91 @@ func qualifiedNameToString(qn *parser.Node) string {
 	return strings.Join(parts, ".")
 }
 
-func classModelFromClassDecl(node *parser.Node, pkg string) *ClassModel {
+type importInfo struct {
+	qualifiedName string
+	isStatic      bool
+	isWildcard    bool
+}
+
+func importsFromCompilationUnit(cu *parser.Node) []importInfo {
+	var imports []importInfo
+	for _, child := range cu.Children {
+		if child.Kind == parser.KindImportDecl {
+			imp := importInfo{}
+			for _, ic := range child.Children {
+				if ic.Kind == parser.KindIdentifier && ic.Token != nil {
+					if ic.Token.Literal == "static" {
+						imp.isStatic = true
+					} else if ic.Token.Literal == "*" {
+						imp.isWildcard = true
+					}
+				} else if ic.Kind == parser.KindQualifiedName {
+					imp.qualifiedName = qualifiedNameToString(ic)
+				}
+			}
+			imports = append(imports, imp)
+		}
+	}
+	return imports
+}
+
+type typeResolver struct {
+	pkg     string
+	imports []importInfo
+}
+
+func newTypeResolver(pkg string, imports []importInfo) *typeResolver {
+	return &typeResolver{pkg: pkg, imports: imports}
+}
+
+var javaLangTypes = map[string]bool{
+	"Object": true, "String": true, "Class": true, "System": true,
+	"Throwable": true, "Exception": true, "RuntimeException": true, "Error": true,
+	"Integer": true, "Long": true, "Short": true, "Byte": true,
+	"Float": true, "Double": true, "Character": true, "Boolean": true,
+	"Number": true, "Comparable": true, "CharSequence": true,
+	"Iterable": true, "Cloneable": true, "Runnable": true,
+	"Thread": true, "StringBuilder": true, "StringBuffer": true,
+	"Math": true, "Enum": true, "Record": true,
+	"Override": true, "Deprecated": true, "SuppressWarnings": true, "FunctionalInterface": true,
+}
+
+func (r *typeResolver) resolve(simpleName string) string {
+	if simpleName == "" {
+		return ""
+	}
+
+	if strings.Contains(simpleName, ".") {
+		return simpleName
+	}
+
+	switch simpleName {
+	case "boolean", "byte", "char", "short", "int", "long", "float", "double", "void":
+		return simpleName
+	}
+
+	for _, imp := range r.imports {
+		if imp.isWildcard || imp.isStatic {
+			continue
+		}
+		parts := strings.Split(imp.qualifiedName, ".")
+		if len(parts) > 0 && parts[len(parts)-1] == simpleName {
+			return imp.qualifiedName
+		}
+	}
+
+	if javaLangTypes[simpleName] {
+		return "java.lang." + simpleName
+	}
+
+	if r.pkg != "" {
+		return r.pkg + "." + simpleName
+	}
+
+	return simpleName
+}
+
+func classModelFromClassDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindClass,
 		Package:    pkg,
@@ -68,7 +153,7 @@ func classModelFromClassDecl(node *parser.Node, pkg string) *ClassModel {
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToClass(modifiers, model)
+		applyModifiersToClass(modifiers, model, resolver)
 	}
 
 	for _, child := range node.Children {
@@ -83,25 +168,25 @@ func classModelFromClassDecl(node *parser.Node, pkg string) *ClassModel {
 				}
 			}
 		case parser.KindTypeParameters:
-			model.TypeParameters = typeParametersFromNode(child)
+			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindType:
 			if model.SuperClass == "" {
-				model.SuperClass = typeNameFromTypeNode(child)
+				model.SuperClass = typeModelFromTypeNode(child, resolver).Name
 			} else {
-				model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+				model.Interfaces = append(model.Interfaces, typeModelFromTypeNode(child, resolver).Name)
 			}
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model)
+			extractClassBodyMembers(child, model, resolver)
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child)...)
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
 		case parser.KindAnnotation:
-			model.Annotations = append(model.Annotations, annotationModelFromNode(child))
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			inner := classModelFromClassDeclNested(child, model.Name)
+			inner := classModelFromClassDeclNested(child, model.Name, resolver)
 			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
 				InnerClass: inner.Name,
 				OuterClass: model.Name,
@@ -117,17 +202,17 @@ func classModelFromClassDecl(node *parser.Node, pkg string) *ClassModel {
 	return model
 }
 
-func extractClassBodyMembers(block *parser.Node, model *ClassModel) {
+func extractClassBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver) {
 	for _, child := range block.Children {
 		switch child.Kind {
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child)...)
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			inner := classModelFromClassDeclNested(child, model.Name)
+			inner := classModelFromClassDeclNested(child, model.Name, resolver)
 			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
 				InnerClass: inner.Name,
 				OuterClass: model.Name,
@@ -141,7 +226,7 @@ func extractClassBodyMembers(block *parser.Node, model *ClassModel) {
 	}
 }
 
-func classModelFromClassDeclNested(node *parser.Node, outerName string) *ClassModel {
+func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Visibility: VisibilityPackage,
 	}
@@ -161,7 +246,7 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string) *ClassMo
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToClass(modifiers, model)
+		applyModifiersToClass(modifiers, model, resolver)
 	}
 
 	for _, child := range node.Children {
@@ -175,7 +260,7 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string) *ClassMo
 	return model
 }
 
-func classModelFromInterfaceDecl(node *parser.Node, pkg string) *ClassModel {
+func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindInterface,
 		Package:    pkg,
@@ -185,7 +270,7 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string) *ClassModel {
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToClass(modifiers, model)
+		applyModifiersToClass(modifiers, model, resolver)
 	}
 
 	for _, child := range node.Children {
@@ -200,13 +285,13 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string) *ClassModel {
 				}
 			}
 		case parser.KindTypeParameters:
-			model.TypeParameters = typeParametersFromNode(child)
+			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindType:
-			model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
-			extractInterfaceBodyMembers(child, model)
+			extractInterfaceBodyMembers(child, model, resolver)
 		case parser.KindFieldDecl:
-			fields := fieldModelsFromFieldDecl(child)
+			fields := fieldModelsFromFieldDecl(child, resolver)
 			for i := range fields {
 				fields[i].IsStatic = true
 				fields[i].IsFinal = true
@@ -214,25 +299,25 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string) *ClassModel {
 			}
 			model.Fields = append(model.Fields, fields...)
 		case parser.KindMethodDecl:
-			method := methodModelFromMethodDecl(child)
+			method := methodModelFromMethodDecl(child, resolver)
 			if !method.IsStatic && !method.IsDefault {
 				method.IsAbstract = true
 			}
 			method.Visibility = VisibilityPublic
 			model.Methods = append(model.Methods, method)
 		case parser.KindAnnotation:
-			model.Annotations = append(model.Annotations, annotationModelFromNode(child))
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		}
 	}
 
 	return model
 }
 
-func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel) {
+func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver) {
 	for _, child := range block.Children {
 		switch child.Kind {
 		case parser.KindFieldDecl:
-			fields := fieldModelsFromFieldDecl(child)
+			fields := fieldModelsFromFieldDecl(child, resolver)
 			for i := range fields {
 				fields[i].IsStatic = true
 				fields[i].IsFinal = true
@@ -240,7 +325,7 @@ func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel) {
 			}
 			model.Fields = append(model.Fields, fields...)
 		case parser.KindMethodDecl:
-			method := methodModelFromMethodDecl(child)
+			method := methodModelFromMethodDecl(child, resolver)
 			if !method.IsStatic && !method.IsDefault {
 				method.IsAbstract = true
 			}
@@ -250,7 +335,7 @@ func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel) {
 	}
 }
 
-func classModelFromEnumDecl(node *parser.Node, pkg string) *ClassModel {
+func classModelFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindEnum,
 		Package:    pkg,
@@ -260,7 +345,7 @@ func classModelFromEnumDecl(node *parser.Node, pkg string) *ClassModel {
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToClass(modifiers, model)
+		applyModifiersToClass(modifiers, model, resolver)
 	}
 
 	for _, child := range node.Children {
@@ -275,24 +360,24 @@ func classModelFromEnumDecl(node *parser.Node, pkg string) *ClassModel {
 				}
 			}
 		case parser.KindType:
-			model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model)
+			extractClassBodyMembers(child, model, resolver)
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child)...)
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
 		case parser.KindAnnotation:
-			model.Annotations = append(model.Annotations, annotationModelFromNode(child))
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		}
 	}
 
 	return model
 }
 
-func classModelFromRecordDecl(node *parser.Node, pkg string) *ClassModel {
+func classModelFromRecordDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindRecord,
 		Package:    pkg,
@@ -303,7 +388,7 @@ func classModelFromRecordDecl(node *parser.Node, pkg string) *ClassModel {
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToClass(modifiers, model)
+		applyModifiersToClass(modifiers, model, resolver)
 	}
 
 	for _, child := range node.Children {
@@ -318,26 +403,26 @@ func classModelFromRecordDecl(node *parser.Node, pkg string) *ClassModel {
 				}
 			}
 		case parser.KindTypeParameters:
-			model.TypeParameters = typeParametersFromNode(child)
+			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindParameters:
-			model.RecordComponents = recordComponentsFromParameters(child)
+			model.RecordComponents = recordComponentsFromParameters(child, resolver)
 		case parser.KindType:
-			model.Interfaces = append(model.Interfaces, typeNameFromTypeNode(child))
+			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model)
+			extractClassBodyMembers(child, model, resolver)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
 		case parser.KindAnnotation:
-			model.Annotations = append(model.Annotations, annotationModelFromNode(child))
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		}
 	}
 
 	return model
 }
 
-func classModelFromAnnotationDecl(node *parser.Node, pkg string) *ClassModel {
+func classModelFromAnnotationDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindAnnotation,
 		Package:    pkg,
@@ -348,7 +433,7 @@ func classModelFromAnnotationDecl(node *parser.Node, pkg string) *ClassModel {
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToClass(modifiers, model)
+		applyModifiersToClass(modifiers, model, resolver)
 	}
 
 	for _, child := range node.Children {
@@ -363,24 +448,24 @@ func classModelFromAnnotationDecl(node *parser.Node, pkg string) *ClassModel {
 				}
 			}
 		case parser.KindBlock:
-			extractAnnotationBodyMembers(child, model)
+			extractAnnotationBodyMembers(child, model, resolver)
 		case parser.KindMethodDecl:
-			method := methodModelFromMethodDecl(child)
+			method := methodModelFromMethodDecl(child, resolver)
 			method.IsAbstract = true
 			method.Visibility = VisibilityPublic
 			model.Methods = append(model.Methods, method)
 		case parser.KindAnnotation:
-			model.Annotations = append(model.Annotations, annotationModelFromNode(child))
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		}
 	}
 
 	return model
 }
 
-func extractAnnotationBodyMembers(block *parser.Node, model *ClassModel) {
+func extractAnnotationBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver) {
 	for _, child := range block.Children {
 		if child.Kind == parser.KindMethodDecl {
-			method := methodModelFromMethodDecl(child)
+			method := methodModelFromMethodDecl(child, resolver)
 			method.IsAbstract = true
 			method.Visibility = VisibilityPublic
 			model.Methods = append(model.Methods, method)
@@ -388,11 +473,11 @@ func extractAnnotationBodyMembers(block *parser.Node, model *ClassModel) {
 	}
 }
 
-func applyModifiersToClass(modifiers *parser.Node, model *ClassModel) {
+func applyModifiersToClass(modifiers *parser.Node, model *ClassModel, resolver *typeResolver) {
 	for _, child := range modifiers.Children {
 		if child.Token == nil {
 			if child.Kind == parser.KindAnnotation {
-				model.Annotations = append(model.Annotations, annotationModelFromNode(child))
+				model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 			}
 			continue
 		}
@@ -415,17 +500,17 @@ func applyModifiersToClass(modifiers *parser.Node, model *ClassModel) {
 	}
 }
 
-func typeParametersFromNode(node *parser.Node) []TypeParameterModel {
+func typeParametersFromNode(node *parser.Node, resolver *typeResolver) []TypeParameterModel {
 	var params []TypeParameterModel
 	for _, child := range node.Children {
 		if child.Kind == parser.KindTypeParameter {
-			params = append(params, typeParameterFromNode(child))
+			params = append(params, typeParameterFromNode(child, resolver))
 		}
 	}
 	return params
 }
 
-func typeParameterFromNode(node *parser.Node) TypeParameterModel {
+func typeParameterFromNode(node *parser.Node, resolver *typeResolver) TypeParameterModel {
 	param := TypeParameterModel{}
 	for _, child := range node.Children {
 		switch child.Kind {
@@ -434,29 +519,32 @@ func typeParameterFromNode(node *parser.Node) TypeParameterModel {
 				param.Name = child.Token.Literal
 			}
 		case parser.KindType:
-			param.Bounds = append(param.Bounds, typeModelFromTypeNode(child))
+			param.Bounds = append(param.Bounds, typeModelFromTypeNode(child, resolver))
 		}
 	}
 	return param
 }
 
-func typeNameFromTypeNode(node *parser.Node) string {
-	tm := typeModelFromTypeNode(node)
+func typeNameFromTypeNode(node *parser.Node, resolver *typeResolver) string {
+	tm := typeModelFromTypeNode(node, resolver)
 	return tm.Name
 }
 
-func typeModelFromTypeNode(node *parser.Node) TypeModel {
+func typeModelFromTypeNode(node *parser.Node, resolver *typeResolver) TypeModel {
 	model := TypeModel{}
 
 	if node.Token != nil {
 		model.Name = node.Token.Literal
+		if resolver != nil {
+			model.Name = resolver.resolve(model.Name)
+		}
 		return model
 	}
 
 	if node.Kind == parser.KindArrayType {
 		for _, ac := range node.Children {
 			if ac.Kind == parser.KindType || ac.Kind == parser.KindQualifiedName || ac.Kind == parser.KindIdentifier {
-				inner := typeModelFromTypeNode(ac)
+				inner := typeModelFromTypeNode(ac, resolver)
 				model.Name = inner.Name
 				model.ArrayDepth = inner.ArrayDepth + 1
 				model.TypeArguments = inner.TypeArguments
@@ -479,7 +567,7 @@ func typeModelFromTypeNode(node *parser.Node) TypeModel {
 		case parser.KindArrayType:
 			for _, ac := range child.Children {
 				if ac.Kind == parser.KindType || ac.Kind == parser.KindQualifiedName || ac.Kind == parser.KindIdentifier {
-					inner := typeModelFromTypeNode(ac)
+					inner := typeModelFromTypeNode(ac, resolver)
 					model.Name = inner.Name
 					model.ArrayDepth = inner.ArrayDepth + 1
 					model.TypeArguments = inner.TypeArguments
@@ -499,35 +587,38 @@ func typeModelFromTypeNode(node *parser.Node) TypeModel {
 						model.Name += pc.Token.Literal
 					}
 				case parser.KindTypeArguments:
-					model.TypeArguments = typeArgumentsFromNode(pc)
+					model.TypeArguments = typeArgumentsFromNode(pc, resolver)
 				}
 			}
 		case parser.KindType:
-			inner := typeModelFromTypeNode(child)
+			inner := typeModelFromTypeNode(child, resolver)
 			model.Name = inner.Name
 			model.ArrayDepth = inner.ArrayDepth
 			model.TypeArguments = inner.TypeArguments
 		}
 	}
 
+	if resolver != nil {
+		model.Name = resolver.resolve(model.Name)
+	}
 	return model
 }
 
-func typeArgumentsFromNode(node *parser.Node) []TypeArgumentModel {
+func typeArgumentsFromNode(node *parser.Node, resolver *typeResolver) []TypeArgumentModel {
 	var args []TypeArgumentModel
 	for _, child := range node.Children {
 		if child.Kind == parser.KindTypeArgument || child.Kind == parser.KindType {
-			args = append(args, typeArgumentFromNode(child))
+			args = append(args, typeArgumentFromNode(child, resolver))
 		}
 	}
 	return args
 }
 
-func typeArgumentFromNode(node *parser.Node) TypeArgumentModel {
+func typeArgumentFromNode(node *parser.Node, resolver *typeResolver) TypeArgumentModel {
 	arg := TypeArgumentModel{}
 
 	if node.Kind == parser.KindType {
-		tm := typeModelFromTypeNode(node)
+		tm := typeModelFromTypeNode(node, resolver)
 		arg.Type = &tm
 		return arg
 	}
@@ -535,7 +626,7 @@ func typeArgumentFromNode(node *parser.Node) TypeArgumentModel {
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindType:
-			tm := typeModelFromTypeNode(child)
+			tm := typeModelFromTypeNode(child, resolver)
 			if arg.BoundKind != "" {
 				arg.Bound = &tm
 			} else {
@@ -553,7 +644,7 @@ func typeArgumentFromNode(node *parser.Node) TypeArgumentModel {
 					}
 				}
 				if wc.Kind == parser.KindType {
-					tm := typeModelFromTypeNode(wc)
+					tm := typeModelFromTypeNode(wc, resolver)
 					arg.Bound = &tm
 				}
 			}
@@ -562,7 +653,7 @@ func typeArgumentFromNode(node *parser.Node) TypeArgumentModel {
 	return arg
 }
 
-func fieldModelsFromFieldDecl(node *parser.Node) []FieldModel {
+func fieldModelsFromFieldDecl(node *parser.Node, resolver *typeResolver) []FieldModel {
 	var fields []FieldModel
 	baseField := FieldModel{
 		Visibility: VisibilityPackage,
@@ -570,13 +661,13 @@ func fieldModelsFromFieldDecl(node *parser.Node) []FieldModel {
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToField(modifiers, &baseField)
+		applyModifiersToField(modifiers, &baseField, resolver)
 	}
 
 	var fieldType TypeModel
 	for _, child := range node.Children {
 		if child.Kind == parser.KindType {
-			fieldType = typeModelFromTypeNode(child)
+			fieldType = typeModelFromTypeNode(child, resolver)
 			break
 		}
 	}
@@ -593,11 +684,11 @@ func fieldModelsFromFieldDecl(node *parser.Node) []FieldModel {
 	return fields
 }
 
-func applyModifiersToField(modifiers *parser.Node, field *FieldModel) {
+func applyModifiersToField(modifiers *parser.Node, field *FieldModel, resolver *typeResolver) {
 	for _, child := range modifiers.Children {
 		if child.Token == nil {
 			if child.Kind == parser.KindAnnotation {
-				field.Annotations = append(field.Annotations, annotationModelFromNode(child))
+				field.Annotations = append(field.Annotations, annotationModelFromNode(child, resolver))
 			}
 			continue
 		}
@@ -620,37 +711,37 @@ func applyModifiersToField(modifiers *parser.Node, field *FieldModel) {
 	}
 }
 
-func methodModelFromMethodDecl(node *parser.Node) MethodModel {
+func methodModelFromMethodDecl(node *parser.Node, resolver *typeResolver) MethodModel {
 	model := MethodModel{
 		Visibility: VisibilityPackage,
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToMethod(modifiers, &model)
+		applyModifiersToMethod(modifiers, &model, resolver)
 	}
 
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindType:
-			model.ReturnType = typeModelFromTypeNode(child)
+			model.ReturnType = typeModelFromTypeNode(child, resolver)
 		case parser.KindIdentifier:
 			if child.Token != nil {
 				model.Name = child.Token.Literal
 			}
 		case parser.KindTypeParameters:
-			model.TypeParameters = typeParametersFromNode(child)
+			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindParameters:
-			model.Parameters = parametersFromNode(child)
+			model.Parameters = parametersFromNode(child, resolver)
 		case parser.KindThrowsList:
-			model.Exceptions = exceptionsFromThrowsList(child)
+			model.Exceptions = exceptionsFromThrowsList(child, resolver)
 		}
 	}
 
 	return model
 }
 
-func methodModelFromConstructorDecl(node *parser.Node, className string) MethodModel {
+func methodModelFromConstructorDecl(node *parser.Node, className string, resolver *typeResolver) MethodModel {
 	model := MethodModel{
 		Name:       "<init>",
 		Visibility: VisibilityPackage,
@@ -659,28 +750,28 @@ func methodModelFromConstructorDecl(node *parser.Node, className string) MethodM
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		applyModifiersToMethod(modifiers, &model)
+		applyModifiersToMethod(modifiers, &model, resolver)
 	}
 
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindTypeParameters:
-			model.TypeParameters = typeParametersFromNode(child)
+			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindParameters:
-			model.Parameters = parametersFromNode(child)
+			model.Parameters = parametersFromNode(child, resolver)
 		case parser.KindThrowsList:
-			model.Exceptions = exceptionsFromThrowsList(child)
+			model.Exceptions = exceptionsFromThrowsList(child, resolver)
 		}
 	}
 
 	return model
 }
 
-func applyModifiersToMethod(modifiers *parser.Node, method *MethodModel) {
+func applyModifiersToMethod(modifiers *parser.Node, method *MethodModel, resolver *typeResolver) {
 	for _, child := range modifiers.Children {
 		if child.Token == nil {
 			if child.Kind == parser.KindAnnotation {
-				method.Annotations = append(method.Annotations, annotationModelFromNode(child))
+				method.Annotations = append(method.Annotations, annotationModelFromNode(child, resolver))
 			}
 			continue
 		}
@@ -707,17 +798,17 @@ func applyModifiersToMethod(modifiers *parser.Node, method *MethodModel) {
 	}
 }
 
-func parametersFromNode(node *parser.Node) []ParameterModel {
+func parametersFromNode(node *parser.Node, resolver *typeResolver) []ParameterModel {
 	var params []ParameterModel
 	for _, child := range node.Children {
 		if child.Kind == parser.KindParameter {
-			params = append(params, parameterFromNode(child))
+			params = append(params, parameterFromNode(child, resolver))
 		}
 	}
 	return params
 }
 
-func parameterFromNode(node *parser.Node) ParameterModel {
+func parameterFromNode(node *parser.Node, resolver *typeResolver) ParameterModel {
 	param := ParameterModel{}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -727,7 +818,7 @@ func parameterFromNode(node *parser.Node) ParameterModel {
 				param.IsFinal = true
 			}
 			if child.Kind == parser.KindAnnotation {
-				param.Annotations = append(param.Annotations, annotationModelFromNode(child))
+				param.Annotations = append(param.Annotations, annotationModelFromNode(child, resolver))
 			}
 		}
 	}
@@ -735,9 +826,9 @@ func parameterFromNode(node *parser.Node) ParameterModel {
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindType:
-			param.Type = typeModelFromTypeNode(child)
+			param.Type = typeModelFromTypeNode(child, resolver)
 		case parser.KindArrayType:
-			param.Type = typeModelFromTypeNode(child)
+			param.Type = typeModelFromTypeNode(child, resolver)
 		case parser.KindIdentifier:
 			if child.Token != nil {
 				param.Name = child.Token.Literal
@@ -748,35 +839,35 @@ func parameterFromNode(node *parser.Node) ParameterModel {
 	return param
 }
 
-func exceptionsFromThrowsList(node *parser.Node) []string {
+func exceptionsFromThrowsList(node *parser.Node, resolver *typeResolver) []string {
 	var exceptions []string
 	for _, child := range node.Children {
 		if child.Kind == parser.KindType {
-			exceptions = append(exceptions, typeNameFromTypeNode(child))
+			exceptions = append(exceptions, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		}
 	}
 	return exceptions
 }
 
-func recordComponentsFromParameters(node *parser.Node) []RecordComponentModel {
+func recordComponentsFromParameters(node *parser.Node, resolver *typeResolver) []RecordComponentModel {
 	var components []RecordComponentModel
 	for _, child := range node.Children {
 		if child.Kind == parser.KindParameter {
-			comp := recordComponentFromParameter(child)
+			comp := recordComponentFromParameter(child, resolver)
 			components = append(components, comp)
 		}
 	}
 	return components
 }
 
-func recordComponentFromParameter(node *parser.Node) RecordComponentModel {
+func recordComponentFromParameter(node *parser.Node, resolver *typeResolver) RecordComponentModel {
 	comp := RecordComponentModel{}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
 		for _, child := range modifiers.Children {
 			if child.Kind == parser.KindAnnotation {
-				comp.Annotations = append(comp.Annotations, annotationModelFromNode(child))
+				comp.Annotations = append(comp.Annotations, annotationModelFromNode(child, resolver))
 			}
 		}
 	}
@@ -784,7 +875,7 @@ func recordComponentFromParameter(node *parser.Node) RecordComponentModel {
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindType:
-			comp.Type = typeModelFromTypeNode(child)
+			comp.Type = typeModelFromTypeNode(child, resolver)
 		case parser.KindIdentifier:
 			if child.Token != nil {
 				comp.Name = child.Token.Literal
@@ -795,7 +886,7 @@ func recordComponentFromParameter(node *parser.Node) RecordComponentModel {
 	return comp
 }
 
-func annotationModelFromNode(node *parser.Node) AnnotationModel {
+func annotationModelFromNode(node *parser.Node, resolver *typeResolver) AnnotationModel {
 	ann := AnnotationModel{}
 
 	for _, child := range node.Children {
@@ -813,6 +904,10 @@ func annotationModelFromNode(node *parser.Node) AnnotationModel {
 			name, value := annotationElementFromNode(child)
 			ann.Values[name] = value
 		}
+	}
+
+	if resolver != nil {
+		ann.Type = resolver.resolve(ann.Type)
 	}
 
 	return ann
@@ -841,7 +936,7 @@ func annotationValueFromNode(node *parser.Node) interface{} {
 		return node.Token.Literal
 	}
 	if node.Kind == parser.KindAnnotation {
-		return annotationModelFromNode(node)
+		return annotationModelFromNode(node, nil)
 	}
 	if node.Kind == parser.KindArrayInit {
 		var values []interface{}
