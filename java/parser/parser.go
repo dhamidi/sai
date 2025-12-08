@@ -1079,28 +1079,169 @@ func (p *Parser) isExplicitConstructorInvocation() bool {
 	}
 
 	p.pos = save
+
+	// Check for qualified super: expr.super(...) or expr.<T>super(...)
+	// This handles ExpressionName.super() and Primary.super()
+	if p.isQualifiedSuperInvocation() {
+		return true
+	}
+
+	return false
+}
+
+// isQualifiedSuperInvocation checks for patterns like:
+// - outer.super(...)
+// - outer.<T>super(...)
+// - (expr).super(...)
+func (p *Parser) isQualifiedSuperInvocation() bool {
+	save := p.pos
+	defer func() { p.pos = save }()
+
+	// Try to parse qualifying expression (identifier chain or primary)
+	if p.check(TokenIdent) {
+		// Skip identifier chain: a.b.c
+		for p.check(TokenIdent) {
+			p.advance()
+			if p.check(TokenDot) {
+				p.advance()
+			} else {
+				return false
+			}
+		}
+	} else if p.check(TokenLParen) {
+		// Skip parenthesized expression
+		p.advance()
+		depth := 1
+		for depth > 0 && !p.check(TokenEOF) {
+			if p.check(TokenLParen) {
+				depth++
+			} else if p.check(TokenRParen) {
+				depth--
+			}
+			p.advance()
+		}
+		if !p.check(TokenDot) {
+			return false
+		}
+		p.advance()
+	} else {
+		return false
+	}
+
+	// Optional type arguments
+	if p.check(TokenLT) {
+		p.skipTypeArguments()
+	}
+
+	// Must be super followed by (
+	if p.check(TokenSuper) {
+		p.advance()
+		if p.check(TokenLParen) {
+			return true
+		}
+	}
+
 	return false
 }
 
 func (p *Parser) parseExplicitConstructorInvocation() *Node {
 	node := p.startNode(KindExplicitConstructorInvocation)
 
-	if p.check(TokenLT) {
-		node.AddChild(p.parseTypeArguments())
-	}
+	// Check for qualified super: expr.super() or expr.<T>super()
+	if !p.check(TokenLT) && !p.check(TokenThis) && !p.check(TokenSuper) {
+		// Must be a qualified super invocation
+		qualifier := p.parseQualifiedSuperQualifier()
+		node.AddChild(qualifier)
 
-	if p.check(TokenThis) {
-		tok := p.advance()
-		node.AddChild(&Node{Kind: KindThis, Token: &tok, Span: tok.Span})
-	} else if p.check(TokenSuper) {
-		tok := p.advance()
-		node.AddChild(&Node{Kind: KindSuper, Token: &tok, Span: tok.Span})
+		// Optional type arguments after the dot
+		if p.check(TokenLT) {
+			node.AddChild(p.parseTypeArguments())
+		}
+
+		// Must be super
+		if p.check(TokenSuper) {
+			tok := p.advance()
+			node.AddChild(&Node{Kind: KindSuper, Token: &tok, Span: tok.Span})
+		}
+	} else {
+		// Unqualified: [TypeArguments] this(...) or [TypeArguments] super(...)
+		if p.check(TokenLT) {
+			node.AddChild(p.parseTypeArguments())
+		}
+
+		if p.check(TokenThis) {
+			tok := p.advance()
+			node.AddChild(&Node{Kind: KindThis, Token: &tok, Span: tok.Span})
+		} else if p.check(TokenSuper) {
+			tok := p.advance()
+			node.AddChild(&Node{Kind: KindSuper, Token: &tok, Span: tok.Span})
+		}
 	}
 
 	node.AddChild(p.parseArguments())
 	p.expect(TokenSemicolon)
 
 	return p.finishNode(node)
+}
+
+// parseQualifiedSuperQualifier parses the qualifying expression before .super()
+// Returns a KindIdentifier, KindQualifiedName, or expression node
+func (p *Parser) parseQualifiedSuperQualifier() *Node {
+	if p.check(TokenIdent) {
+		// Parse identifier chain: a.b.c (stopping before .super)
+		node := p.startNode(KindIdentifier)
+		tok := p.advance()
+		node.Token = &tok
+		node.Span = tok.Span
+		node = p.finishNode(node)
+
+		for p.check(TokenDot) {
+			// Peek ahead to see if next is super or <T>super
+			save := p.pos
+			p.advance() // consume dot
+
+			if p.check(TokenLT) {
+				// Could be type args before super, restore and return
+				p.pos = save
+				p.advance() // consume the dot before returning
+				return node
+			}
+
+			if p.check(TokenSuper) {
+				// Don't consume super, just the dot
+				return node
+			}
+
+			// It's another identifier in the chain
+			if p.check(TokenIdent) {
+				qualNode := p.startNode(KindQualifiedName)
+				qualNode.AddChild(node)
+				identTok := p.advance()
+				qualNode.AddChild(&Node{Kind: KindIdentifier, Token: &identTok, Span: identTok.Span})
+				node = p.finishNode(qualNode)
+			} else {
+				// Unexpected, restore and return what we have
+				p.pos = save
+				return node
+			}
+		}
+
+		// Consume trailing dot before super
+		if p.check(TokenDot) {
+			p.advance()
+		}
+		return node
+	} else if p.check(TokenLParen) {
+		// Parse parenthesized expression
+		expr := p.parseParenExpr()
+		p.expect(TokenDot)
+		return expr
+	}
+
+	// Fallback: parse as expression
+	expr := p.parsePrimaryExpr()
+	p.expect(TokenDot)
+	return expr
 }
 
 func (p *Parser) parseMethod(modifiers *Node, typeParams *Node, returnType *Node) *Node {

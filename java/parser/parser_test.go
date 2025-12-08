@@ -658,6 +658,10 @@ func TestExplicitConstructorInvocation(t *testing.T) {
 		{"super call with args", "class Foo extends Bar { Foo(int x) { super(x); } }"},
 		{"this call with type args", "class Foo { Foo() { <String>this(); } Foo(String s) {} }"},
 		{"super call with statements after", "class Foo extends Bar { Foo() { super(); int x = 1; } }"},
+		{"qualified super call", "class Inner extends Outer.Nested { Inner(Outer outer) { outer.super(); } }"},
+		{"qualified super call with args", "class Inner extends Outer.Nested { Inner(Outer outer, int x) { outer.super(x); } }"},
+		{"qualified super call with type args", "class Inner extends Outer.Nested { Inner(Outer outer) { outer.<String>super(); } }"},
+		{"qualified super with qualified name", "class Inner extends Outer.Nested { Inner(Outer.Factory f) { f.outer.super(); } }"},
 	}
 
 	for _, tt := range tests {
