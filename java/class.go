@@ -140,6 +140,13 @@ func (c *Class) IsSynthetic() bool {
 }
 
 func (c *Class) Methods() []Method {
+	if c.source != nil {
+		methods := make([]Method, len(c.source.methods))
+		for i := range c.source.methods {
+			methods[i] = Method{source: &c.source.methods[i]}
+		}
+		return methods
+	}
 	methods := make([]Method, len(c.cf.Methods))
 	for i := range c.cf.Methods {
 		methods[i] = Method{
@@ -151,6 +158,14 @@ func (c *Class) Methods() []Method {
 }
 
 func (c *Class) Method(name string) *Method {
+	if c.source != nil {
+		for i := range c.source.methods {
+			if c.source.methods[i].name == name {
+				return &Method{source: &c.source.methods[i]}
+			}
+		}
+		return nil
+	}
 	for i := range c.cf.Methods {
 		if c.cf.Methods[i].Name(c.cf.ConstantPool) == name {
 			return &Method{
@@ -163,6 +178,15 @@ func (c *Class) Method(name string) *Method {
 }
 
 func (c *Class) MethodsByName(name string) []Method {
+	if c.source != nil {
+		var methods []Method
+		for i := range c.source.methods {
+			if c.source.methods[i].name == name {
+				methods = append(methods, Method{source: &c.source.methods[i]})
+			}
+		}
+		return methods
+	}
 	var methods []Method
 	for i := range c.cf.Methods {
 		if c.cf.Methods[i].Name(c.cf.ConstantPool) == name {
@@ -180,6 +204,13 @@ func (c *Class) Constructors() []Method {
 }
 
 func (c *Class) Fields() []Field {
+	if c.source != nil {
+		fields := make([]Field, len(c.source.fields))
+		for i := range c.source.fields {
+			fields[i] = Field{source: &c.source.fields[i]}
+		}
+		return fields
+	}
 	fields := make([]Field, len(c.cf.Fields))
 	for i := range c.cf.Fields {
 		fields[i] = Field{
@@ -191,6 +222,14 @@ func (c *Class) Fields() []Field {
 }
 
 func (c *Class) Field(name string) *Field {
+	if c.source != nil {
+		for i := range c.source.fields {
+			if c.source.fields[i].name == name {
+				return &Field{source: &c.source.fields[i]}
+			}
+		}
+		return nil
+	}
 	for i := range c.cf.Fields {
 		if c.cf.Fields[i].Name(c.cf.ConstantPool) == name {
 			return &Field{
@@ -203,20 +242,36 @@ func (c *Class) Field(name string) *Field {
 }
 
 func (c *Class) Visibility() string {
+	if c.source != nil {
+		return c.source.visibility
+	}
 	if c.IsPublic() {
 		return "public"
 	}
 	return "package"
 }
 
-func (c *Class) MajorVersion() uint16 { return c.cf.MajorVersion }
-func (c *Class) MinorVersion() uint16 { return c.cf.MinorVersion }
+func (c *Class) MajorVersion() uint16 {
+	if c.source != nil {
+		return 0
+	}
+	return c.cf.MajorVersion
+}
+func (c *Class) MinorVersion() uint16 {
+	if c.source != nil {
+		return 0
+	}
+	return c.cf.MinorVersion
+}
 
 func (c *Class) ClassFile() *classfile.ClassFile {
 	return c.cf
 }
 
 func (c *Class) Signature() string {
+	if c.source != nil {
+		return ""
+	}
 	attr := c.cf.GetAttribute("Signature")
 	if attr == nil {
 		return ""
@@ -228,10 +283,16 @@ func (c *Class) Signature() string {
 }
 
 func (c *Class) IsDeprecated() bool {
+	if c.source != nil {
+		return false
+	}
 	return c.cf.GetAttribute("Deprecated") != nil
 }
 
 func (c *Class) SourceFile() string {
+	if c.source != nil {
+		return c.source.sourceFile
+	}
 	attr := c.cf.GetAttribute("SourceFile")
 	if attr == nil {
 		return ""
@@ -243,6 +304,9 @@ func (c *Class) SourceFile() string {
 }
 
 func (c *Class) Annotations() []Annotation {
+	if c.source != nil {
+		return c.source.annotations
+	}
 	attr := c.cf.GetAttribute("RuntimeVisibleAnnotations")
 	if attr == nil {
 		return nil
@@ -254,6 +318,9 @@ func (c *Class) Annotations() []Annotation {
 }
 
 func (c *Class) InvisibleAnnotations() []Annotation {
+	if c.source != nil {
+		return nil
+	}
 	attr := c.cf.GetAttribute("RuntimeInvisibleAnnotations")
 	if attr == nil {
 		return nil
@@ -265,10 +332,16 @@ func (c *Class) InvisibleAnnotations() []Annotation {
 }
 
 func (c *Class) IsRecord() bool {
+	if c.source != nil {
+		return c.source.kind == "record"
+	}
 	return c.cf.GetAttribute("Record") != nil
 }
 
 func (c *Class) RecordComponents() []RecordComponent {
+	if c.source != nil {
+		return nil
+	}
 	attr := c.cf.GetAttribute("Record")
 	if attr == nil {
 		return nil
@@ -297,10 +370,16 @@ func (rc RecordComponent) Type() Type {
 }
 
 func (c *Class) IsSealed() bool {
+	if c.source != nil {
+		return false
+	}
 	return c.cf.GetAttribute("PermittedSubclasses") != nil
 }
 
 func (c *Class) PermittedSubclasses() []string {
+	if c.source != nil {
+		return nil
+	}
 	attr := c.cf.GetAttribute("PermittedSubclasses")
 	if attr == nil {
 		return nil
@@ -316,6 +395,9 @@ func (c *Class) PermittedSubclasses() []string {
 }
 
 func (c *Class) NestHost() string {
+	if c.source != nil {
+		return ""
+	}
 	attr := c.cf.GetAttribute("NestHost")
 	if attr == nil {
 		return ""
@@ -327,6 +409,9 @@ func (c *Class) NestHost() string {
 }
 
 func (c *Class) NestMembers() []string {
+	if c.source != nil {
+		return nil
+	}
 	attr := c.cf.GetAttribute("NestMembers")
 	if attr == nil {
 		return nil
@@ -342,6 +427,9 @@ func (c *Class) NestMembers() []string {
 }
 
 func (c *Class) EnclosingClass() string {
+	if c.source != nil {
+		return ""
+	}
 	attr := c.cf.GetAttribute("EnclosingMethod")
 	if attr == nil {
 		return ""
@@ -353,6 +441,9 @@ func (c *Class) EnclosingClass() string {
 }
 
 func (c *Class) EnclosingMethod() (className, methodName, methodDescriptor string) {
+	if c.source != nil {
+		return "", "", ""
+	}
 	attr := c.cf.GetAttribute("EnclosingMethod")
 	if attr == nil {
 		return "", "", ""
@@ -368,6 +459,9 @@ func (c *Class) EnclosingMethod() (className, methodName, methodDescriptor strin
 }
 
 func (c *Class) InnerClasses() []InnerClass {
+	if c.source != nil {
+		return nil
+	}
 	attr := c.cf.GetAttribute("InnerClasses")
 	if attr == nil {
 		return nil

@@ -118,20 +118,26 @@ func (sc *sourceClass) extractTypeDecl(node *parser.Node) {
 	// Extract implements (interfaces)
 	sc.interfaces = extractImplements(node)
 
+	// Find the class body block
+	body := node.FirstChildOfKind(parser.KindBlock)
+	if body == nil {
+		return
+	}
+
 	// Extract fields
-	for _, child := range node.ChildrenOfKind(parser.KindFieldDecl) {
+	for _, child := range body.ChildrenOfKind(parser.KindFieldDecl) {
 		sc.fields = append(sc.fields, extractField(child))
 	}
 
 	// Extract methods
-	for _, child := range node.ChildrenOfKind(parser.KindMethodDecl) {
+	for _, child := range body.ChildrenOfKind(parser.KindMethodDecl) {
 		sc.methods = append(sc.methods, extractMethod(child))
 	}
-	for _, child := range node.ChildrenOfKind(parser.KindConstructorDecl) {
+	for _, child := range body.ChildrenOfKind(parser.KindConstructorDecl) {
 		sc.methods = append(sc.methods, extractConstructor(child, sc.simpleName))
 	}
 
-	// Extract annotations
+	// Extract annotations from the type declaration itself
 	for _, child := range node.ChildrenOfKind(parser.KindAnnotation) {
 		sc.annotations = append(sc.annotations, extractAnnotation(child))
 	}

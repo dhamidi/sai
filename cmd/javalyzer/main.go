@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -48,12 +47,11 @@ func main() {
 				if node == nil {
 					return fmt.Errorf("parse java file: incomplete or invalid syntax")
 				}
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				if err := enc.Encode(node); err != nil {
-					return fmt.Errorf("encode: %w", err)
+				class := java.ClassFromNode(node)
+				if class == nil {
+					return fmt.Errorf("parse java file: no class declaration found")
 				}
-				return nil
+				result = class
 			default:
 				return fmt.Errorf("unsupported file extension: %s (expected .class or .java)", ext)
 			}
