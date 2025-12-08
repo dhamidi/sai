@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dhamidi/javalyzer/java"
+	"github.com/dhamidi/javalyzer/java/parser"
 )
 
 //go:embed static templates
@@ -112,20 +113,21 @@ func (s *Scanner) processScan(req ScanRequest) {
 }
 
 func (s *Scanner) scanDirectory(id, path string) ([]*java.Class, error) {
-	var classFiles []string
+	var files []string
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(p) == ".class" {
-			classFiles = append(classFiles, p)
+		ext := filepath.Ext(p)
+		if !info.IsDir() && (ext == ".class" || ext == ".java") {
+			files = append(files, p)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.scanFiles(id, classFiles)
+	return s.scanFiles(id, files)
 }
 
 func (s *Scanner) scanFiles(id string, files []string) ([]*java.Class, error) {
@@ -135,17 +137,49 @@ func (s *Scanner) scanFiles(id string, files []string) ([]*java.Class, error) {
 
 	var classes []*java.Class
 	for i, file := range files {
-		class, err := java.ParseClassFile(file)
+		var class *java.Class
+		var err error
+
+		ext := filepath.Ext(file)
+		switch ext {
+		case ".class":
+			class, err = java.ParseClassFile(file)
+		case ".java":
+			class, err = parseJavaFile(file)
+		default:
+			err = fmt.Errorf("unsupported file extension: %s", ext)
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", file, err)
 		}
-		classes = append(classes, class)
+		if class != nil {
+			classes = append(classes, class)
+		}
 
 		s.mu.Lock()
 		s.scans[id].Progress = i + 1
 		s.mu.Unlock()
 	}
 	return classes, nil
+}
+
+func parseJavaFile(path string) (*java.Class, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	p := parser.ParseCompilationUnit(parser.WithFile(path))
+	p.Push(data)
+	node := p.Finish()
+	if node == nil {
+		return nil, fmt.Errorf("incomplete or invalid syntax")
+	}
+	class := java.ClassFromNode(node)
+	if class == nil {
+		return nil, fmt.Errorf("no class declaration found")
+	}
+	return class, nil
 }
 
 func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
@@ -155,29 +189,51 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.Class, error) {
 	}
 	defer r.Close()
 
-	var classFiles []*zip.File
+	var sourceFiles []*zip.File
 	for _, f := range r.File {
-		if !f.FileInfo().IsDir() && filepath.Ext(f.Name) == ".class" {
-			classFiles = append(classFiles, f)
+		ext := filepath.Ext(f.Name)
+		if !f.FileInfo().IsDir() && (ext == ".class" || ext == ".java") {
+			sourceFiles = append(sourceFiles, f)
 		}
 	}
 
 	s.mu.Lock()
-	s.scans[id].Total = len(classFiles)
+	s.scans[id].Total = len(sourceFiles)
 	s.mu.Unlock()
 
 	var classes []*java.Class
-	for i, f := range classFiles {
+	for i, f := range sourceFiles {
 		rc, err := f.Open()
 		if err != nil {
 			return nil, fmt.Errorf("open %s: %w", f.Name, err)
 		}
-		class, err := java.ParseClass(rc)
+
+		var class *java.Class
+		ext := filepath.Ext(f.Name)
+		switch ext {
+		case ".class":
+			class, err = java.ParseClass(rc)
+		case ".java":
+			data, readErr := io.ReadAll(rc)
+			if readErr != nil {
+				rc.Close()
+				return nil, fmt.Errorf("read %s: %w", f.Name, readErr)
+			}
+			p := parser.ParseCompilationUnit(parser.WithFile(f.Name))
+			p.Push(data)
+			node := p.Finish()
+			if node != nil {
+				class = java.ClassFromNode(node)
+			}
+		}
 		rc.Close()
+
 		if err != nil {
 			return nil, fmt.Errorf("parse %s: %w", f.Name, err)
 		}
-		classes = append(classes, class)
+		if class != nil {
+			classes = append(classes, class)
+		}
 
 		s.mu.Lock()
 		s.scans[id].Progress = i + 1
