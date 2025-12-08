@@ -204,11 +204,50 @@ func (p *Parser) parseCompilationUnit() *Node {
 		node.AddChild(p.parseImportDecl())
 	}
 
-	for !p.check(TokenEOF) {
-		node.AddChild(p.parseTypeDecl())
+	if p.isCompactCompilationUnit() {
+		for !p.check(TokenEOF) {
+			node.AddChild(p.parseClassMember())
+		}
+	} else {
+		for !p.check(TokenEOF) {
+			node.AddChild(p.parseTypeDecl())
+		}
 	}
 
 	return p.finishNode(node)
+}
+
+func (p *Parser) isCompactCompilationUnit() bool {
+	if p.check(TokenEOF) {
+		return false
+	}
+
+	save := p.pos
+
+	for p.check(TokenAt) {
+		p.parseAnnotation()
+	}
+
+	for p.match(TokenPublic, TokenProtected, TokenPrivate,
+		TokenAbstract, TokenStatic, TokenFinal,
+		TokenStrictfp, TokenNative, TokenSynchronized,
+		TokenTransient, TokenVolatile, TokenDefault,
+		TokenSealed, TokenNonSealed) {
+		p.advance()
+	}
+
+	isTypeDecl := false
+	switch p.peek().Kind {
+	case TokenClass, TokenInterface, TokenEnum, TokenRecord:
+		isTypeDecl = true
+	case TokenAt:
+		if p.peekN(1).Kind == TokenInterface {
+			isTypeDecl = true
+		}
+	}
+
+	p.pos = save
+	return !isTypeDecl
 }
 
 func (p *Parser) parsePackageDecl() *Node {

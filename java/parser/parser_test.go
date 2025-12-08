@@ -248,6 +248,57 @@ func TestPositionTracking(t *testing.T) {
 	}
 }
 
+func TestCompactCompilationUnit(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"simple main method",
+			"void main() { println(\"Hello\"); }",
+		},
+		{
+			"with import",
+			"import java.util.List;\nvoid main() {}",
+		},
+		{
+			"with field before method",
+			"int x = 5;\nvoid main() {}",
+		},
+		{
+			"with field after method",
+			"void main() {}\nint x = 5;",
+		},
+		{
+			"with nested class after method",
+			"void main() {}\nclass Helper {}",
+		},
+		{
+			"multiple methods",
+			"void main() { helper(); }\nvoid helper() {}",
+		},
+		{
+			"instance main with string array",
+			"void main(String[] args) {}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit(WithFile("test.java"))
+			p.Push([]byte(tt.input))
+			node := p.Finish()
+			if node.Kind != KindCompilationUnit {
+				t.Errorf("got %v, want CompilationUnit", node.Kind)
+			}
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
 func TestComplexJavaFile(t *testing.T) {
 	input := `
 package com.example;
