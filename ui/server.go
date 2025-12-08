@@ -424,6 +424,7 @@ type ClassViewData struct {
 	Classes      []*java.Class
 	ActiveClass  *java.Class
 	KnownClasses map[string]bool
+	Implementers []*java.Class
 }
 
 func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
@@ -445,6 +446,16 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 		if data.ActiveClass == nil {
 			http.Error(w, "class not found", http.StatusNotFound)
 			return
+		}
+		if data.ActiveClass.IsInterface() {
+			for _, c := range classes {
+				for _, iface := range c.Interfaces() {
+					if iface == className {
+						data.Implementers = append(data.Implementers, c)
+						break
+					}
+				}
+			}
 		}
 	}
 
