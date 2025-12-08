@@ -16,18 +16,41 @@ func WithStartLine(line int) Option {
 	}
 }
 
+func WithComments() Option {
+	return func(p *Parser) {
+		p.includeComments = true
+	}
+}
+
+func WithPositions() Option {
+	return func(p *Parser) {
+		p.includePositions = true
+	}
+}
+
 type parseFunc func(*Parser) *Node
 
 type Parser struct {
-	file       string
-	startLine  int
-	reader     io.Reader
-	input      []byte
-	lexer      *Lexer
-	tokens     []Token
-	pos        int
-	entry      parseFunc
-	incomplete bool
+	file             string
+	startLine        int
+	includeComments  bool
+	includePositions bool
+	reader           io.Reader
+	input            []byte
+	lexer            *Lexer
+	tokens           []Token
+	comments         []Token
+	pos              int
+	entry            parseFunc
+	incomplete       bool
+}
+
+func (p *Parser) IncludesPositions() bool {
+	return p.includePositions
+}
+
+func (p *Parser) Comments() []Token {
+	return p.comments
 }
 
 func ParseCompilationUnit(r io.Reader, opts ...Option) *Parser {
@@ -133,7 +156,13 @@ func (p *Parser) Reset(r io.Reader) {
 func (p *Parser) tokenize() {
 	for {
 		tok := p.lexer.NextToken()
-		if tok.Kind == TokenWhitespace || tok.Kind == TokenComment || tok.Kind == TokenLineComment {
+		if tok.Kind == TokenWhitespace {
+			continue
+		}
+		if tok.Kind == TokenComment || tok.Kind == TokenLineComment {
+			if p.includeComments {
+				p.comments = append(p.comments, tok)
+			}
 			continue
 		}
 		p.tokens = append(p.tokens, tok)

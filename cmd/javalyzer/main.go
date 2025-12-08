@@ -26,6 +26,8 @@ func main() {
 
 	var outputFormat string
 	var jsonOutput bool
+	var includeComments bool
+	var includePositions bool
 	parseCmd := &cobra.Command{
 		Use:   "parse <file>",
 		Short: "Parse a .class or .java file and dump the result",
@@ -76,12 +78,29 @@ func main() {
 						fmt.Println()
 					}
 				} else {
-					p := parser.ParseCompilationUnit(bytes.NewReader(data), parser.WithFile(filename))
+					opts := []parser.Option{parser.WithFile(filename)}
+					if includeComments {
+						opts = append(opts, parser.WithComments())
+					}
+					if includePositions {
+						opts = append(opts, parser.WithPositions())
+					}
+					p := parser.ParseCompilationUnit(bytes.NewReader(data), opts...)
 					node := p.Finish()
 					if node == nil {
 						return fmt.Errorf("parse java file: incomplete or invalid syntax")
 					}
-					fmt.Println(node.String())
+					if p.IncludesPositions() {
+						fmt.Println(node.StringWithPositions())
+					} else {
+						fmt.Println(node.String())
+					}
+					if includeComments && len(p.Comments()) > 0 {
+						fmt.Println("\n=== Comments ===")
+						for _, c := range p.Comments() {
+							fmt.Printf("[%s] %s\n", c.Span.Start.String(), c.Literal)
+						}
+					}
 				}
 			default:
 				return fmt.Errorf("unsupported file extension: %s (expected .class or .java)", ext)
@@ -92,6 +111,8 @@ func main() {
 	}
 	parseCmd.Flags().StringVarP(&outputFormat, "format", "f", "json", "output format (json, java)")
 	parseCmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON for .java files")
+	parseCmd.Flags().BoolVar(&includeComments, "comments", true, "include comments in output for .java files")
+	parseCmd.Flags().BoolVar(&includePositions, "positions", true, "include token positions in output for .java files")
 
 	var addr string
 	uiCmd := &cobra.Command{

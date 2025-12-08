@@ -261,16 +261,23 @@ func (n *Node) TokenLiteral() string {
 }
 
 func (n *Node) String() string {
-	return n.stringIndent(0)
+	return n.stringIndent(0, false)
 }
 
-func (n *Node) stringIndent(indent int) string {
+func (n *Node) StringWithPositions() string {
+	return n.stringIndent(0, true)
+}
+
+func (n *Node) stringIndent(indent int, showPositions bool) string {
 	prefix := ""
 	for i := 0; i < indent; i++ {
 		prefix += "  "
 	}
 
 	result := prefix + n.Kind.String()
+	if showPositions {
+		result += " [" + n.Span.Start.String() + "-" + n.Span.End.String() + "]"
+	}
 	if n.Token != nil {
 		result += " " + n.Token.Literal
 	}
@@ -280,7 +287,7 @@ func (n *Node) stringIndent(indent int) string {
 	result += "\n"
 
 	for _, child := range n.Children {
-		result += child.stringIndent(indent + 1)
+		result += child.stringIndent(indent+1, showPositions)
 	}
 	return result
 }
