@@ -245,7 +245,8 @@ func (p *Parser) isIdentifierLike() bool {
 	case TokenIdent,
 		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
 		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
-		TokenVar, TokenYield, TokenRecord, TokenSealed, TokenNonSealed, TokenPermits:
+		TokenVar, TokenYield, TokenRecord, TokenSealed, TokenNonSealed, TokenPermits,
+		TokenWhen:
 		return true
 	}
 	return false
@@ -2845,15 +2846,19 @@ func (p *Parser) isCast() bool {
 		isType = p.check(TokenRParen)
 		if isType {
 			p.advance()
-			switch p.peek().Kind {
-			case TokenIdent, TokenThis, TokenSuper, TokenNew,
-				TokenLParen, TokenNot, TokenBitNot,
-				TokenIncrement, TokenDecrement,
-				TokenIntLiteral, TokenFloatLiteral,
-				TokenCharLiteral, TokenStringLiteral,
-				TokenTextBlock, TokenTrue, TokenFalse, TokenNull:
-			default:
-				isType = false
+			if p.isIdentifierLike() {
+				// valid: (Type)identifier
+			} else {
+				switch p.peek().Kind {
+				case TokenThis, TokenSuper, TokenNew,
+					TokenLParen, TokenNot, TokenBitNot,
+					TokenIncrement, TokenDecrement,
+					TokenIntLiteral, TokenFloatLiteral,
+					TokenCharLiteral, TokenStringLiteral,
+					TokenTextBlock, TokenTrue, TokenFalse, TokenNull:
+				default:
+					isType = false
+				}
 			}
 		}
 	}
