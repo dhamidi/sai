@@ -767,6 +767,78 @@ func TestParseMultiPartFormInputStream(t *testing.T) {
 	}
 }
 
+func TestRecordWithCompactConstructor(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"record with compact constructor",
+			`record Point(int x, int y) {
+				public Point {
+					if (x < 0 || y < 0) {
+						throw new IllegalArgumentException();
+					}
+				}
+			}`,
+		},
+		{
+			"record with canonical constructor",
+			`record Point(int x, int y) {
+				public Point(int x, int y) {
+					this.x = x;
+					this.y = y;
+				}
+			}`,
+		},
+		{
+			"record with static field and method",
+			`record Point(int x, int y) {
+				private static final Point ORIGIN = new Point(0, 0);
+				public static Point origin() { return ORIGIN; }
+			}`,
+		},
+		{
+			"nested record inside class",
+			`class Proxy {
+				private record ProxyBuilder(Module module, String packageName, int accessFlags) {
+					ProxyBuilder(Module module, Class<?>[] interfaces) {
+						this(module, "", 0);
+					}
+				}
+			}`,
+		},
+		{
+			"record with inner class",
+			`record Container(String value) {
+				class Iterator {
+					private int pos;
+					Iterator() { pos = 0; }
+				}
+			}`,
+		},
+		{
+			"record with inner interface",
+			`record Container(String value) {
+				interface Processor {
+					void process(String s);
+				}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+			}
+		})
+	}
+}
+
 func hasError(node *Node) bool {
 	if node == nil {
 		return false

@@ -1,0 +1,1350 @@
+/*
+ * Copyright (c) 2012, 2025, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+/*
+ * COPYRIGHT AND PERMISSION NOTICE
+ *
+ * Copyright (c) 1991-2022 Unicode, Inc. All rights reserved.
+ * Distributed under the Terms of Use in https://www.unicode.org/copyright.html.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of the Unicode data files and any associated documentation
+ * (the "Data Files") or Unicode software and any associated documentation
+ * (the "Software") to deal in the Data Files or Software
+ * without restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, and/or sell copies of
+ * the Data Files or Software, and to permit persons to whom the Data Files
+ * or Software are furnished to do so, provided that either
+ * (a) this copyright and permission notice appear with all copies
+ * of the Data Files or Software, or
+ * (b) this copyright and permission notice appear in associated
+ * Documentation.
+ *
+ * THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF
+ * ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+ * WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT OF THIRD PARTY RIGHTS.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS
+ * NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL
+ * DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THE DATA FILES OR SOFTWARE.
+ *
+ * Except as contained in this notice, the name of a copyright holder
+ * shall not be used in advertising or otherwise to promote the sale,
+ * use or other dealings in these Data Files or Software without prior
+ * written authorization of the copyright holder.
+ */
+
+package sun.util.resources.cldr.ext;
+
+import sun.util.resources.TimeZoneNamesBundle;
+
+public class TimeZoneNames_yo_BJ extends TimeZoneNamesBundle {
+    @Override
+    protected final Object[][] getContents() {
+        final String[] Apia = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Apia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Apia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Apia",
+               "",
+            };
+        final String[] Cook = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00c0w\u0254n Erekusu Kuuku",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ilaji S\u0254ma \u00c0w\u0254n Erekusu Kuuku",
+               "",
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Erekusu Kuuku",
+               "",
+            };
+        final String[] Cuba = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 K\u00fab\u00e0",
+               "CST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 K\u00fab\u00e0",
+               "CDT",
+               "\u00c0k\u00f3k\u00f2 K\u00fab\u00e0",
+               "CT",
+            };
+        final String[] Fiji = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Fiji",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254ma Fiji",
+               "",
+               "\u00c0k\u00f3k\u00f2 Fiji",
+               "",
+            };
+        final String[] Gulf = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Gulf",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Hovd = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Hofidi",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Hofidi",
+               "",
+               "\u00c0k\u00f3k\u00f2 Hofidi",
+               "",
+            };
+        final String[] Iran = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Irani",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Irani",
+               "",
+               "\u00c0k\u00f3k\u00f2 Irani",
+               "",
+            };
+        final String[] Omsk = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Omisiki",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Omisiki",
+               "",
+               "\u00c0k\u00f3k\u00f2 Omisiki",
+               "",
+            };
+        final String[] Peru = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 P\u00e9r\u00f9",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ooru P\u00e9r\u00f9",
+               "",
+               "\u00c0k\u00f3k\u00f2 P\u00e9r\u00f9",
+               "",
+            };
+        final String[] Chile = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Sh\u00edl\u00e8",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oru Sh\u00edl\u00e8",
+               "",
+               "\u00c0k\u00f3k\u00f2 Sh\u00edl\u00e8",
+               "",
+            };
+        final String[] China = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Sh\u00e1\u00edn\u00e0",
+               "CST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Sh\u00e1\u00edn\u00e0",
+               "CDT",
+               "\u00c0k\u00f3k\u00f2 Sh\u00e1\u00edn\u00e0",
+               "CT",
+            };
+        final String[] Cocos = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Er\u00e9k\u00f9s\u00f9 Cocos",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] India = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 India",
+               "IST",
+               "",
+               "IST",
+               "",
+               "IST",
+            };
+        final String[] Japan = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Japan",
+               "JST",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Japan",
+               "JDT",
+               "\u00c0k\u00f3k\u00f2 Japan",
+               "JT",
+            };
+        final String[] Korea = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Koria",
+               "KST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Koria",
+               "KST",
+               "\u00c0k\u00f3k\u00f2 Koria",
+               "KST",
+            };
+        final String[] Samoa = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Samoa",
+               "SST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Samoa",
+               "SST",
+               "\u00c0k\u00f3k\u00f2 Samoa",
+               "SST",
+            };
+        final String[] Tonga = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Tonga",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Tonga",
+               "",
+               "\u00c0k\u00f3k\u00f2 Tonga",
+               "",
+            };
+        final String[] Yukon = new String[] {
+               "\u00c0k\u00f3k\u00f2 Y\u00fak\u0254\u0301n\u00ec",
+               "MST",
+               "",
+               "MST",
+               "",
+               "MST",
+            };
+        final String[] Alaska = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Al\u00e1s\u00edk\u00e0",
+               "AKST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254\u0301 Al\u00e1s\u00edk\u00e0",
+               "AKDT",
+               "\u00c0k\u00f3k\u00f2 Al\u00e1s\u00edk\u00e0",
+               "AKT",
+            };
+        final String[] Amazon = new String[] {
+               "\u00c0k\u00f3k\u00f2 Af\u025bnuk\u00f2 Am\u00e1s\u0254\u0301n\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oru Am\u00e1s\u0254\u0301n\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 Am\u00e1s\u0254\u0301n\u00ec",
+               "",
+            };
+        final String[] Azores = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00c1s\u0254\u0301s\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ooru \u00c1s\u0254\u0301s\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 \u00c1s\u0254\u0301s\u00ec",
+               "",
+            };
+        final String[] Israel = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Israel",
+               "IST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Israel",
+               "IDT",
+               "\u00c0k\u00f3k\u00f2 Israel",
+               "IT",
+            };
+        final String[] Moscow = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Mosiko",
+               "MSK",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Mosiko",
+               "MSK",
+               "\u00c0k\u00f3k\u00f2 Mosiko",
+               "MSK",
+            };
+        final String[] Taipei = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Taipei",
+               "CST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Taipei",
+               "CDT",
+               "\u00c0k\u00f3k\u00f2 Taipei",
+               "CT",
+            };
+        final String[] Arabian = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Arabia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Arabia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Arabia",
+               "",
+            };
+        final String[] Armenia = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Armenia",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Arabia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Armenia",
+               "",
+            };
+        final String[] Chatham = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Chatam",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Chatam",
+               "",
+               "\u00c0k\u00f3k\u00f2 Chatam",
+               "",
+            };
+        final String[] ETC_UTC = new String[] {
+               "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Georgia = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Georgia",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Georgia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Georgia",
+               "",
+            };
+        final String[] Irkutsk = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00cdk\u00f3s\u00edk\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 \u00cdk\u00fas\u00edk\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 \u00cdk\u00f3s\u00edk\u00ec",
+               "",
+            };
+        final String[] Magadan = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Magadani",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Magadani",
+               "",
+               "\u00c0k\u00f3k\u00f2 Magadani",
+               "",
+            };
+        final String[] Norfolk = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Er\u00e9k\u00f9s\u00f9 Norfolk",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Er\u00e9k\u00f9s\u00f9 Norfolk",
+               "",
+               "\u00c0k\u00f3k\u00f2 Er\u00e9k\u00f9s\u00f9 Norfolk",
+               "",
+            };
+        final String[] Reunion = new String[] {
+               "\u00c0k\u00f3k\u00f2 R\u025b\u0301y\u00fan\u00ed\u0254\u0301n\u00ec",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Solomon = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Erekusu Solomon",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Uruguay = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00dar\u00fag\u00faw\u00e8",
+               "",
+               "Aago Soma Uruguay",
+               "",
+               "Aago Uruguay",
+               "",
+            };
+        final String[] Vanuatu = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Fanuatu",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Fanuatu",
+               "",
+               "\u00c0k\u00f3k\u00f2 Fanuatu",
+               "",
+            };
+        final String[] Yakutsk = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Yatutsk",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Yatutsk",
+               "",
+               "\u00c0k\u00f3k\u00f2 Yatutsk",
+               "",
+            };
+        final String[] Atlantic = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00e0sik\u00f2 \u00c0t\u00ecl\u00e1\u0144t\u00ed\u00eck\u00ec",
+               "AST",
+               "\u00c0k\u00f3k\u00f2 \u00ccy\u00e1l\u025bta \u00c0t\u00ecl\u00e1\u0144t\u00ed\u00eck\u00ec",
+               "AST",
+               "\u00c0k\u00f3k\u00f2 \u00c0t\u00ecl\u00e1\u0144t\u00ed\u00eck\u00ec",
+               "AST",
+            };
+        final String[] Chamorro = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Chamorro",
+               "ChST",
+               "",
+               "ChST",
+               "",
+               "ChST",
+            };
+        final String[] Falkland = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Et\u00edkun F\u00f3k\u00edl\u00e1nd\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ooru Et\u00edkun F\u00f3k\u00edl\u00e1nd\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 F\u00f3k\u00edl\u00e1nd\u00ec",
+               "",
+            };
+        final String[] Mongolia = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Ulaanbaatar",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Ulaanbaatar",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ulaanbaatar",
+               "",
+            };
+        final String[] Pakistan = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Pakistani",
+               "PKT",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Pakistani",
+               "PKST",
+               "\u00c0k\u00f3k\u00f2 Pakistani",
+               "PKT",
+            };
+        final String[] Paraguay = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 P\u00e1r\u00e1g\u00faw\u00e8",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ooru P\u00e1r\u00e1g\u00faw\u00e8",
+               "",
+               "\u00c0k\u00f3k\u00f2 P\u00e1r\u00e1g\u00faw\u00e8",
+               "",
+            };
+        final String[] Sakhalin = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Sakhalin",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Sakhalin",
+               "",
+               "\u00c0k\u00f3k\u00f2 Sakhalin",
+               "",
+            };
+        final String[] Argentina = new String[] {
+               "Aago \u00e0s\u00eck\u00f2 Argentina",
+               "",
+               "Aago Soma Argentina",
+               "",
+               "Aago Aj\u025bnt\u00ecn\u00e0",
+               "",
+            };
+        final String[] Hong_Kong = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccf\u025bnuk\u00f2s\u00ed Hong Kong",
+               "HKT",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Hong Kong",
+               "HKST",
+               "\u00c0k\u00f3k\u00f2 Hong Kong",
+               "HKT",
+            };
+        final String[] Lord_Howe = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Lord Howe",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Lord Howe",
+               "",
+               "\u00c0k\u00f3k\u00f2 Lord Howe",
+               "",
+            };
+        final String[] Mauritius = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 M\u00e1r\u00edsh\u00fash\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 Ooru M\u00e1r\u00edsh\u00fash\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 M\u00e1r\u00edsh\u00fash\u00ec",
+               "",
+            };
+        final String[] Singapore = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Singapore",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Volgograd = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Foligogiradi",
+               "MSK",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Foligogiradi",
+               "MSK",
+               "\u00c0k\u00f3k\u00f2 Foligogiradi",
+               "MSK",
+            };
+        final String[] Azerbaijan = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Azerbaijan",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Azerbaijan",
+               "",
+               "\u00c0k\u00f3k\u00f2 Azerbaijan",
+               "",
+            };
+        final String[] Bangladesh = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Bangladesh",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Bangladesh",
+               "",
+               "\u00c0k\u00f3k\u00f2 Bangladesh",
+               "",
+            };
+        final String[] Cape_Verde = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 K\u00e9p\u00fa F\u00e1\u00e0d\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 \u0190\u0300r\u00fan K\u00e9p\u00fa F\u00e1\u00e0d\u00ec",
+               "",
+               "\u00c0k\u00f3k\u00f2 K\u00e9p\u00fa F\u00e1\u00e0d\u00ec",
+               "",
+            };
+        final String[] Seychelles = new String[] {
+               "\u00c0k\u00f3k\u00f2 S\u00e8sh\u025b\u0301\u025b\u0300l\u00ec",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Uzbekistan = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Usibekistani",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Usibekistani",
+               "",
+               "\u00c0k\u00f3k\u00f2 Usibekistani",
+               "",
+            };
+        final String[] Krasnoyarsk = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Krasinoyasiki",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Krasinoyasiki",
+               "",
+               "\u00c0k\u00f3k\u00f2 Krasinoyasiki",
+               "",
+            };
+        final String[] New_Zealand = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 New zealand",
+               "NZST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 New Zealand",
+               "NZDT",
+               "\u00c0k\u00f3k\u00f2 New Zealand",
+               "NZT",
+            };
+        final String[] Novosibirsk = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Nofosibiriki",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Noforibisiki",
+               "",
+               "\u00c0k\u00f3k\u00f2 Nofosibiriski",
+               "",
+            };
+        final String[] Philippines = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Filipininni",
+               "PST",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Filipininni",
+               "PDT",
+               "\u00c0k\u00f3k\u00f2 Filipininni",
+               "PT",
+            };
+        final String[] Vladivostok = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Filadifositoki",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Filadifositoki",
+               "",
+               "\u00c0k\u00f3k\u00f2 Filadifositoki",
+               "",
+            };
+        final String[] Line_Islands = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Erekusu Laini",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Newfoundland = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Newfoundland",
+               "NST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Newfoundland",
+               "NDT",
+               "\u00c0k\u00f3k\u00f2 Newfoundland",
+               "NT",
+            };
+        final String[] Turkmenistan = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Turkimenistani",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Turkmenistani",
+               "",
+               "\u00c0k\u00f3k\u00f2 Turkimenistani",
+               "",
+            };
+        final String[] New_Caledonia = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Kalidonia Tuntun",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254ma Kalidonia Tuntun",
+               "",
+               "\u00c0k\u00f3k\u00f2 Kalidonia Tuntun",
+               "",
+            };
+        final String[] South_Georgia = new String[] {
+               "\u00c0k\u00f3k\u00f2 G\u00fas\u00f9 J\u0254\u0301j\u00ed\u00e0",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Yekaterinburg = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Yekaterinburg",
+               "",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 Yekaterinburg",
+               "",
+               "\u00c0k\u00f3k\u00f2 Yekaterinburg",
+               "",
+            };
+        final String[] Africa_Western = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccw\u0254\u0300-O\u00f2r\u00f9n \u00c0f\u025bnuk\u00f2 Af\u00edrik\u00e0",
+               "WAT",
+               "\u00c0k\u00f3k\u00f2 \u00ccw\u0254\u0300-O\u00f2r\u00f9n Ooru Af\u00edrik\u00e0",
+               "WAT",
+               "\u00c0k\u00f3k\u00f2 \u00ccw\u0254\u0300-O\u00f2r\u00f9n Af\u00edrik\u00e0",
+               "WAT",
+            };
+        final String[] Europe_Central = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0\u00e1rin \u00e0sik\u00f2 Europe",
+               "CET",
+               "\u00c0k\u00f3k\u00f2 \u00c0\u00e1rin S\u0254m\u00e0 Europe",
+               "CEST",
+               "\u00c0k\u00f3k\u00f2 \u00c0\u00e1rin Europe",
+               "CET",
+            };
+        final String[] Europe_Eastern = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00e0sik\u00f2 \u00cch\u00e0 \u00ccl\u00e0 O\u00f2r\u00f9n Europe",
+               "EET",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 \u00ccha \u00ccl\u00e0 O\u00f2r\u00f9n Europe",
+               "EEST",
+               "\u00c0k\u00f3k\u00f2 \u00cch\u00e0 \u00ccl\u00e0 O\u00f2r\u00f9n Europe",
+               "EET",
+            };
+        final String[] Europe_Western = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00e0sik\u00f2 \u00ccw\u0254 O\u00f2r\u00f9n Europe",
+               "WET",
+               "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 \u00cch\u00e0 \u00ccw\u0254 O\u00f2r\u00f9n Europe",
+               "WEST",
+               "\u00c0k\u00f3k\u00f2 \u00ccw\u0254 O\u00f2r\u00f9n Europe",
+               "WET",
+            };
+        final String[] Mexico_Pacific = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 P\u00e1s\u00edf\u00ed\u00eck\u00ec M\u025b\u0301s\u00edk\u00f2",
+               "MST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 P\u00e1s\u00edf\u00ed\u00eck\u00ec M\u025b\u0301s\u00edk\u00f2",
+               "MDT",
+               "\u00c0k\u00f3k\u00f2 P\u00e1s\u00edf\u00ed\u00eck\u00ec M\u025b\u0301sh\u00edk\u00f2",
+               "MT",
+            };
+        final String[] America_Central = new String[] {
+               "\u00e0k\u00f3k\u00f2 asiko \u00e0\u00e1r\u00edn gb\u00f9ngb\u00f9n",
+               "CST",
+               "Ak\u00f3k\u00f2 \u00e0\u00e1r\u00edn gb\u00f9ngb\u00f9n oj\u00fam\u0254m\u0254",
+               "CDT",
+               "\u00e0k\u00f3k\u00f2 \u00e0\u00e1r\u00edn gb\u00f9ngb\u00f9n",
+               "CT",
+            };
+        final String[] America_Eastern = new String[] {
+               "Ak\u00f3k\u00f2 \u00c0sik\u00f2 \u00ccha \u00ccla O\u00f2r\u00f9n",
+               "EST",
+               "\u00c0k\u00f3k\u00f2 oj\u00fam\u0254m\u0254 \u00cch\u00e0 \u00ccl\u00e0 O\u00f2run",
+               "EST",
+               "\u00c0k\u00f3k\u00f2 \u00ech\u00e0 \u00ecl\u00e0 o\u00f2r\u00f9n",
+               "EST",
+            };
+        final String[] America_Pacific = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00e0sik\u00f2 P\u00e0s\u00edf\u00ed\u00eck\u00ec",
+               "PST",
+               "\u00c0k\u00f3k\u00f2 \u00ccy\u00e1l\u025bta P\u00e0s\u00edf\u00ed\u00eck\u00ec",
+               "PDT",
+               "\u00c0k\u00f3k\u00f2 P\u00e0s\u00edf\u00ed\u00eck\u00ec",
+               "PT",
+            };
+        final String[] Gilbert_Islands = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Erekusu Gilibati",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Hawaii_Aleutian = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Hawaii-Aleutian",
+               "HST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Hawaii-Aleutian",
+               "HST",
+               "\u00c0k\u00f3k\u00f2 Hawaii-Aleutian",
+               "HST",
+            };
+        final String[] Phoenix_Islands = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Er\u00e9k\u00f9s\u00f9 Phoenix",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Pierre_Miquelon = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Pierre & Miquelon",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 Pierre & Miquelon",
+               "",
+               "\u00c0k\u00f3k\u00f2 Pierre & Miquelon",
+               "",
+            };
+        final String[] America_Mountain = new String[] {
+               "\u00c0k\u00f3k\u00f2 asiko \u00f2k\u00e8",
+               "MST",
+               "\u00c0k\u00f3k\u00f2 oj\u00fam\u0254m\u0254 Ori-\u00f2k\u00e8",
+               "MST",
+               "\u00c0k\u00f3k\u00f2 \u00f2k\u00e8",
+               "MST",
+            };
+        final String[] Marshall_Islands = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0w\u0254n Erekusu Masaali",
+               "",
+               "",
+               "",
+               "",
+               "",
+            };
+        final String[] Australia_Central = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00c0\u00e0rin G\u00f9ng\u00f9n Australia",
+               "ACST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 \u00c0\u00e0rin G\u00f9ng\u00f9n Australia",
+               "ACDT",
+               "\u00c0k\u00f3k\u00f2 \u00c0\u00e0rin G\u00f9ng\u00f9n Australia",
+               "ACT",
+            };
+        final String[] Australia_Eastern = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00ccl\u00e0-O\u00f2r\u00f9n Australia",
+               "AEST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 \u00ccl\u00e0-O\u00f2r\u00f9n Australia",
+               "AEDT",
+               "\u00c0k\u00f3k\u00f2 \u00ccl\u00e0-O\u00f2r\u00f9n Australia",
+               "AET",
+            };
+        final String[] Australia_Western = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00ccw\u0254\u0300-O\u00f2r\u00f9n Australia",
+               "AWST",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 \u00ccw\u0254\u0300-O\u00f2r\u00f9n Australia",
+               "AWDT",
+               "\u00c0k\u00f3k\u00f2 \u00ccw\u0254\u0300-O\u00f2r\u00f9n Australia",
+               "AWT",
+            };
+        final String[] Indonesia_Western = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00ccw\u0254\u0300 oor\u00f9n Indonesia",
+               "WIB",
+               "",
+               "WIB",
+               "",
+               "WIB",
+            };
+        final String[] Australia_CentralWestern = new String[] {
+               "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 \u00c0\u00e0rin G\u00f9ng\u00f9n \u00ccw\u0254\u0300-O\u00f2r\u00f9n Australia",
+               "",
+               "\u00c0k\u00f3k\u00f2 Oj\u00fam\u0254m\u0254 \u00c0\u00e0rin G\u00f9ng\u00f9n \u00ccw\u0254\u0300-O\u00f2r\u00f9n Australia",
+               "",
+               "\u00c0k\u00f3k\u00f2 \u00c0\u00e0rin G\u00f9ng\u00f9n \u00ccw\u0254\u0300-O\u00f2r\u00f9n Australia",
+               "",
+            };
+        final Object[][] data = new Object[][] {
+            { "America/Los_Angeles", America_Pacific },
+            { "America/Denver", America_Mountain },
+            { "America/Phoenix", America_Mountain },
+            { "America/Chicago", America_Central },
+            { "America/New_York", America_Eastern },
+            { "America/Indianapolis", America_Eastern },
+            { "Pacific/Honolulu", Hawaii_Aleutian },
+            { "America/Anchorage", Alaska },
+            { "America/Halifax", Atlantic },
+            { "America/Sitka", Alaska },
+            { "America/St_Johns", Newfoundland },
+            { "Europe/Paris", Europe_Central },
+            { "Asia/Jerusalem", Israel },
+            { "Asia/Tokyo", Japan },
+            { "Europe/Bucharest", Europe_Eastern },
+            { "Asia/Shanghai", China },
+            { "UTC", ETC_UTC },
+            { "GB",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "NZ", New_Zealand },
+            { "ACT", Australia_Central },
+            { "AET", Australia_Eastern },
+            { "AGT", Argentina },
+            { "ART", Europe_Eastern },
+            { "AST", Alaska },
+            { "BST", Bangladesh },
+            { "CET", Europe_Central },
+            { "CNT", Newfoundland },
+            { "CST", America_Central },
+            { "CTT", China },
+            { "ECT", Europe_Central },
+            { "EET", Europe_Eastern },
+            { "EST", America_Eastern },
+            { "HST", Hawaii_Aleutian },
+            { "IET", America_Eastern },
+            { "IST", India },
+            { "JST", Japan },
+            { "MET", Europe_Central },
+            { "MIT", Apia },
+            { "MST", America_Mountain },
+            { "NET", Armenia },
+            { "NST", New_Zealand },
+            { "PLT", Pakistan },
+            { "PNT", America_Mountain },
+            { "PRC", China },
+            { "PRT", Atlantic },
+            { "PST", America_Pacific },
+            { "ROK", Korea },
+            { "SST", Solomon },
+            { "UCT",
+                new String[] {
+                    "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+                    "UTC",
+                    "",
+                    "UTC",
+                    "",
+                    "UTC",
+                }
+            },
+            { "WET", Europe_Western },
+            { "Cuba", Cuba },
+            { "Eire",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Airiisi",
+                    "IST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Iran", Iran },
+            { "W-SU", Moscow },
+            { "Zulu",
+                new String[] {
+                    "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+                    "UTC",
+                    "",
+                    "UTC",
+                    "",
+                    "UTC",
+                }
+            },
+            { "Egypt", Europe_Eastern },
+            { "Japan", Japan },
+            { "Libya", Europe_Eastern },
+            { "Israel", Israel },
+            { "Navajo", America_Mountain },
+            { "Poland", Europe_Central },
+            { "CST6CDT", America_Central },
+            { "EST5EDT", America_Eastern },
+            { "Etc/UCT",
+                new String[] {
+                    "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+                    "UTC",
+                    "",
+                    "UTC",
+                    "",
+                    "UTC",
+                }
+            },
+            { "Etc/UTC", ETC_UTC },
+            { "GB-Eire",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Jamaica", America_Eastern },
+            { "MST7MDT", America_Mountain },
+            { "NZ-CHAT", Chatham },
+            { "PST8PDT", America_Pacific },
+            { "Etc/Zulu",
+                new String[] {
+                    "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+                    "UTC",
+                    "",
+                    "UTC",
+                    "",
+                    "UTC",
+                }
+            },
+            { "Hongkong", Hong_Kong },
+            { "Portugal", Europe_Western },
+            { "US/Samoa", Samoa },
+            { "Asia/Aden", Arabian },
+            { "Asia/Baku", Azerbaijan },
+            { "Asia/Gaza", Europe_Eastern },
+            { "Asia/Hovd", Hovd },
+            { "Asia/Omsk", Omsk },
+            { "Kwajalein", Marshall_Islands },
+            { "Singapore", Singapore },
+            { "US/Alaska", Alaska },
+            { "US/Hawaii", Hawaii_Aleutian },
+            { "Universal",
+                new String[] {
+                    "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+                    "UTC",
+                    "",
+                    "UTC",
+                    "",
+                    "UTC",
+                }
+            },
+            { "Asia/Chita", Yakutsk },
+            { "Asia/Dacca", Bangladesh },
+            { "Asia/Dhaka", Bangladesh },
+            { "Asia/Dubai", Gulf },
+            { "Asia/Macao", China },
+            { "Asia/Macau", China },
+            { "Asia/Qatar", Arabian },
+            { "Asia/Seoul", Korea },
+            { "US/Arizona", America_Mountain },
+            { "US/Central", America_Central },
+            { "US/Eastern", America_Eastern },
+            { "US/Pacific", America_Pacific },
+            { "Asia/Beirut", Europe_Eastern },
+            { "Asia/Harbin", China },
+            { "Asia/Hebron", Europe_Eastern },
+            { "Asia/Kuwait", Arabian },
+            { "Asia/Manila", Philippines },
+            { "Asia/Muscat", Gulf },
+            { "Asia/Riyadh", Arabian },
+            { "Asia/Taipei", Taipei },
+            { "Asia/Tehran", Iran },
+            { "Asia/Yangon", Cocos },
+            { "Brazil/West", Amazon },
+            { "Europe/Kiev", Europe_Eastern },
+            { "Europe/Kyiv", Europe_Eastern },
+            { "Europe/Oslo", Europe_Central },
+            { "Europe/Riga", Europe_Eastern },
+            { "Europe/Rome", Europe_Central },
+            { "Indian/Mahe", Seychelles },
+            { "US/Aleutian", Hawaii_Aleutian },
+            { "US/Michigan", America_Eastern },
+            { "US/Mountain", America_Mountain },
+            { "Africa/Cairo", Europe_Eastern },
+            { "Africa/Ceuta", Europe_Central },
+            { "Africa/Lagos", Africa_Western },
+            { "Africa/Tunis", Europe_Central },
+            { "America/Adak", Hawaii_Aleutian },
+            { "America/Atka", Hawaii_Aleutian },
+            { "America/Lima", Peru },
+            { "America/Nome", Alaska },
+            { "Asia/Baghdad", Arabian },
+            { "Asia/Bahrain", Arabian },
+            { "Asia/Colombo", India },
+            { "Asia/Irkutsk", Irkutsk },
+            { "Asia/Jakarta", Indonesia_Western },
+            { "Asia/Karachi", Pakistan },
+            { "Asia/Kolkata", India },
+            { "Asia/Magadan", Magadan },
+            { "Asia/Nicosia", Europe_Eastern },
+            { "Asia/Tbilisi", Georgia },
+            { "Asia/Yakutsk", Yakutsk },
+            { "Asia/Yerevan", Armenia },
+            { "Canada/Yukon", Yukon },
+            { "Europe/Malta", Europe_Central },
+            { "Europe/Minsk", Moscow },
+            { "Europe/Sofia", Europe_Eastern },
+            { "Europe/Vaduz", Europe_Central },
+            { "Indian/Cocos", Cocos },
+            { "Pacific/Apia", Apia },
+            { "Pacific/Fiji", Fiji },
+            { "Pacific/Guam", Chamorro },
+            { "SystemV/AST4", Atlantic },
+            { "SystemV/CST6", America_Central },
+            { "SystemV/EST5", America_Eastern },
+            { "SystemV/MST7", America_Mountain },
+            { "Africa/Bangui", Africa_Western },
+            { "Africa/Douala", Africa_Western },
+            { "Africa/Luanda", Africa_Western },
+            { "Africa/Malabo", Africa_Western },
+            { "Africa/Niamey", Africa_Western },
+            { "America/Aruba", Atlantic },
+            { "America/Boise", America_Mountain },
+            { "America/Jujuy", Argentina },
+            { "America/Thule", Atlantic },
+            { "Asia/Ashgabat", Turkmenistan },
+            { "Asia/Calcutta", India },
+            { "Asia/Khandyga", Yakutsk },
+            { "Asia/Sakhalin", Sakhalin },
+            { "Asia/Tashkent", Uzbekistan },
+            { "Asia/Tel_Aviv", Israel },
+            { "Asia/Ust-Nera", Vladivostok },
+            { "Australia/ACT", Australia_Eastern },
+            { "Australia/LHI", Lord_Howe },
+            { "Australia/NSW", Australia_Eastern },
+            { "Etc/Universal",
+                new String[] {
+                    "\u00c0pap\u0254\u0300 \u00c0k\u00f3k\u00f2 \u00c0gb\u00e1y\u00e9",
+                    "UTC",
+                    "",
+                    "UTC",
+                    "",
+                    "UTC",
+                }
+            },
+            { "Europe/Athens", Europe_Eastern },
+            { "Europe/Berlin", Europe_Central },
+            { "Europe/Dublin",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 \u00c0f\u025bnuk\u00f2 Airiisi",
+                    "IST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Europe/Jersey",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Europe/Lisbon", Europe_Western },
+            { "Europe/London",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Europe/Madrid", Europe_Central },
+            { "Europe/Monaco", Europe_Central },
+            { "Europe/Moscow", Moscow },
+            { "Europe/Prague", Europe_Central },
+            { "Europe/Skopje", Europe_Central },
+            { "Europe/Tirane", Europe_Central },
+            { "Europe/Vienna", Europe_Central },
+            { "Europe/Warsaw", Europe_Central },
+            { "Europe/Zagreb", Europe_Central },
+            { "Europe/Zurich", Europe_Central },
+            { "Pacific/Efate", Vanuatu },
+            { "Pacific/Samoa", Samoa },
+            { "SystemV/HST10", Hawaii_Aleutian },
+            { "Africa/Algiers", Europe_Central },
+            { "Africa/Tripoli", Europe_Eastern },
+            { "America/Belize", America_Central },
+            { "America/Cancun", America_Eastern },
+            { "America/Cayman", America_Eastern },
+            { "America/Cuiaba", Amazon },
+            { "America/Dawson", Yukon },
+            { "America/Havana", Cuba },
+            { "America/Inuvik", America_Mountain },
+            { "America/Juneau", Alaska },
+            { "America/Manaus", Amazon },
+            { "America/Merida", America_Central },
+            { "America/Nassau", America_Eastern },
+            { "America/Panama", America_Eastern },
+            { "America/Regina", America_Central },
+            { "America/Virgin", Atlantic },
+            { "Asia/Ashkhabad", Turkmenistan },
+            { "Asia/Chongqing", China },
+            { "Asia/Chungking", China },
+            { "Asia/Hong_Kong", Hong_Kong },
+            { "Asia/Pontianak", Indonesia_Western },
+            { "Asia/Pyongyang", Korea },
+            { "Asia/Samarkand", Uzbekistan },
+            { "Asia/Singapore", Singapore },
+            { "Atlantic/Faroe", Europe_Western },
+            { "Australia/West", Australia_Western },
+            { "Canada/Central", America_Central },
+            { "Canada/Eastern", America_Eastern },
+            { "Canada/Pacific", America_Pacific },
+            { "Europe/Andorra", Europe_Central },
+            { "Europe/Belfast",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Europe/Nicosia", Europe_Eastern },
+            { "Europe/Tallinn", Europe_Eastern },
+            { "Europe/Vatican", Europe_Central },
+            { "Europe/Vilnius", Europe_Eastern },
+            { "Indian/Reunion", Reunion },
+            { "Mexico/BajaSur", Mexico_Pacific },
+            { "Mexico/General", America_Central },
+            { "Pacific/Kanton", Phoenix_Islands },
+            { "Pacific/Majuro", Marshall_Islands },
+            { "Pacific/Midway", Samoa },
+            { "Pacific/Noumea", New_Caledonia },
+            { "Pacific/Ponape", Solomon },
+            { "Pacific/Saipan", Chamorro },
+            { "Pacific/Tarawa", Marshall_Islands },
+            { "Pacific/Wallis", Gilbert_Islands },
+            { "Africa/Kinshasa", Africa_Western },
+            { "Africa/Ndjamena", Africa_Western },
+            { "America/Antigua", Atlantic },
+            { "America/Cordoba", Argentina },
+            { "America/Creston", America_Mountain },
+            { "America/Curacao", Atlantic },
+            { "America/Detroit", America_Eastern },
+            { "America/Grenada", Atlantic },
+            { "America/Iqaluit", America_Eastern },
+            { "America/Jamaica", America_Eastern },
+            { "America/Knox_IN", America_Central },
+            { "America/Managua", America_Central },
+            { "America/Marigot", Atlantic },
+            { "America/Mendoza", Argentina },
+            { "America/Moncton", Atlantic },
+            { "America/Nipigon", America_Eastern },
+            { "America/Ojinaga", America_Central },
+            { "America/Tijuana", America_Pacific },
+            { "America/Toronto", America_Eastern },
+            { "America/Tortola", Atlantic },
+            { "America/Yakutat", Alaska },
+            { "Asia/Choibalsan", Mongolia },
+            { "Asia/Ulan_Bator", Mongolia },
+            { "Atlantic/Azores", Azores },
+            { "Atlantic/Canary", Europe_Western },
+            { "Atlantic/Faeroe", Europe_Western },
+            { "Australia/Eucla", Australia_CentralWestern },
+            { "Australia/North", Australia_Central },
+            { "Australia/Perth", Australia_Western },
+            { "Australia/South", Australia_Central },
+            { "Canada/Atlantic", Atlantic },
+            { "Canada/Mountain", America_Mountain },
+            { "Europe/Belgrade", Europe_Central },
+            { "Europe/Brussels", Europe_Central },
+            { "Europe/Budapest", Europe_Central },
+            { "Europe/Busingen", Europe_Central },
+            { "Europe/Chisinau", Europe_Eastern },
+            { "Europe/Guernsey",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Europe/Helsinki", Europe_Eastern },
+            { "Europe/Sarajevo", Europe_Central },
+            { "Europe/Tiraspol", Europe_Eastern },
+            { "Europe/Uzhgorod", Europe_Eastern },
+            { "Pacific/Chatham", Chatham },
+            { "Pacific/Norfolk", Norfolk },
+            { "Pacific/Pohnpei", Solomon },
+            { "SystemV/AST4ADT", Atlantic },
+            { "SystemV/CST6CDT", America_Central },
+            { "SystemV/EST5EDT", America_Eastern },
+            { "SystemV/MST7MDT", America_Mountain },
+            { "SystemV/PST8PDT", America_Pacific },
+            { "SystemV/YST9YDT", Alaska },
+            { "America/Anguilla", Atlantic },
+            { "America/Asuncion", Paraguay },
+            { "America/Atikokan", America_Eastern },
+            { "America/Barbados", Atlantic },
+            { "America/Dominica", Atlantic },
+            { "America/Edmonton", America_Mountain },
+            { "America/Ensenada", America_Pacific },
+            { "America/Mazatlan", Mexico_Pacific },
+            { "America/Miquelon", Pierre_Miquelon },
+            { "America/Montreal", America_Eastern },
+            { "America/Resolute", America_Central },
+            { "America/Santiago", Chile },
+            { "America/Shiprock", America_Mountain },
+            { "America/St_Kitts", Atlantic },
+            { "America/St_Lucia", Atlantic },
+            { "America/Winnipeg", America_Central },
+            { "Antarctica/Casey", Australia_Western },
+            { "Asia/Krasnoyarsk", Krasnoyarsk },
+            { "Asia/Novosibirsk", Novosibirsk },
+            { "Asia/Ulaanbaatar", Mongolia },
+            { "Asia/Vladivostok", Vladivostok },
+            { "Atlantic/Bermuda", Atlantic },
+            { "Atlantic/Madeira", Europe_Western },
+            { "Atlantic/Stanley", Falkland },
+            { "Australia/Currie", Australia_Eastern },
+            { "Australia/Darwin", Australia_Central },
+            { "Australia/Hobart", Australia_Eastern },
+            { "Australia/Sydney", Australia_Eastern },
+            { "Europe/Amsterdam", Europe_Central },
+            { "Europe/Gibraltar", Europe_Central },
+            { "Europe/Ljubljana", Europe_Central },
+            { "Europe/Mariehamn", Europe_Eastern },
+            { "Europe/Podgorica", Europe_Central },
+            { "Europe/Stockholm", Europe_Central },
+            { "Europe/Volgograd", Volgograd },
+            { "Indian/Mauritius", Mauritius },
+            { "Mexico/BajaNorte", America_Pacific },
+            { "Pacific/Auckland", New_Zealand },
+            { "Pacific/Johnston", Hawaii_Aleutian },
+            { "Africa/Libreville", Africa_Western },
+            { "Africa/Porto-Novo", Africa_Western },
+            { "America/Boa_Vista", Amazon },
+            { "America/Catamarca", Argentina },
+            { "America/Chihuahua", America_Central },
+            { "America/Glace_Bay", Atlantic },
+            { "America/Goose_Bay", Atlantic },
+            { "America/Guatemala", America_Central },
+            { "America/Matamoros", America_Central },
+            { "America/Menominee", America_Central },
+            { "America/Monterrey", America_Central },
+            { "America/St_Thomas", Atlantic },
+            { "America/Vancouver", America_Pacific },
+            { "Asia/Novokuznetsk", Krasnoyarsk },
+            { "Chile/Continental", Chile },
+            { "Europe/Bratislava", Europe_Central },
+            { "Europe/Copenhagen", Europe_Central },
+            { "Europe/Luxembourg", Europe_Central },
+            { "Europe/San_Marino", Europe_Central },
+            { "Europe/Simferopol", Moscow },
+            { "Europe/Zaporozhye", Europe_Eastern },
+            { "Pacific/Enderbury", Phoenix_Islands },
+            { "Pacific/Kwajalein", Marshall_Islands },
+            { "Pacific/Pago_Pago", Samoa },
+            { "Pacific/Rarotonga", Cook },
+            { "Pacific/Tongatapu", Tonga },
+            { "US/Indiana-Starke", America_Central },
+            { "Africa/Brazzaville", Africa_Western },
+            { "America/Costa_Rica", America_Central },
+            { "America/Grand_Turk", America_Eastern },
+            { "America/Guadeloupe", Atlantic },
+            { "America/Hermosillo", Mexico_Pacific },
+            { "America/Kralendijk", Atlantic },
+            { "America/Louisville", America_Eastern },
+            { "America/Martinique", Atlantic },
+            { "America/Metlakatla", Alaska },
+            { "America/Montevideo", Uruguay },
+            { "America/Montserrat", Atlantic },
+            { "America/St_Vincent", Atlantic },
+            { "America/Whitehorse", Yukon },
+            { "Antarctica/McMurdo", New_Zealand },
+            { "Asia/Yekaterinburg", Yekaterinburg },
+            { "Atlantic/Jan_Mayen", Europe_Central },
+            { "Australia/Adelaide", Australia_Central },
+            { "Australia/Brisbane", Australia_Eastern },
+            { "Australia/Canberra", Australia_Eastern },
+            { "Australia/Lindeman", Australia_Eastern },
+            { "Australia/Tasmania", Australia_Eastern },
+            { "Australia/Victoria", Australia_Eastern },
+            { "Europe/Isle_of_Man",
+                new String[] {
+                    "",
+                    "GMT",
+                    "\u00c0k\u00f3k\u00f2 S\u0254m\u00e0 G\u025b\u025bsi",
+                    "BST",
+                    "",
+                    "GMT",
+                }
+            },
+            { "Europe/Kaliningrad", Europe_Eastern },
+            { "Pacific/Kiritimati", Line_Islands },
+            { "America/El_Salvador", America_Central },
+            { "America/Fort_Nelson", America_Mountain },
+            { "America/Mexico_City", America_Central },
+            { "America/Pangnirtung", America_Eastern },
+            { "America/Porto_Velho", Amazon },
+            { "America/Puerto_Rico", Atlantic },
+            { "America/Rainy_River", America_Central },
+            { "America/Tegucigalpa", America_Central },
+            { "America/Thunder_Bay", America_Eastern },
+            { "America/Yellowknife", America_Mountain },
+            { "Arctic/Longyearbyen", Europe_Central },
+            { "Atlantic/Cape_Verde", Cape_Verde },
+            { "Australia/Lord_Howe", Lord_Howe },
+            { "Australia/Melbourne", Australia_Eastern },
+            { "Canada/Newfoundland", Newfoundland },
+            { "Canada/Saskatchewan", America_Central },
+            { "Pacific/Guadalcanal", Solomon },
+            { "America/Blanc-Sablon", Atlantic },
+            { "America/Buenos_Aires", Argentina },
+            { "America/Campo_Grande", Amazon },
+            { "America/Dawson_Creek", America_Mountain },
+            { "America/Indiana/Knox", America_Central },
+            { "America/Rankin_Inlet", America_Central },
+            { "America/Santa_Isabel", America_Pacific },
+            { "Antarctica/Macquarie", Australia_Eastern },
+            { "Australia/Queensland", Australia_Eastern },
+            { "Australia/Yancowinna", Australia_Central },
+            { "America/Cambridge_Bay", America_Mountain },
+            { "America/Ciudad_Juarez", America_Mountain },
+            { "America/Coral_Harbour", America_Eastern },
+            { "America/Indiana/Vevay", America_Eastern },
+            { "America/Lower_Princes", Atlantic },
+            { "America/Port_of_Spain", Atlantic },
+            { "America/Santo_Domingo", Atlantic },
+            { "America/St_Barthelemy", Atlantic },
+            { "America/Swift_Current", America_Central },
+            { "Antarctica/South_Pole", New_Zealand },
+            { "Australia/Broken_Hill", Australia_Central },
+            { "America/Bahia_Banderas", America_Central },
+            { "America/Port-au-Prince", America_Eastern },
+            { "Atlantic/South_Georgia", South_Georgia },
+            { "America/Argentina/Jujuy", Argentina },
+            { "America/Argentina/Salta", Argentina },
+            { "America/Indiana/Marengo", America_Eastern },
+            { "America/Indiana/Winamac", America_Eastern },
+            { "America/Argentina/Cordoba", Argentina },
+            { "America/Argentina/Mendoza", Argentina },
+            { "America/Argentina/Tucuman", Argentina },
+            { "America/Argentina/Ushuaia", Argentina },
+            { "America/Indiana/Tell_City", America_Central },
+            { "America/Indiana/Vincennes", America_Eastern },
+            { "America/Argentina/La_Rioja", Argentina },
+            { "America/Argentina/San_Juan", Argentina },
+            { "America/Argentina/San_Luis", Argentina },
+            { "America/Indiana/Petersburg", America_Eastern },
+            { "America/Argentina/Catamarca", Argentina },
+            { "America/Kentucky/Louisville", America_Eastern },
+            { "America/Kentucky/Monticello", America_Eastern },
+            { "America/North_Dakota/Beulah", America_Central },
+            { "America/North_Dakota/Center", America_Central },
+            { "timezone.excity.Etc/Unknown", "\u00ccl\u00fa \u00c0\u00ecm\u0254\u0300" },
+            { "America/Indiana/Indianapolis", America_Eastern },
+            { "timezone.excity.America/Boise", "\u00ecl\u00fa B\u0254\u0301is\u00e8" },
+            { "America/Argentina/Buenos_Aires", Argentina },
+            { "America/Argentina/Rio_Gallegos", Argentina },
+            { "America/North_Dakota/New_Salem", America_Central },
+            { "timezone.excity.America/Belize", "\u00ecl\u00fa B\u025b\u0300l\u00ed\u00ecs\u00ec" },
+            { "timezone.excity.America/Creston", "\u00ecl\u00fa K\u00edr\u025bst\u0254\u0301\u0254\u0300n\u00f9" },
+            { "timezone.excity.America/Curacao", "\u00ecl\u00fa Kurashao" },
+            { "timezone.excity.America/Marigot", "\u00ecl\u00fa Marig\u0254\u0301\u0254\u0300t\u00ec" },
+            { "timezone.excity.America/Barbados", "\u00ecl\u00fa B\u00e1b\u00e1d\u0254\u0301\u0254\u0300s\u00ec" },
+            { "timezone.excity.America/Miquelon", "\u00ecl\u00fa Mikul\u0254\u0301n\u00ec" },
+            { "timezone.excity.America/St_Johns", "\u00ecl\u00fa St J\u0254\u0301\u0254\u0300n\u00f9" },
+            { "timezone.excity.Atlantic/Bermuda", "\u00ecl\u00fa B\u025b\u0300m\u00fad\u00e0" },
+            { "timezone.excity.America/Anchorage", "\u00ecl\u00fa Ank\u0254\u0301r\u00e9\u00e8j\u00ec" },
+            { "timezone.excity.America/Chihuahua", "\u00ecl\u00fa Shihuahua" },
+            { "timezone.excity.America/St_Thomas", "\u00ecl\u00fa St T\u0254\u0301m\u00e0s\u00ec" },
+            { "timezone.excity.America/Kralendijk", "\u00ecl\u00fa K\u00edral\u025b\u0301nd\u00e1ik\u00ec" },
+            { "timezone.excity.America/Mexico_City", "\u00ecl\u00fa M\u025b\u0301s\u00edk\u00f2" },
+            { "timezone.excity.America/Blanc-Sablon", "\u00ecl\u00fa Blank Sabul\u0254\u0301\u0254\u0300n\u00ec" },
+            { "timezone.excity.America/Indiana/Knox", "\u00ecl\u00fa n\u0254\u0301s\u00ec" },
+            { "timezone.excity.America/Coral_Harbour", "\u00ecl\u00fa \u00e0tik\u0254k\u00e0n" },
+            { "timezone.excity.America/Swift_Current", "\u00ecl\u00fa S\u00faf\u00edt\u00f9 K\u0254\u0300rent\u00ec" },
+            { "timezone.excity.America/Bahia_Banderas", "\u00ecl\u00fa B\u00e1h\u00ec B\u00e1nd\u025b\u0301r\u00e1s\u00ec" },
+            { "timezone.excity.America/Indiana/Marengo", "\u00ecl\u00fa Mar\u025b\u0301ngo" },
+            { "timezone.excity.America/Kentucky/Monticello", "\u00ecl\u00fa Montis\u025b\u0301l\u00f2" },
+        };
+        return data;
+    }
+}
