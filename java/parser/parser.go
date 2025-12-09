@@ -245,7 +245,7 @@ func (p *Parser) isIdentifierLike() bool {
 	case TokenIdent,
 		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
 		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
-		TokenVar, TokenYield, TokenRecord:
+		TokenVar, TokenYield, TokenRecord, TokenSealed, TokenNonSealed:
 		return true
 	}
 	return false
@@ -3037,18 +3037,15 @@ func (p *Parser) parsePrimaryExpr() *Node {
 	case TokenSwitch:
 		return p.parseSwitchExpr()
 
-	case TokenIdent,
-		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
-		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
-		TokenVar:
-		tok := p.advance()
-		return &Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span}
-
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
 		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVoid:
 		return p.parsePrimitiveClassLiteral()
 
 	default:
+		if p.isIdentifierLike() {
+			tok := p.advance()
+			return &Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span}
+		}
 		return p.errorNode("expected expression", []TokenKind{TokenSemicolon, TokenComma, TokenRParen, TokenRBrace, TokenRBracket})
 	}
 }
