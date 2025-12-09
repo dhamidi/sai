@@ -241,7 +241,11 @@ func (p *Parser) match(kinds ...TokenKind) bool {
 }
 
 func (p *Parser) isIdentifierLike() bool {
-	switch p.peek().Kind {
+	return p.isIdentifierLikeN(0)
+}
+
+func (p *Parser) isIdentifierLikeN(n int) bool {
+	switch p.peekN(n).Kind {
 	case TokenIdent,
 		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
 		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
@@ -566,13 +570,13 @@ func (p *Parser) parseImportDecl() *Node {
 func (p *Parser) parseQualifiedName() *Node {
 	node := p.startNode(KindQualifiedName)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	} else {
 		return p.errorNode("expected identifier", nil)
 	}
 
-	for p.check(TokenDot) && p.peekN(1).Kind == TokenIdent {
+	for p.check(TokenDot) && p.isIdentifierLikeN(1) {
 		p.advance()
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
@@ -666,7 +670,7 @@ func (p *Parser) parseAnnotation() *Node {
 
 func (p *Parser) parseAnnotationElement() *Node {
 	node := p.startNode(KindAnnotationElement)
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 	p.expect(TokenAssign)
@@ -702,7 +706,7 @@ func (p *Parser) parseClassDecl(modifiers *Node) *Node {
 
 	p.expect(TokenClass)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -757,7 +761,7 @@ func (p *Parser) parseInterfaceDecl(modifiers *Node) *Node {
 
 	p.expect(TokenInterface)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -807,7 +811,7 @@ func (p *Parser) parseEnumDecl(modifiers *Node) *Node {
 
 	p.expect(TokenEnum)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -855,7 +859,7 @@ func (p *Parser) parseEnumConstant() *Node {
 		node.AddChild(p.parseAnnotation())
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -878,7 +882,7 @@ func (p *Parser) parseRecordDecl(modifiers *Node) *Node {
 
 	p.expect(TokenRecord)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -916,7 +920,7 @@ func (p *Parser) parseAnnotationDecl(modifiers *Node) *Node {
 	p.expect(TokenAt)
 	p.expect(TokenInterface)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -951,7 +955,7 @@ func (p *Parser) parseTypeParameter() *Node {
 		node.AddChild(p.parseAnnotation())
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -987,7 +991,7 @@ func (p *Parser) parseType() *Node {
 			node.AddChild(p.parseTypeArguments())
 		}
 		// Handle parameterized inner class types: Outer<T>.Inner or Outer<T>.Inner<U>
-		for p.check(TokenDot) && p.peekN(1).Kind == TokenIdent {
+		for p.check(TokenDot) && p.isIdentifierLikeN(1) {
 			p.advance() // consume dot
 			node.AddChild(p.parseQualifiedName())
 			if p.check(TokenLT) {
@@ -1224,7 +1228,7 @@ func (p *Parser) parseConstructor(modifiers *Node, typeParams *Node) *Node {
 		node.AddChild(typeParams)
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -1246,7 +1250,7 @@ func (p *Parser) parseCompactConstructor(modifiers *Node) *Node {
 		node.AddChild(modifiers)
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -1507,7 +1511,7 @@ func (p *Parser) parseField(modifiers *Node, typ *Node) *Node {
 
 	for {
 		progress := p.mustProgress()
-		if tok := p.expect(TokenIdent); tok != nil {
+		if tok := p.expectIdentifier(); tok != nil {
 			node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 		}
 
@@ -2311,7 +2315,7 @@ func (p *Parser) parseBreakStmt() *Node {
 	node := p.startNode(KindBreakStmt)
 	p.expect(TokenBreak)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -2323,7 +2327,7 @@ func (p *Parser) parseContinueStmt() *Node {
 	node := p.startNode(KindContinueStmt)
 	p.expect(TokenContinue)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -2454,7 +2458,7 @@ func (p *Parser) parseYieldStmt() *Node {
 func (p *Parser) parseLabeledStmt() *Node {
 	node := p.startNode(KindLabeledStmt)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 	p.expect(TokenColon)
@@ -2568,7 +2572,7 @@ func (p *Parser) parseLambdaParameters() *Node {
 			if p.isLambdaTypedParam() {
 				node.AddChild(p.parseParameter())
 			} else {
-				if tok := p.expect(TokenIdent); tok != nil {
+				if tok := p.expectIdentifier(); tok != nil {
 					node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 				}
 			}
@@ -2594,7 +2598,7 @@ func (p *Parser) isLambdaTypedParam() bool {
 		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVar:
 		return true
 	case TokenIdent:
-		return p.peekN(1).Kind == TokenIdent || p.peekN(1).Kind == TokenLT ||
+		return p.isIdentifierLikeN(1) || p.peekN(1).Kind == TokenLT ||
 			p.peekN(1).Kind == TokenDot || p.peekN(1).Kind == TokenLBracket
 	}
 	return false
@@ -3036,7 +3040,7 @@ func (p *Parser) parseMethodRef(target *Node) *Node {
 	if p.check(TokenNew) {
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
-	} else if tok := p.expect(TokenIdent); tok != nil {
+	} else if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
@@ -3192,7 +3196,7 @@ func (p *Parser) parseInnerNewExpr(outer *Node) *Node {
 	node := p.startNode(KindNewExpr)
 	node.AddChild(outer)
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
