@@ -1743,7 +1743,10 @@ func (p *Parser) parseStatement() *Node {
 		return p.parseYieldStmt()
 	case TokenClass, TokenInterface, TokenEnum, TokenRecord:
 		return p.parseLocalClassDecl()
-	case TokenFinal, TokenAt:
+	case TokenFinal, TokenAbstract, TokenAt:
+		if p.isLocalClassDecl() {
+			return p.parseLocalClassDecl()
+		}
 		return p.parseLocalVarOrExprStmt()
 	case TokenIdent:
 		if p.peekN(1).Kind == TokenColon {
@@ -1870,6 +1873,25 @@ func (p *Parser) parseExprStmt() *Node {
 	node.AddChild(p.parseExpression())
 	p.expect(TokenSemicolon)
 	return p.finishNode(node)
+}
+
+func (p *Parser) isLocalClassDecl() bool {
+	save := p.pos
+
+	for p.check(TokenAt) {
+		p.parseAnnotation()
+	}
+
+	for p.check(TokenFinal) || p.check(TokenAbstract) || p.check(TokenStrictfp) {
+		p.advance()
+		for p.check(TokenAt) {
+			p.parseAnnotation()
+		}
+	}
+
+	isClassDecl := p.check(TokenClass) || p.check(TokenInterface) || p.check(TokenEnum) || p.check(TokenRecord)
+	p.pos = save
+	return isClassDecl
 }
 
 func (p *Parser) parseLocalClassDecl() *Node {
