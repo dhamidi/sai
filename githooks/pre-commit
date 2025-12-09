@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -eux
+export IN_GIT_PRECOMMIT=1
 goimports -w .
 git add -u
 go build ./...

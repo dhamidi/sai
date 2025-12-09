@@ -252,12 +252,40 @@ func (l *Lexer) scanHexNumber(start Position) Token {
 	for isHexDigit(l.peek()) || l.peek() == '_' {
 		l.advance()
 	}
-	if l.peek() == 'l' || l.peek() == 'L' {
+	isFloat := false
+	if l.peek() == '.' {
+		isFloat = true
 		l.advance()
+		for isHexDigit(l.peek()) || l.peek() == '_' {
+			l.advance()
+		}
+	}
+	if l.peek() == 'p' || l.peek() == 'P' {
+		isFloat = true
+		l.advance()
+		if l.peek() == '+' || l.peek() == '-' {
+			l.advance()
+		}
+		for isDigit(l.peek()) || l.peek() == '_' {
+			l.advance()
+		}
+	}
+	if isFloat {
+		if l.peek() == 'f' || l.peek() == 'F' || l.peek() == 'd' || l.peek() == 'D' {
+			l.advance()
+		}
+	} else {
+		if l.peek() == 'l' || l.peek() == 'L' {
+			l.advance()
+		}
 	}
 	end := l.Position()
+	kind := TokenIntLiteral
+	if isFloat {
+		kind = TokenFloatLiteral
+	}
 	return Token{
-		Kind:    TokenIntLiteral,
+		Kind:    kind,
 		Span:    Span{Start: start, End: end},
 		Literal: string(l.input[start.Offset:end.Offset]),
 	}

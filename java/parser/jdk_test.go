@@ -8,6 +8,9 @@ import (
 )
 
 func TestParseJDKSourceFiles(t *testing.T) {
+	if os.Getenv("IN_GIT_PRECOMMIT") != "" {
+		t.Skip("skipping JDK tests during pre-commit")
+	}
 	jdkDir := "../../testcases/jdk"
 
 	err := filepath.Walk(jdkDir, func(path string, info os.FileInfo, err error) error {
