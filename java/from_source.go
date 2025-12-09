@@ -25,12 +25,16 @@ func classModelsFromCompilationUnit(cu *parser.Node) []*ClassModel {
 		switch child.Kind {
 		case parser.KindClassDecl:
 			models = append(models, classModelFromClassDecl(child, pkg, resolver))
+			models = append(models, innerClassesFromClassDecl(child, pkg, resolver)...)
 		case parser.KindInterfaceDecl:
 			models = append(models, classModelFromInterfaceDecl(child, pkg, resolver))
+			models = append(models, innerClassesFromInterfaceDecl(child, pkg, resolver)...)
 		case parser.KindEnumDecl:
 			models = append(models, classModelFromEnumDecl(child, pkg, resolver))
+			models = append(models, innerClassesFromEnumDecl(child, pkg, resolver)...)
 		case parser.KindRecordDecl:
 			models = append(models, classModelFromRecordDecl(child, pkg, resolver))
+			models = append(models, innerClassesFromRecordDecl(child, pkg, resolver)...)
 		case parser.KindAnnotationDecl:
 			models = append(models, classModelFromAnnotationDecl(child, pkg, resolver))
 		}
@@ -89,12 +93,22 @@ func importsFromCompilationUnit(cu *parser.Node) []importInfo {
 }
 
 type typeResolver struct {
-	pkg     string
-	imports []importInfo
+	pkg          string
+	imports      []importInfo
+	innerClasses map[string]string // map of simpleName -> fully qualified name
 }
 
 func newTypeResolver(pkg string, imports []importInfo) *typeResolver {
-	return &typeResolver{pkg: pkg, imports: imports}
+	return &typeResolver{
+		pkg:          pkg,
+		imports:      imports,
+		innerClasses: make(map[string]string),
+	}
+}
+
+// registerInnerClass registers an inner class with its simple name
+func (r *typeResolver) registerInnerClass(simpleName, fullName string) {
+	r.innerClasses[simpleName] = fullName
 }
 
 var javaLangTypes = map[string]bool{
@@ -121,6 +135,11 @@ func (r *typeResolver) resolve(simpleName string) string {
 	switch simpleName {
 	case "boolean", "byte", "char", "short", "int", "long", "float", "double", "void":
 		return simpleName
+	}
+
+	// Check if this is a known inner class first
+	if fullName, ok := r.innerClasses[simpleName]; ok {
+		return fullName
 	}
 
 	for _, imp := range r.imports {
@@ -156,17 +175,25 @@ func classModelFromClassDecl(node *parser.Node, pkg string, resolver *typeResolv
 		applyModifiersToClass(modifiers, model, resolver)
 	}
 
+	// First pass: extract class name and collect inner class declarations
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			model.SimpleName = child.Token.Literal
+			if pkg != "" {
+				model.Name = pkg + "." + model.SimpleName
+			} else {
+				model.Name = model.SimpleName
+			}
+			break
+		}
+	}
+
+	// Register all inner classes with the resolver before processing members
+	collectAndRegisterInnerClasses(node, model.Name, resolver)
+
+	// Second pass: process body members
 	for _, child := range node.Children {
 		switch child.Kind {
-		case parser.KindIdentifier:
-			if child.Token != nil {
-				model.SimpleName = child.Token.Literal
-				if pkg != "" {
-					model.Name = pkg + "." + model.SimpleName
-				} else {
-					model.Name = model.SimpleName
-				}
-			}
 		case parser.KindTypeParameters:
 			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindType:
@@ -226,6 +253,55 @@ func extractClassBodyMembers(block *parser.Node, model *ClassModel, resolver *ty
 	}
 }
 
+// collectAndRegisterInnerClasses recursively finds and registers all inner classes
+func collectAndRegisterInnerClasses(node *parser.Node, outerName string, resolver *typeResolver) {
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			// Get the simple name of the inner class
+			var simpleName string
+			for _, subchild := range child.Children {
+				if subchild.Kind == parser.KindIdentifier && subchild.Token != nil {
+					simpleName = subchild.Token.Literal
+					break
+				}
+			}
+			if simpleName != "" {
+				fullName := outerName + "." + simpleName
+				resolver.registerInnerClass(simpleName, fullName)
+				// Recursively register nested inner classes
+				collectAndRegisterInnerClasses(child, fullName, resolver)
+			}
+		case parser.KindBlock:
+			// Also check for inner classes inside the block
+			collectAndRegisterInnerClassesFromBlock(child, outerName, resolver)
+		}
+	}
+}
+
+// collectAndRegisterInnerClassesFromBlock finds inner classes in a block (class body)
+func collectAndRegisterInnerClassesFromBlock(block *parser.Node, outerName string, resolver *typeResolver) {
+	for _, child := range block.Children {
+		switch child.Kind {
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			// Get the simple name of the inner class
+			var simpleName string
+			for _, subchild := range child.Children {
+				if subchild.Kind == parser.KindIdentifier && subchild.Token != nil {
+					simpleName = subchild.Token.Literal
+					break
+				}
+			}
+			if simpleName != "" {
+				fullName := outerName + "." + simpleName
+				resolver.registerInnerClass(simpleName, fullName)
+				// Recursively register nested inner classes
+				collectAndRegisterInnerClasses(child, fullName, resolver)
+			}
+		}
+	}
+}
+
 func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver *typeResolver) *ClassModel {
 	model := &ClassModel{
 		Visibility: VisibilityPackage,
@@ -249,6 +325,7 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver
 		applyModifiersToClass(modifiers, model, resolver)
 	}
 
+	// Extract the class name
 	for _, child := range node.Children {
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
 			model.SimpleName = child.Token.Literal
@@ -257,7 +334,162 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver
 		}
 	}
 
+	// Extract package from outer name (everything before the last dot of the outer class)
+	if idx := strings.Index(outerName, "."); idx != -1 {
+		// Find the package portion (before the first uppercase class name)
+		parts := strings.Split(outerName, ".")
+		for i, part := range parts {
+			if len(part) > 0 && part[0] >= 'A' && part[0] <= 'Z' {
+				model.Package = strings.Join(parts[:i], ".")
+				break
+			}
+		}
+	}
+
+	// Parse full class body - fields, methods, constructors, etc.
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindTypeParameters:
+			model.TypeParameters = typeParametersFromNode(child, resolver)
+		case parser.KindType:
+			if model.SuperClass == "" && model.Kind == ClassKindClass {
+				model.SuperClass = typeModelFromTypeNode(child, resolver).Name
+			} else {
+				model.Interfaces = append(model.Interfaces, typeModelFromTypeNode(child, resolver).Name)
+			}
+		case parser.KindBlock:
+			extractClassBodyMembers(child, model, resolver)
+		case parser.KindFieldDecl:
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+		case parser.KindMethodDecl:
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
+		case parser.KindConstructorDecl:
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
+		case parser.KindAnnotation:
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			inner := classModelFromClassDeclNested(child, model.Name, resolver)
+			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
+				InnerClass: inner.Name,
+				OuterClass: model.Name,
+				InnerName:  inner.SimpleName,
+				Visibility: inner.Visibility,
+				IsStatic:   inner.IsStatic,
+				IsFinal:    inner.IsFinal,
+				IsAbstract: inner.IsAbstract,
+			})
+		}
+	}
+
 	return model
+}
+
+func innerClassesFromClassDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+	outerClassName := ""
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if pkg != "" {
+				outerClassName = pkg + "." + child.Token.Literal
+			} else {
+				outerClassName = child.Token.Literal
+			}
+			break
+		}
+	}
+	if outerClassName == "" {
+		return nil
+	}
+	return collectInnerClasses(node, outerClassName, resolver)
+}
+
+func innerClassesFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+	outerClassName := ""
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if pkg != "" {
+				outerClassName = pkg + "." + child.Token.Literal
+			} else {
+				outerClassName = child.Token.Literal
+			}
+			break
+		}
+	}
+	if outerClassName == "" {
+		return nil
+	}
+	return collectInnerClasses(node, outerClassName, resolver)
+}
+
+func innerClassesFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+	outerClassName := ""
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if pkg != "" {
+				outerClassName = pkg + "." + child.Token.Literal
+			} else {
+				outerClassName = child.Token.Literal
+			}
+			break
+		}
+	}
+	if outerClassName == "" {
+		return nil
+	}
+	return collectInnerClasses(node, outerClassName, resolver)
+}
+
+func innerClassesFromRecordDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+	outerClassName := ""
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if pkg != "" {
+				outerClassName = pkg + "." + child.Token.Literal
+			} else {
+				outerClassName = child.Token.Literal
+			}
+			break
+		}
+	}
+	if outerClassName == "" {
+		return nil
+	}
+	return collectInnerClasses(node, outerClassName, resolver)
+}
+
+func collectInnerClasses(node *parser.Node, outerClassName string, resolver *typeResolver) []*ClassModel {
+	var models []*ClassModel
+
+	// Look in direct children
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			innerModel := classModelFromClassDeclNested(child, outerClassName, resolver)
+			models = append(models, innerModel)
+			// Recursively collect nested inner classes
+			models = append(models, collectInnerClasses(child, innerModel.Name, resolver)...)
+		case parser.KindBlock:
+			// Also look in blocks (class body)
+			models = append(models, collectInnerClassesFromBlock(child, outerClassName, resolver)...)
+		}
+	}
+
+	return models
+}
+
+func collectInnerClassesFromBlock(block *parser.Node, outerClassName string, resolver *typeResolver) []*ClassModel {
+	var models []*ClassModel
+
+	for _, child := range block.Children {
+		switch child.Kind {
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			innerModel := classModelFromClassDeclNested(child, outerClassName, resolver)
+			models = append(models, innerModel)
+			// Recursively collect nested inner classes
+			models = append(models, collectInnerClasses(child, innerModel.Name, resolver)...)
+		}
+	}
+
+	return models
 }
 
 func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
@@ -273,17 +505,25 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeRe
 		applyModifiersToClass(modifiers, model, resolver)
 	}
 
+	// First pass: extract interface name and collect inner class declarations
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			model.SimpleName = child.Token.Literal
+			if pkg != "" {
+				model.Name = pkg + "." + model.SimpleName
+			} else {
+				model.Name = model.SimpleName
+			}
+			break
+		}
+	}
+
+	// Register all inner classes with the resolver before processing members
+	collectAndRegisterInnerClasses(node, model.Name, resolver)
+
+	// Second pass: process body members
 	for _, child := range node.Children {
 		switch child.Kind {
-		case parser.KindIdentifier:
-			if child.Token != nil {
-				model.SimpleName = child.Token.Literal
-				if pkg != "" {
-					model.Name = pkg + "." + model.SimpleName
-				} else {
-					model.Name = model.SimpleName
-				}
-			}
 		case parser.KindTypeParameters:
 			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindType:
@@ -348,23 +588,36 @@ func classModelFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolve
 		applyModifiersToClass(modifiers, model, resolver)
 	}
 
+	// First pass: extract enum name and collect inner class declarations
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			model.SimpleName = child.Token.Literal
+			if pkg != "" {
+				model.Name = pkg + "." + model.SimpleName
+			} else {
+				model.Name = model.SimpleName
+			}
+			break
+		}
+	}
+
+	// Register all inner classes with the resolver before processing members
+	collectAndRegisterInnerClasses(node, model.Name, resolver)
+
+	// Second pass: process body members
 	for _, child := range node.Children {
 		switch child.Kind {
-		case parser.KindIdentifier:
-			if child.Token != nil {
-				model.SimpleName = child.Token.Literal
-				if pkg != "" {
-					model.Name = pkg + "." + model.SimpleName
-				} else {
-					model.Name = model.SimpleName
-				}
-			}
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
 			extractClassBodyMembers(child, model, resolver)
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+			// Check if this is an enum constant or a regular field
+			if isEnumConstant(child) {
+				model.EnumConstants = append(model.EnumConstants, enumConstantFromFieldDecl(child))
+			} else {
+				model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+			}
 		case parser.KindMethodDecl:
 			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
 		case parser.KindConstructorDecl:
@@ -391,17 +644,25 @@ func classModelFromRecordDecl(node *parser.Node, pkg string, resolver *typeResol
 		applyModifiersToClass(modifiers, model, resolver)
 	}
 
+	// First pass: extract record name and collect inner class declarations
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			model.SimpleName = child.Token.Literal
+			if pkg != "" {
+				model.Name = pkg + "." + model.SimpleName
+			} else {
+				model.Name = model.SimpleName
+			}
+			break
+		}
+	}
+
+	// Register all inner classes with the resolver before processing members
+	collectAndRegisterInnerClasses(node, model.Name, resolver)
+
+	// Second pass: process body members
 	for _, child := range node.Children {
 		switch child.Kind {
-		case parser.KindIdentifier:
-			if child.Token != nil {
-				model.SimpleName = child.Token.Literal
-				if pkg != "" {
-					model.Name = pkg + "." + model.SimpleName
-				} else {
-					model.Name = model.SimpleName
-				}
-			}
 		case parser.KindTypeParameters:
 			model.TypeParameters = typeParametersFromNode(child, resolver)
 		case parser.KindParameters:
@@ -955,4 +1216,74 @@ func annotationValueFromNode(node *parser.Node) interface{} {
 		return strings.Join(parts, ".")
 	}
 	return nil
+}
+
+// isEnumConstant checks if a KindFieldDecl node is an enum constant
+// Enum constants have no Type child, only Identifier, optional Arguments, and optional ClassBody
+func isEnumConstant(node *parser.Node) bool {
+	if node.Kind != parser.KindFieldDecl {
+		return false
+	}
+	// If it has a Type child, it's a regular field
+	return node.FirstChildOfKind(parser.KindType) == nil
+}
+
+// enumConstantFromFieldDecl extracts enum constant data from a KindFieldDecl node
+func enumConstantFromFieldDecl(node *parser.Node) EnumConstantModel {
+	ec := EnumConstantModel{}
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				ec.Name = child.Token.Literal
+			}
+		case parser.KindParameters:
+			// Enum constants can have arguments in a Parameters node
+			ec.Arguments = argumentsFromParametersNode(child)
+		}
+	}
+
+	return ec
+}
+
+// argumentsFromParametersNode extracts string representations of arguments from a Parameters node
+func argumentsFromParametersNode(node *parser.Node) []string {
+	var args []string
+	for _, child := range node.Children {
+		// In Parameters nodes, children can be literals or other expression nodes
+		arg := argumentToString(child)
+		if arg != "" {
+			args = append(args, arg)
+		}
+	}
+	return args
+}
+
+// argumentToString converts an argument expression node to a string representation
+func argumentToString(node *parser.Node) string {
+	if node.Token != nil {
+		return node.Token.Literal
+	}
+
+	// For literals and simple identifiers
+	if node.Kind == parser.KindLiteral || node.Kind == parser.KindIdentifier {
+		if node.Token != nil {
+			return node.Token.Literal
+		}
+	}
+
+	// For qualified names and complex expressions
+	var parts []string
+	for _, child := range node.Children {
+		s := argumentToString(child)
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+
+	if len(parts) > 0 {
+		return strings.Join(parts, ".")
+	}
+	return ""
 }

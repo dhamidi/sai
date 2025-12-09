@@ -45,9 +45,15 @@ type ClassModel struct {
 	NestMembers         []string
 	EnclosingClass      string
 	InnerClasses        []InnerClassModel
+	EnumConstants       []EnumConstantModel
 	Fields              []FieldModel
 	Methods             []MethodModel
 	TypeParameters      []TypeParameterModel
+}
+
+type EnumConstantModel struct {
+	Name      string
+	Arguments []string
 }
 
 type FieldModel struct {

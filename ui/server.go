@@ -591,6 +591,7 @@ func (s *Scanner) AllClasses() []*java.ClassModel {
 			all = append(all, scan.Classes...)
 		}
 	}
+	java.ResolveInnerClassReferences(all)
 	sort.Slice(all, func(i, j int) bool {
 		return all[i].Name < all[j].Name
 	})

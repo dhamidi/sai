@@ -53,6 +53,30 @@
             </section>
             {{end}}
 
+            {{with .ActiveClass.EnumConstants}}
+            <section class="enum-constants">
+                <h3>Enum Constants</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Arguments</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="name">{{.Name}}</td>
+                            <td class="arguments">
+                                {{if .Arguments}}({{range $i, $a := .Arguments}}{{if $i}}, {{end}}{{$a}}{{end}}){{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
             {{with .ActiveClass.Fields}}
             <section class="fields">
                 <h3>Fields</h3>
