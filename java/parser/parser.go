@@ -2831,6 +2831,14 @@ func (p *Parser) isCast() bool {
 				p.advance()
 			}
 		}
+		// Handle intersection types: (Type & Type2)
+		for p.check(TokenBitAnd) {
+			p.advance()
+			p.parseQualifiedName()
+			if p.check(TokenLT) {
+				p.skipTypeArguments()
+			}
+		}
 		isType = p.check(TokenRParen)
 		if isType {
 			p.advance()
