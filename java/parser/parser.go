@@ -2846,7 +2846,12 @@ func (p *Parser) parseCastExpr() *Node {
 	node.AddChild(p.finishNode(typeNode))
 
 	p.expect(TokenRParen)
-	node.AddChild(p.parseUnaryExpr())
+	// Handle cast to lambda: (Supplier) () -> value
+	if p.isLambda() {
+		node.AddChild(p.parseLambdaExpr())
+	} else {
+		node.AddChild(p.parseUnaryExpr())
+	}
 	return p.finishNode(node)
 }
 
