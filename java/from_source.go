@@ -804,7 +804,7 @@ func typeModelFromTypeNode(node *parser.Node, resolver *typeResolver) TypeModel 
 
 	if node.Kind == parser.KindArrayType {
 		for _, ac := range node.Children {
-			if ac.Kind == parser.KindType || ac.Kind == parser.KindQualifiedName || ac.Kind == parser.KindIdentifier {
+			if ac.Kind == parser.KindType || ac.Kind == parser.KindQualifiedName || ac.Kind == parser.KindIdentifier || ac.Kind == parser.KindArrayType {
 				inner := typeModelFromTypeNode(ac, resolver)
 				model.Name = inner.Name
 				model.ArrayDepth = inner.ArrayDepth + 1
