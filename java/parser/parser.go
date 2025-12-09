@@ -985,21 +985,25 @@ func (p *Parser) parseType() *Node {
 		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVoid, TokenVar:
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
-	case TokenIdent:
-		node.AddChild(p.parseQualifiedName())
-		if p.check(TokenLT) {
-			node.AddChild(p.parseTypeArguments())
-		}
-		// Handle parameterized inner class types: Outer<T>.Inner or Outer<T>.Inner<U>
-		for p.check(TokenDot) && p.isIdentifierLikeN(1) {
-			p.advance() // consume dot
+	default:
+		// Handle identifiers and contextual keywords as type names
+		// e.g., a class named "record" or "var" can be used as a type
+		if p.isIdentifierLike() {
 			node.AddChild(p.parseQualifiedName())
 			if p.check(TokenLT) {
 				node.AddChild(p.parseTypeArguments())
 			}
+			// Handle parameterized inner class types: Outer<T>.Inner or Outer<T>.Inner<U>
+			for p.check(TokenDot) && p.isIdentifierLikeN(1) {
+				p.advance() // consume dot
+				node.AddChild(p.parseQualifiedName())
+				if p.check(TokenLT) {
+					node.AddChild(p.parseTypeArguments())
+				}
+			}
+		} else {
+			return p.errorNode("expected type", []TokenKind{TokenIdent, TokenSemicolon, TokenRParen, TokenComma, TokenRBrace})
 		}
-	default:
-		return p.errorNode("expected type", []TokenKind{TokenIdent, TokenSemicolon, TokenRParen, TokenComma, TokenRBrace})
 	}
 
 	for p.check(TokenAt) || p.check(TokenLBracket) {
@@ -1314,9 +1318,10 @@ func (p *Parser) isQualifiedSuperInvocation() bool {
 	defer func() { p.pos = save }()
 
 	// Try to parse qualifying expression (identifier chain or primary)
-	if p.check(TokenIdent) {
+	// Identifiers can be contextual keywords (e.g., record.super())
+	if p.isIdentifierLike() {
 		// Skip identifier chain: a.b.c
-		for p.check(TokenIdent) {
+		for p.isIdentifierLike() {
 			p.advance()
 			if p.check(TokenDot) {
 				p.advance()
@@ -1403,7 +1408,8 @@ func (p *Parser) parseExplicitConstructorInvocation() *Node {
 // parseQualifiedSuperQualifier parses the qualifying expression before .super()
 // Returns a KindIdentifier, KindQualifiedName, or expression node
 func (p *Parser) parseQualifiedSuperQualifier() *Node {
-	if p.check(TokenIdent) {
+	// Identifiers can be contextual keywords (e.g., record.super())
+	if p.isIdentifierLike() {
 		// Parse identifier chain: a.b.c (stopping before .super)
 		node := p.startNode(KindIdentifier)
 		tok := p.advance()
@@ -1428,8 +1434,8 @@ func (p *Parser) parseQualifiedSuperQualifier() *Node {
 				return node
 			}
 
-			// It's another identifier in the chain
-			if p.check(TokenIdent) {
+			// It's another identifier in the chain (can be contextual keyword)
+			if p.isIdentifierLike() {
 				qualNode := p.startNode(KindQualifiedName)
 				qualNode.AddChild(node)
 				identTok := p.advance()
@@ -1599,14 +1605,17 @@ func (p *Parser) isReceiverParameter() bool {
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
 		TokenInt, TokenLong, TokenFloat, TokenDouble:
 		p.advance()
-	case TokenIdent:
-		p.parseQualifiedName()
-		if p.check(TokenLT) {
-			p.skipTypeArguments()
-		}
 	default:
-		p.pos = save
-		return false
+		// Handle identifiers and contextual keywords as type names
+		if p.isIdentifierLike() {
+			p.parseQualifiedName()
+			if p.check(TokenLT) {
+				p.skipTypeArguments()
+			}
+		} else {
+			p.pos = save
+			return false
+		}
 	}
 
 	for p.check(TokenLBracket) {
@@ -1616,7 +1625,8 @@ func (p *Parser) isReceiverParameter() bool {
 		}
 	}
 
-	if p.check(TokenIdent) {
+	// Qualifier can be identifier or contextual keyword
+	if p.isIdentifierLike() {
 		p.advance()
 		if p.check(TokenDot) {
 			p.advance()
@@ -1643,7 +1653,8 @@ func (p *Parser) parseReceiverParameter() *Node {
 
 	node.AddChild(p.parseType())
 
-	if p.check(TokenIdent) {
+	// Qualifier can be identifier or contextual keyword
+	if p.isIdentifierLike() {
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 		p.expect(TokenDot)
@@ -1708,6 +1719,12 @@ func (p *Parser) parseBlock() *Node {
 }
 
 func (p *Parser) parseStatement() *Node {
+	// Check for labeled statements first - contextual keywords can be labels too
+	// e.g., "var: while(true) {}", "record: for(...) {}", "yield: { ... }"
+	if p.isIdentifierLike() && p.peekN(1).Kind == TokenColon {
+		return p.parseLabeledStmt()
+	}
+
 	switch p.peek().Kind {
 	case TokenLBrace:
 		return p.parseBlock()
@@ -1740,18 +1757,32 @@ func (p *Parser) parseStatement() *Node {
 	case TokenAssert:
 		return p.parseAssertStmt()
 	case TokenYield:
+		// yield is a contextual keyword: yield followed by expression-starting tokens
+		// that indicate identifier usage (assignment, call, array access, field access, etc.)
+		switch p.peekN(1).Kind {
+		case TokenAssign, TokenLParen, TokenLBracket, TokenDot,
+			TokenIncrement, TokenDecrement,
+			TokenPlusAssign, TokenMinusAssign, TokenStarAssign, TokenSlashAssign,
+			TokenPercentAssign, TokenAndAssign, TokenOrAssign, TokenXorAssign,
+			TokenShlAssign, TokenShrAssign, TokenUShrAssign:
+			return p.parseLocalVarOrExprStmt()
+		}
 		return p.parseYieldStmt()
-	case TokenClass, TokenInterface, TokenEnum, TokenRecord:
+	case TokenClass, TokenInterface, TokenEnum:
 		return p.parseLocalClassDecl()
+	case TokenRecord:
+		// record is a contextual keyword: record followed by identifier is a record declaration,
+		// record followed by ( is a method call
+		if p.isIdentifierLikeN(1) {
+			return p.parseLocalClassDecl()
+		}
+		return p.parseLocalVarOrExprStmt()
 	case TokenFinal, TokenAbstract, TokenAt:
 		if p.isLocalClassDecl() {
 			return p.parseLocalClassDecl()
 		}
 		return p.parseLocalVarOrExprStmt()
 	case TokenIdent:
-		if p.peekN(1).Kind == TokenColon {
-			return p.parseLabeledStmt()
-		}
 		return p.parseLocalVarOrExprStmt()
 	default:
 		return p.parseLocalVarOrExprStmt()
@@ -1997,14 +2028,17 @@ func (p *Parser) isEnhancedFor() bool {
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
 		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVar:
 		p.advance()
-	case TokenIdent:
-		p.parseQualifiedName()
-		if p.check(TokenLT) {
-			p.skipTypeArguments()
-		}
 	default:
-		p.pos = save
-		return false
+		// Handle identifiers and contextual keywords as type names
+		if p.isIdentifierLike() {
+			p.parseQualifiedName()
+			if p.check(TokenLT) {
+				p.skipTypeArguments()
+			}
+		} else {
+			p.pos = save
+			return false
+		}
 	}
 
 	for p.check(TokenLBracket) {
@@ -2014,7 +2048,8 @@ func (p *Parser) isEnhancedFor() bool {
 		}
 	}
 
-	if !p.check(TokenIdent) {
+	// Variable name can be an identifier or contextual keyword like 'var'
+	if !p.isIdentifierLike() {
 		p.pos = save
 		return false
 	}
@@ -2241,9 +2276,9 @@ func (p *Parser) looksLikePattern() bool {
 		p.advance()
 	}
 
-	// TypePattern: Type identifier
+	// TypePattern: Type identifier (contextual keywords can be variable names)
 	// RecordPattern: Type ( ... )
-	return p.check(TokenIdent) || p.check(TokenLParen)
+	return p.isIdentifierLike() || p.check(TokenLParen)
 }
 
 func (p *Parser) parsePattern() *Node {
@@ -2276,10 +2311,10 @@ func (p *Parser) parsePattern() *Node {
 		return p.finishNode(node)
 	}
 
-	// TypePattern: Type identifier
+	// TypePattern: Type identifier (contextual keywords can be variable names)
 	node := p.startNode(KindTypePattern)
 	node.AddChild(typeNode)
-	if p.check(TokenIdent) {
+	if p.isIdentifierLike() {
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 	}
@@ -2531,7 +2566,8 @@ func (p *Parser) isAssignOp() bool {
 }
 
 func (p *Parser) isLambda() bool {
-	if p.check(TokenIdent) && p.peekN(1).Kind == TokenArrow {
+	// Single identifier or contextual keyword (like var) followed by arrow is a lambda
+	if p.isIdentifierLike() && p.peekN(1).Kind == TokenArrow {
 		return true
 	}
 
@@ -2541,7 +2577,20 @@ func (p *Parser) isLambda() bool {
 
 	save := p.pos
 	p.advance()
+
+	// Empty parens () followed by -> is a lambda
+	if p.check(TokenRParen) {
+		p.advance()
+		result := p.check(TokenArrow)
+		p.pos = save
+		return result
+	}
+
+	// Lambda parameters must be: identifier, type identifier, or comma-separated list
+	// We need to verify this is NOT an expression like (x instanceof Y) or (x + y)
+	// by checking for operators that can't appear in lambda parameter lists
 	depth := 1
+	hasInvalidToken := false
 
 	for depth > 0 && !p.check(TokenEOF) {
 		switch p.peek().Kind {
@@ -2549,6 +2598,13 @@ func (p *Parser) isLambda() bool {
 			depth++
 		case TokenRParen:
 			depth--
+		case TokenInstanceof, TokenPlus, TokenMinus, TokenStar, TokenSlash,
+			TokenPercent, TokenBitAnd, TokenBitOr, TokenBitXor, TokenAnd, TokenOr,
+			TokenEQ, TokenNE, TokenLT, TokenGT, TokenLE, TokenGE,
+			TokenShl, TokenShr, TokenUShr, TokenAssign, TokenQuestion,
+			TokenNot, TokenBitNot, TokenIncrement, TokenDecrement:
+			// These operators cannot appear in lambda parameter lists
+			hasInvalidToken = true
 		}
 		if depth > 0 {
 			p.advance()
@@ -2559,7 +2615,7 @@ func (p *Parser) isLambda() bool {
 		p.advance()
 	}
 
-	result := p.check(TokenArrow)
+	result := p.check(TokenArrow) && !hasInvalidToken
 	p.pos = save
 	return result
 }
@@ -2567,7 +2623,8 @@ func (p *Parser) isLambda() bool {
 func (p *Parser) parseLambdaExpr() *Node {
 	node := p.startNode(KindLambdaExpr)
 
-	if p.check(TokenIdent) {
+	// Single identifier (or contextual keyword like var) lambda parameter
+	if p.isIdentifierLike() && p.peekN(1).Kind == TokenArrow {
 		tok := p.advance()
 		paramNode := p.startNode(KindParameters)
 		paramNode.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
@@ -2622,9 +2679,13 @@ func (p *Parser) isLambdaTypedParam() bool {
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
 		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVar:
 		return true
-	case TokenIdent:
-		return p.isIdentifierLikeN(1) || p.peekN(1).Kind == TokenLT ||
-			p.peekN(1).Kind == TokenDot || p.peekN(1).Kind == TokenLBracket
+	default:
+		// Handle identifiers and contextual keywords as type names
+		// e.g., (record r) -> ... where record is a type
+		if p.isIdentifierLike() {
+			return p.isIdentifierLikeN(1) || p.peekN(1).Kind == TokenLT ||
+				p.peekN(1).Kind == TokenDot || p.peekN(1).Kind == TokenLBracket
+		}
 	}
 	return false
 }
@@ -2754,8 +2815,14 @@ func (p *Parser) parseRelationalExpr() *Node {
 			node := p.startNode(KindInstanceofExpr)
 			node.AddChild(left)
 			p.advance()
+			// Handle optional 'final' modifier in pattern matching (Java 16+)
+			if p.check(TokenFinal) {
+				tok := p.advance()
+				node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+			}
 			node.AddChild(p.parseType())
-			if p.check(TokenIdent) {
+			// Pattern variable can be an identifier or contextual keyword like 'record'
+			if p.isIdentifierLike() {
 				tok := p.advance()
 				node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 			}
@@ -2853,41 +2920,45 @@ func (p *Parser) isCast() bool {
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
 		TokenInt, TokenLong, TokenFloat, TokenDouble:
 		isType = true
-	case TokenIdent:
-		p.parseQualifiedName()
-		if p.check(TokenLT) {
-			p.skipTypeArguments()
-		}
-		for p.check(TokenLBracket) {
-			p.advance()
-			if p.check(TokenRBracket) {
-				p.advance()
-			}
-		}
-		// Handle intersection types: (Type & Type2)
-		for p.check(TokenBitAnd) {
-			p.advance()
+	default:
+		// Handle identifiers and contextual keywords as type names
+		// e.g., (record)x where record is a class name
+		if p.isIdentifierLike() {
 			p.parseQualifiedName()
 			if p.check(TokenLT) {
 				p.skipTypeArguments()
 			}
-		}
-		isType = p.check(TokenRParen)
-		if isType {
-			p.advance()
-			if p.isIdentifierLike() {
-				// valid: (Type)identifier
-			} else {
-				switch p.peek().Kind {
-				case TokenThis, TokenSuper, TokenNew,
-					TokenLParen, TokenNot, TokenBitNot,
-					TokenIncrement, TokenDecrement,
-					TokenIntLiteral, TokenFloatLiteral,
-					TokenCharLiteral, TokenStringLiteral,
-					TokenTextBlock, TokenTrue, TokenFalse, TokenNull,
-					TokenSwitch:
-				default:
-					isType = false
+			for p.check(TokenLBracket) {
+				p.advance()
+				if p.check(TokenRBracket) {
+					p.advance()
+				}
+			}
+			// Handle intersection types: (Type & Type2)
+			for p.check(TokenBitAnd) {
+				p.advance()
+				p.parseQualifiedName()
+				if p.check(TokenLT) {
+					p.skipTypeArguments()
+				}
+			}
+			isType = p.check(TokenRParen)
+			if isType {
+				p.advance()
+				if p.isIdentifierLike() {
+					// valid: (Type)identifier
+				} else {
+					switch p.peek().Kind {
+					case TokenThis, TokenSuper, TokenNew,
+						TokenLParen, TokenNot, TokenBitNot,
+						TokenIncrement, TokenDecrement,
+						TokenIntLiteral, TokenFloatLiteral,
+						TokenCharLiteral, TokenStringLiteral,
+						TokenTextBlock, TokenTrue, TokenFalse, TokenNull,
+						TokenSwitch:
+					default:
+						isType = false
+					}
 				}
 			}
 		}
