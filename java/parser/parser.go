@@ -1783,8 +1783,11 @@ func (p *Parser) isLocalVarDecl() bool {
 	isType := false
 	switch p.peek().Kind {
 	case TokenBoolean, TokenByte, TokenChar, TokenShort,
-		TokenInt, TokenLong, TokenFloat, TokenDouble, TokenVar:
+		TokenInt, TokenLong, TokenFloat, TokenDouble:
 		isType = true
+	case TokenVar:
+		p.advance()
+		isType = p.isIdentifierLike() || p.isUnnamedVariable()
 	default:
 		if p.isIdentifierLike() {
 			p.parseQualifiedName()
