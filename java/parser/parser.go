@@ -1142,6 +1142,11 @@ func (p *Parser) parseClassMember() *Node {
 		return p.parseConstructor(modifiers, nil)
 	}
 
+	// Compact constructor for records: public ClassName { ... }
+	if p.check(TokenIdent) && p.peekN(1).Kind == TokenLBrace {
+		return p.parseCompactConstructor(modifiers)
+	}
+
 	typ := p.parseType()
 
 	if p.check(TokenIdent) {
@@ -1192,6 +1197,27 @@ func (p *Parser) parseConstructor(modifiers *Node, typeParams *Node) *Node {
 	}
 
 	node.AddChild(p.parseConstructorBody())
+	return p.finishNode(node)
+}
+
+// parseCompactConstructor parses a compact constructor for records.
+// Compact constructors have no parameter list: public ClassName { ... }
+func (p *Parser) parseCompactConstructor(modifiers *Node) *Node {
+	node := p.startNode(KindConstructorDecl)
+	if modifiers != nil {
+		node.AddChild(modifiers)
+	}
+
+	if tok := p.expect(TokenIdent); tok != nil {
+		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
+	}
+
+	// Compact constructors have no parameters, but we add an empty parameters node
+	paramsNode := p.startNode(KindParameters)
+	node.AddChild(p.finishNode(paramsNode))
+
+	// Parse the block body (not constructor body - no explicit constructor invocation check needed)
+	node.AddChild(p.parseBlock())
 	return p.finishNode(node)
 }
 
@@ -2087,6 +2113,12 @@ func (p *Parser) parseSwitchLabel() *Node {
 				break
 			}
 			p.advance()
+			// Java 21: case null, default -> ...
+			if p.check(TokenDefault) {
+				tok := p.advance()
+				node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+				break
+			}
 			if !progress() {
 				break
 			}
