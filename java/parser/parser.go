@@ -1022,15 +1022,18 @@ func (p *Parser) parseTypeArguments() *Node {
 	node := p.startNode(KindTypeArguments)
 	p.expect(TokenLT)
 
-	for {
-		progress := p.mustProgress()
-		node.AddChild(p.parseTypeArgument())
-		if !p.check(TokenComma) {
-			break
-		}
-		p.advance()
-		if !progress() {
-			break
+	// Handle diamond operator <>
+	if !p.check(TokenGT) {
+		for {
+			progress := p.mustProgress()
+			node.AddChild(p.parseTypeArgument())
+			if !p.check(TokenComma) {
+				break
+			}
+			p.advance()
+			if !progress() {
+				break
+			}
 		}
 	}
 
