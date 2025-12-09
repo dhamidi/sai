@@ -321,6 +321,11 @@ func (p *Parser) parseCompilationUnit() *Node {
 		}
 	} else {
 		for !p.check(TokenEOF) {
+			// Skip stray semicolons at top level (empty declarations)
+			if p.check(TokenSemicolon) {
+				p.advance()
+				continue
+			}
 			node.AddChild(p.parseTypeDecl())
 		}
 	}
