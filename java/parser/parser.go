@@ -305,7 +305,7 @@ func (p *Parser) recoverTo(kinds []TokenKind) {
 func (p *Parser) parseCompilationUnit() *Node {
 	node := p.startNode(KindCompilationUnit)
 
-	if p.check(TokenPackage) {
+	if p.check(TokenPackage) || p.isAnnotatedPackage() {
 		node.AddChild(p.parsePackageDecl())
 	}
 
@@ -498,6 +498,19 @@ func (p *Parser) parseProvidesDirective() *Node {
 
 	p.expect(TokenSemicolon)
 	return p.finishNode(node)
+}
+
+func (p *Parser) isAnnotatedPackage() bool {
+	if !p.check(TokenAt) {
+		return false
+	}
+	save := p.pos
+	for p.check(TokenAt) {
+		p.parseAnnotation()
+	}
+	result := p.check(TokenPackage)
+	p.pos = save
+	return result
 }
 
 func (p *Parser) parsePackageDecl() *Node {
