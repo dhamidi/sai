@@ -13,6 +13,7 @@ import (
 
 	"github.com/dhamidi/javalyzer/format"
 	"github.com/dhamidi/javalyzer/java"
+	"github.com/dhamidi/javalyzer/java/codebase"
 	"github.com/dhamidi/javalyzer/java/parser"
 	"github.com/dhamidi/javalyzer/ui"
 	"github.com/spf13/cobra"
@@ -141,9 +142,19 @@ func main() {
 	}
 	scanCmd.Flags().DurationVarP(&timeout, "timeout", "t", 10*time.Second, "timeout per file")
 
+	lspCmd := &cobra.Command{
+		Use:   "lsp",
+		Short: "Start the Language Server Protocol server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			server := codebase.NewLSPServer("0.1.0")
+			return server.RunStdio()
+		},
+	}
+
 	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(uiCmd)
 	rootCmd.AddCommand(scanCmd)
+	rootCmd.AddCommand(lspCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
