@@ -3413,6 +3413,11 @@ func (p *Parser) tryParseParameterizedTypeSpecialForm(baseExpr *Node) *Node {
 		}
 	}
 
+	// Check for ::new or ::method pattern (generic method reference like RefCounter<String>::new)
+	if p.check(TokenColonColon) {
+		return p.parseMethodRef(paramType)
+	}
+
 	// Check for .class pattern
 	if p.check(TokenDot) && p.peekN(1).Kind == TokenClass {
 		p.advance() // .
