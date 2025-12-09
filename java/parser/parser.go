@@ -967,6 +967,14 @@ func (p *Parser) parseType() *Node {
 		if p.check(TokenLT) {
 			node.AddChild(p.parseTypeArguments())
 		}
+		// Handle parameterized inner class types: Outer<T>.Inner or Outer<T>.Inner<U>
+		for p.check(TokenDot) && p.peekN(1).Kind == TokenIdent {
+			p.advance() // consume dot
+			node.AddChild(p.parseQualifiedName())
+			if p.check(TokenLT) {
+				node.AddChild(p.parseTypeArguments())
+			}
+		}
 	default:
 		return p.errorNode("expected type", []TokenKind{TokenIdent, TokenSemicolon, TokenRParen, TokenComma, TokenRBrace})
 	}
