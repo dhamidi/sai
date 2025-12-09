@@ -2907,9 +2907,10 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 			}
 		case TokenLBracket:
 			// Check if this is an array type class literal like String[].class
+			// or an array type method reference like String[]::new
 			if p.peekN(1).Kind == TokenRBracket {
-				if classLiteral := p.tryParseArrayClassLiteral(expr); classLiteral != nil {
-					expr = classLiteral
+				if result := p.tryParseArrayClassLiteralOrMethodRef(expr); result != nil {
+					expr = result
 					continue
 				}
 			}
@@ -2923,6 +2924,13 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 			expr = p.parseMethodCall(expr)
 		case TokenColonColon:
 			expr = p.parseMethodRef(expr)
+		case TokenLT:
+			// Try to parse as parameterized type for Class<?>[]::new or Class<?>.class patterns
+			if result := p.tryParseParameterizedTypeSpecialForm(expr); result != nil {
+				expr = result
+				continue
+			}
+			return expr
 		default:
 			return expr
 		}
@@ -3168,9 +3176,10 @@ func (p *Parser) parsePrimitiveClassLiteral() *Node {
 	return p.finishNode(node)
 }
 
-// tryParseArrayClassLiteral attempts to parse an array type class literal like String[].class
-// If successful, returns the ClassLiteral node. Otherwise returns nil (parser position unchanged).
-func (p *Parser) tryParseArrayClassLiteral(baseExpr *Node) *Node {
+// tryParseArrayClassLiteralOrMethodRef attempts to parse an array type class literal like String[].class
+// or an array type method reference like String[]::new.
+// If successful, returns the ClassLiteral or MethodRef node. Otherwise returns nil (parser position unchanged).
+func (p *Parser) tryParseArrayClassLiteralOrMethodRef(baseExpr *Node) *Node {
 	save := p.pos
 
 	// Count consecutive [] pairs
@@ -3181,25 +3190,85 @@ func (p *Parser) tryParseArrayClassLiteral(baseExpr *Node) *Node {
 		dims++
 	}
 
-	// Check if .class follows
-	if dims > 0 && p.check(TokenDot) && p.peekN(1).Kind == TokenClass {
-		p.advance() // .
-		p.advance() // class
+	if dims == 0 {
+		p.pos = save
+		return nil
+	}
 
-		// Build the array type node wrapping the base expression
+	// Build the array type node wrapping the base expression
+	buildArrayType := func() *Node {
 		typeNode := baseExpr
 		for i := 0; i < dims; i++ {
 			wrapper := p.startNode(KindArrayType)
 			wrapper.AddChild(typeNode)
 			typeNode = p.finishNode(wrapper)
 		}
+		return typeNode
+	}
+
+	// Check if .class follows
+	if p.check(TokenDot) && p.peekN(1).Kind == TokenClass {
+		p.advance() // .
+		p.advance() // class
 
 		node := p.startNode(KindClassLiteral)
-		node.AddChild(typeNode)
+		node.AddChild(buildArrayType())
 		return p.finishNode(node)
 	}
 
-	// Not an array class literal, restore position
+	// Check if ::new follows (array type method reference)
+	if p.check(TokenColonColon) && p.peekN(1).Kind == TokenNew {
+		p.advance()        // ::
+		tok := p.advance() // new
+
+		node := p.startNode(KindMethodRef)
+		node.AddChild(buildArrayType())
+		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
+		return p.finishNode(node)
+	}
+
+	// Not an array class literal or method ref, restore position
+	p.pos = save
+	return nil
+}
+
+// tryParseParameterizedTypeSpecialForm attempts to parse parameterized type patterns like:
+// - Class<?>[]::new (array type method reference with generic element type)
+// - Class<?>.class (parameterized type class literal)
+// If successful, returns the result node. Otherwise returns nil (parser position unchanged).
+func (p *Parser) tryParseParameterizedTypeSpecialForm(baseExpr *Node) *Node {
+	save := p.pos
+
+	// Parse type arguments
+	if !p.check(TokenLT) {
+		return nil
+	}
+	typeArgs := p.parseTypeArguments()
+
+	// Build parameterized type node
+	paramType := p.startNode(KindType)
+	paramType.AddChild(baseExpr)
+	paramType.AddChild(typeArgs)
+	paramType = p.finishNode(paramType)
+
+	// Check for []::new or [].class pattern
+	if p.check(TokenLBracket) && p.peekN(1).Kind == TokenRBracket {
+		if result := p.tryParseArrayClassLiteralOrMethodRef(paramType); result != nil {
+			return result
+		}
+	}
+
+	// Check for .class pattern
+	if p.check(TokenDot) && p.peekN(1).Kind == TokenClass {
+		p.advance() // .
+		p.advance() // class
+
+		node := p.startNode(KindClassLiteral)
+		node.AddChild(paramType)
+		return p.finishNode(node)
+	}
+
+	// Not a special form, restore position
 	p.pos = save
 	return nil
 }
