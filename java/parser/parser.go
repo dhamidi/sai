@@ -245,7 +245,7 @@ func (p *Parser) isIdentifierLike() bool {
 	case TokenIdent,
 		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
 		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
-		TokenVar, TokenYield:
+		TokenVar, TokenYield, TokenRecord:
 		return true
 	}
 	return false
