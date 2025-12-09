@@ -2881,7 +2881,8 @@ func (p *Parser) isCast() bool {
 					TokenIncrement, TokenDecrement,
 					TokenIntLiteral, TokenFloatLiteral,
 					TokenCharLiteral, TokenStringLiteral,
-					TokenTextBlock, TokenTrue, TokenFalse, TokenNull:
+					TokenTextBlock, TokenTrue, TokenFalse, TokenNull,
+					TokenSwitch:
 				default:
 					isType = false
 				}
@@ -2909,6 +2910,8 @@ func (p *Parser) parseCastExpr() *Node {
 	// Handle cast to lambda: (Supplier) () -> value
 	if p.isLambda() {
 		node.AddChild(p.parseLambdaExpr())
+	} else if p.check(TokenSwitch) {
+		node.AddChild(p.parseSwitchExpr())
 	} else {
 		node.AddChild(p.parseUnaryExpr())
 	}
