@@ -203,6 +203,14 @@ func (p *Parser) expect(kind TokenKind) *Token {
 	return nil
 }
 
+func (p *Parser) expectIdentifier() *Token {
+	if p.isIdentifierLike() {
+		tok := p.advance()
+		return &tok
+	}
+	return nil
+}
+
 func (p *Parser) check(kind TokenKind) bool {
 	return p.peek().Kind == kind
 }
@@ -237,7 +245,7 @@ func (p *Parser) isIdentifierLike() bool {
 	case TokenIdent,
 		TokenModule, TokenOpen, TokenRequires, TokenTransitive,
 		TokenExports, TokenOpens, TokenTo, TokenUses, TokenProvides, TokenWith,
-		TokenVar:
+		TokenVar, TokenYield:
 		return true
 	}
 	return false
@@ -1138,18 +1146,18 @@ func (p *Parser) parseClassMember() *Node {
 		return p.parseMethodOrConstructor(modifiers, typeParams)
 	}
 
-	if p.check(TokenIdent) && p.peekN(1).Kind == TokenLParen {
+	if p.isIdentifierLike() && p.peekN(1).Kind == TokenLParen {
 		return p.parseConstructor(modifiers, nil)
 	}
 
 	// Compact constructor for records: public ClassName { ... }
-	if p.check(TokenIdent) && p.peekN(1).Kind == TokenLBrace {
+	if p.isIdentifierLike() && p.peekN(1).Kind == TokenLBrace {
 		return p.parseCompactConstructor(modifiers)
 	}
 
 	typ := p.parseType()
 
-	if p.check(TokenIdent) {
+	if p.isIdentifierLike() {
 		if p.peekN(1).Kind == TokenLParen {
 			return p.parseMethod(modifiers, nil, typ)
 		}
@@ -1169,7 +1177,7 @@ func (p *Parser) parseClassMember() *Node {
 }
 
 func (p *Parser) parseMethodOrConstructor(modifiers *Node, typeParams *Node) *Node {
-	if p.check(TokenIdent) && p.peekN(1).Kind == TokenLParen {
+	if p.isIdentifierLike() && p.peekN(1).Kind == TokenLParen {
 		return p.parseConstructor(modifiers, typeParams)
 	}
 
@@ -1430,7 +1438,7 @@ func (p *Parser) parseMethod(modifiers *Node, typeParams *Node, returnType *Node
 		node.AddChild(returnType)
 	}
 
-	if tok := p.expect(TokenIdent); tok != nil {
+	if tok := p.expectIdentifier(); tok != nil {
 		node.AddChild(&Node{Kind: KindIdentifier, Token: tok, Span: tok.Span})
 	}
 
