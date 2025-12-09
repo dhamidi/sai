@@ -6,13 +6,14 @@ import (
 
 // TypeAtPoint returns the fully qualified type name of the value at the given position.
 // This is used for auto-completion: given a position after "list.", it returns the type of "list".
-func TypeAtPoint(root *parser.Node, pos parser.Position) string {
+// The classes parameter is used to resolve star imports (e.g., import com.example.*).
+func TypeAtPoint(root *parser.Node, pos parser.Position, classes []*ClassModel) string {
 	if root == nil {
 		return ""
 	}
 
 	pkg := packageFromCompilationUnit(root)
-	resolver := newTypeResolver(pkg, importsFromCompilationUnit(root))
+	resolver := newTypeResolver(pkg, importsFromCompilationUnit(root), classes)
 
 	// Find the enclosing class and register its inner classes
 	enclosingClass := findEnclosingClass(root, pos)

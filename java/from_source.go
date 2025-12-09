@@ -19,7 +19,7 @@ func ClassModelsFromSource(source []byte, opts ...parser.Option) ([]*ClassModel,
 func classModelsFromCompilationUnit(cu *parser.Node) []*ClassModel {
 	var models []*ClassModel
 	pkg := packageFromCompilationUnit(cu)
-	resolver := newTypeResolver(pkg, importsFromCompilationUnit(cu))
+	resolver := newTypeResolver(pkg, importsFromCompilationUnit(cu), nil)
 
 	for _, child := range cu.Children {
 		switch child.Kind {
@@ -96,13 +96,15 @@ type typeResolver struct {
 	pkg          string
 	imports      []importInfo
 	innerClasses map[string]string // map of simpleName -> fully qualified name
+	classes      []*ClassModel     // available classes for resolving star imports
 }
 
-func newTypeResolver(pkg string, imports []importInfo) *typeResolver {
+func newTypeResolver(pkg string, imports []importInfo, classes []*ClassModel) *typeResolver {
 	return &typeResolver{
 		pkg:          pkg,
 		imports:      imports,
 		innerClasses: make(map[string]string),
+		classes:      classes,
 	}
 }
 
@@ -149,6 +151,20 @@ func (r *typeResolver) resolve(simpleName string) string {
 		parts := strings.Split(imp.qualifiedName, ".")
 		if len(parts) > 0 && parts[len(parts)-1] == simpleName {
 			return imp.qualifiedName
+		}
+	}
+
+	// Check star imports against available classes
+	for _, imp := range r.imports {
+		if !imp.isWildcard || imp.isStatic {
+			continue
+		}
+		// imp.qualifiedName is e.g. "com.example" for "import com.example.*"
+		candidate := imp.qualifiedName + "." + simpleName
+		for _, cls := range r.classes {
+			if cls.Name == candidate {
+				return candidate
+			}
 		}
 	}
 

@@ -286,10 +286,38 @@ public class Example {
 			}
 
 			pos := parser.Position{Line: tt.line, Column: tt.column}
-			gotType := TypeAtPoint(node, pos)
+			gotType := TypeAtPoint(node, pos, nil)
 			if gotType != tt.wantType {
 				t.Errorf("TypeAtPoint() = %q, want %q", gotType, tt.wantType)
 			}
 		})
+	}
+}
+
+func TestTypeAtPoint_StarImport(t *testing.T) {
+	source := `package com.example.app;
+import com.example.models.*;
+public class Consumer {
+  public void test() {
+    User user = new User();
+    user.
+  }
+}`
+	classes := []*ClassModel{
+		{Name: "com.example.models.User", SimpleName: "User", Package: "com.example.models"},
+		{Name: "com.example.models.Product", SimpleName: "Product", Package: "com.example.models"},
+	}
+
+	p := parser.ParseCompilationUnit(bytes.NewReader([]byte(source)))
+	node := p.Finish()
+	if node == nil {
+		t.Fatalf("failed to parse source")
+	}
+
+	pos := parser.Position{Line: 6, Column: 5}
+	gotType := TypeAtPoint(node, pos, classes)
+	wantType := "com.example.models.User"
+	if gotType != wantType {
+		t.Errorf("TypeAtPoint() with star import = %q, want %q", gotType, wantType)
 	}
 }
