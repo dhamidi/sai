@@ -521,6 +521,10 @@ func (l *Lexer) scanOperator(start Position) Token {
 			l.advanceN(3)
 			return l.token(TokenEllipsis, start)
 		}
+		// Float literals starting with dot: .75f, .5d, .123
+		if isDigit(l.peekN(1)) {
+			return l.scanNumber(start)
+		}
 		l.advance()
 		return l.token(TokenDot, start)
 
