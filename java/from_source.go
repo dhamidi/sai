@@ -367,6 +367,9 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver
 		switch child.Kind {
 		case parser.KindTypeParameters:
 			model.TypeParameters = typeParametersFromNode(child, resolver)
+		case parser.KindParameters:
+			// Record components
+			model.RecordComponents = recordComponentsFromParameters(child, resolver)
 		case parser.KindType:
 			if model.SuperClass == "" && model.Kind == ClassKindClass {
 				model.SuperClass = typeModelFromTypeNode(child, resolver).Name

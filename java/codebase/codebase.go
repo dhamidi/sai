@@ -182,6 +182,16 @@ func (c *Codebase) CompletionsAtPoint(path string, line, column int) []Completio
 		})
 	}
 
+	// Record components have implicit accessor methods
+	for _, rc := range cls.RecordComponents {
+		items = append(items, CompletionItem{
+			Label:      rc.Name,
+			Kind:       CompletionKindMethod,
+			Detail:     rc.Type.Name,
+			InsertText: rc.Name + "()",
+		})
+	}
+
 	return items
 }
 
