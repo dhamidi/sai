@@ -274,7 +274,7 @@ func typeFromDeclaration(decl *parser.Node, resolver *typeResolver) string {
 		switch child.Kind {
 		case parser.KindType, parser.KindArrayType, parser.KindParameterizedType:
 			typeNode = child
-		case parser.KindNewExpr:
+		case parser.KindNewExpr, parser.KindCallExpr:
 			initExpr = child
 		case parser.KindIdentifier:
 			// Check for varargs marker "..."
@@ -322,8 +322,68 @@ func typeFromInitializer(expr *parser.Node, resolver *typeResolver) string {
 				return resolver.resolve(child.Token.Literal)
 			}
 		}
+	case parser.KindCallExpr:
+		// Method call like URI.create(...) - extract the method's return type
+		return typeFromMethodCall(expr, resolver)
 	}
 
+	return ""
+}
+
+// typeFromMethodCall extracts the return type from a method call expression.
+// For static calls like URI.create(...), it looks up the method in the class.
+func typeFromMethodCall(expr *parser.Node, resolver *typeResolver) string {
+	if len(expr.Children) == 0 {
+		return ""
+	}
+
+	target := expr.Children[0]
+
+	// Handle FieldAccess (e.g., URI.create, or object.method)
+	if target.Kind == parser.KindFieldAccess && len(target.Children) >= 2 {
+		// Get the class/object and method name
+		classOrObject := target.Children[0]
+		methodNode := target.Children[len(target.Children)-1]
+
+		if methodNode.Kind != parser.KindIdentifier || methodNode.Token == nil {
+			return ""
+		}
+		methodName := methodNode.Token.Literal
+
+		// Get the class name (for static calls like URI.create)
+		var className string
+		if classOrObject.Kind == parser.KindIdentifier && classOrObject.Token != nil {
+			className = resolver.resolve(classOrObject.Token.Literal)
+		} else if classOrObject.Kind == parser.KindQualifiedName {
+			className = resolver.resolve(qualifiedNameToString(classOrObject))
+		}
+
+		if className == "" {
+			return ""
+		}
+
+		// Look up the method's return type in the class
+		return lookupMethodReturnType(className, methodName, resolver.classes)
+	}
+
+	return ""
+}
+
+// lookupMethodReturnType finds a method in a class and returns its return type.
+func lookupMethodReturnType(className, methodName string, classes []*ClassModel) string {
+	for _, cls := range classes {
+		if cls.Name == className {
+			for _, method := range cls.Methods {
+				if method.Name == methodName {
+					result := method.ReturnType.Name
+					for i := 0; i < method.ReturnType.ArrayDepth; i++ {
+						result += "[]"
+					}
+					return result
+				}
+			}
+		}
+	}
 	return ""
 }
 

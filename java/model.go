@@ -38,6 +38,7 @@ type ClassModel struct {
 	Signature           string
 	SourceFile          string
 	IsDeprecated        bool
+	Javadoc             string
 	Annotations         []AnnotationModel
 	RecordComponents    []RecordComponentModel
 	PermittedSubclasses []string
@@ -68,6 +69,7 @@ type FieldModel struct {
 	IsEnum        bool
 	Signature     string
 	IsDeprecated  bool
+	Javadoc       string
 	Annotations   []AnnotationModel
 	ConstantValue interface{}
 }
@@ -88,6 +90,7 @@ type MethodModel struct {
 	IsDefault            bool
 	Signature            string
 	IsDeprecated         bool
+	Javadoc              string
 	Annotations          []AnnotationModel
 	ParameterAnnotations [][]AnnotationModel
 	Exceptions           []string

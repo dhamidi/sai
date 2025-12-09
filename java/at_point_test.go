@@ -294,6 +294,44 @@ public class Example {
 	}
 }
 
+func TestTypeAtPoint_StaticMethodCall(t *testing.T) {
+	source := `package deps;
+import java.net.*;
+public class Main {
+  public static void main(String[] args) {
+    var baseURL = URI.create("https://example.com");
+    baseURL.
+  }
+}`
+	classes := []*ClassModel{
+		{
+			Name:       "java.net.URI",
+			SimpleName: "URI",
+			Package:    "java.net",
+			Methods: []MethodModel{
+				{
+					Name:       "create",
+					IsStatic:   true,
+					ReturnType: TypeModel{Name: "java.net.URI"},
+				},
+			},
+		},
+	}
+
+	p := parser.ParseCompilationUnit(bytes.NewReader([]byte(source)))
+	node := p.Finish()
+	if node == nil {
+		t.Fatalf("failed to parse source")
+	}
+
+	pos := parser.Position{Line: 6, Column: 5}
+	gotType := TypeAtPoint(node, pos, classes)
+	wantType := "java.net.URI"
+	if gotType != wantType {
+		t.Errorf("TypeAtPoint() with static method call = %q, want %q", gotType, wantType)
+	}
+}
+
 func TestTypeAtPoint_StarImport(t *testing.T) {
 	source := `package com.example.app;
 import com.example.models.*;

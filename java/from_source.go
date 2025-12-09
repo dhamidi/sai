@@ -2,41 +2,103 @@ package java
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 
 	"github.com/dhamidi/javalyzer/java/parser"
 )
 
+// javadocFinder helps find Javadoc comments for declarations based on position.
+type javadocFinder struct {
+	comments []parser.Token // only block comments starting with /**, sorted by start line ascending
+	used     map[int]bool   // tracks which comments (by index) have been used
+}
+
+func newJavadocFinder(comments []parser.Token) *javadocFinder {
+	var javadocs []parser.Token
+	for _, c := range comments {
+		if c.Kind == parser.TokenComment && strings.HasPrefix(c.Literal, "/**") {
+			javadocs = append(javadocs, c)
+		}
+	}
+	// Sort by start line ascending
+	sort.Slice(javadocs, func(i, j int) bool {
+		return javadocs[i].Span.Start.Line < javadocs[j].Span.Start.Line
+	})
+	return &javadocFinder{comments: javadocs, used: make(map[int]bool)}
+}
+
+// FindForNode returns the Javadoc comment that immediately precedes the given node.
+// A Javadoc is considered "preceding" if it ends just before the node starts
+// (allowing for annotations and modifiers). Each Javadoc can only be matched once.
+func (jf *javadocFinder) FindForNode(node *parser.Node) string {
+	if jf == nil || len(jf.comments) == 0 {
+		return ""
+	}
+	startLine := node.Span.Start.Line
+
+	// Find the closest unused Javadoc that ends before this node starts
+	bestIdx := -1
+	bestDistance := 100 // max distance we'll accept
+
+	for i, c := range jf.comments {
+		if jf.used[i] {
+			continue
+		}
+		endLine := c.Span.End.Line
+		// The Javadoc must end before the declaration starts
+		if endLine >= startLine {
+			continue
+		}
+		distance := startLine - endLine
+		// Only match if within a reasonable distance (allowing for annotations/modifiers)
+		// and this is closer than any previous match
+		if distance < bestDistance {
+			bestIdx = i
+			bestDistance = distance
+		}
+	}
+
+	if bestIdx >= 0 {
+		jf.used[bestIdx] = true
+		return jf.comments[bestIdx].Literal
+	}
+	return ""
+}
+
 func ClassModelsFromSource(source []byte, opts ...parser.Option) ([]*ClassModel, error) {
+	opts = append(opts, parser.WithComments())
 	p := parser.ParseCompilationUnit(bytes.NewReader(source), opts...)
 	node := p.Finish()
 	if node == nil {
 		return nil, nil
 	}
-	return classModelsFromCompilationUnit(node), nil
+	comments := p.Comments()
+	return classModelsFromCompilationUnit(node, comments), nil
 }
 
-func classModelsFromCompilationUnit(cu *parser.Node) []*ClassModel {
+func classModelsFromCompilationUnit(cu *parser.Node, comments []parser.Token) []*ClassModel {
 	var models []*ClassModel
 	pkg := packageFromCompilationUnit(cu)
 	resolver := newTypeResolver(pkg, importsFromCompilationUnit(cu), nil)
+	jf := newJavadocFinder(comments)
 
 	for _, child := range cu.Children {
 		switch child.Kind {
 		case parser.KindClassDecl:
-			models = append(models, classModelFromClassDecl(child, pkg, resolver))
-			models = append(models, innerClassesFromClassDecl(child, pkg, resolver)...)
+			models = append(models, classModelFromClassDecl(child, pkg, resolver, jf))
+			models = append(models, innerClassesFromClassDecl(child, pkg, resolver, jf)...)
 		case parser.KindInterfaceDecl:
-			models = append(models, classModelFromInterfaceDecl(child, pkg, resolver))
-			models = append(models, innerClassesFromInterfaceDecl(child, pkg, resolver)...)
+			models = append(models, classModelFromInterfaceDecl(child, pkg, resolver, jf))
+			models = append(models, innerClassesFromInterfaceDecl(child, pkg, resolver, jf)...)
 		case parser.KindEnumDecl:
-			models = append(models, classModelFromEnumDecl(child, pkg, resolver))
-			models = append(models, innerClassesFromEnumDecl(child, pkg, resolver)...)
+			models = append(models, classModelFromEnumDecl(child, pkg, resolver, jf))
+			models = append(models, innerClassesFromEnumDecl(child, pkg, resolver, jf)...)
 		case parser.KindRecordDecl:
-			models = append(models, classModelFromRecordDecl(child, pkg, resolver))
-			models = append(models, innerClassesFromRecordDecl(child, pkg, resolver)...)
+			models = append(models, classModelFromRecordDecl(child, pkg, resolver, jf))
+			models = append(models, innerClassesFromRecordDecl(child, pkg, resolver, jf)...)
 		case parser.KindAnnotationDecl:
-			models = append(models, classModelFromAnnotationDecl(child, pkg, resolver))
+			models = append(models, classModelFromAnnotationDecl(child, pkg, resolver, jf))
 		}
 	}
 	return models
@@ -179,11 +241,12 @@ func (r *typeResolver) resolve(simpleName string) string {
 	return simpleName
 }
 
-func classModelFromClassDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
+func classModelFromClassDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindClass,
 		Package:    pkg,
 		Visibility: VisibilityPackage,
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -219,17 +282,17 @@ func classModelFromClassDecl(node *parser.Node, pkg string, resolver *typeResolv
 				model.Interfaces = append(model.Interfaces, typeModelFromTypeNode(child, resolver).Name)
 			}
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model, resolver)
+			extractClassBodyMembers(child, model, resolver, jf)
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver, jf)...)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver, jf))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver, jf))
 		case parser.KindAnnotation:
 			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			inner := classModelFromClassDeclNested(child, model.Name, resolver)
+			inner := classModelFromClassDeclNested(child, model.Name, resolver, jf)
 			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
 				InnerClass: inner.Name,
 				OuterClass: model.Name,
@@ -245,17 +308,17 @@ func classModelFromClassDecl(node *parser.Node, pkg string, resolver *typeResolv
 	return model
 }
 
-func extractClassBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver) {
+func extractClassBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver, jf *javadocFinder) {
 	for _, child := range block.Children {
 		switch child.Kind {
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver, jf)...)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver, jf))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver, jf))
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			inner := classModelFromClassDeclNested(child, model.Name, resolver)
+			inner := classModelFromClassDeclNested(child, model.Name, resolver, jf)
 			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
 				InnerClass: inner.Name,
 				OuterClass: model.Name,
@@ -318,9 +381,10 @@ func collectAndRegisterInnerClassesFromBlock(block *parser.Node, outerName strin
 	}
 }
 
-func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver *typeResolver) *ClassModel {
+func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver *typeResolver, jf *javadocFinder) *ClassModel {
 	model := &ClassModel{
 		Visibility: VisibilityPackage,
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	switch node.Kind {
@@ -377,17 +441,17 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver
 				model.Interfaces = append(model.Interfaces, typeModelFromTypeNode(child, resolver).Name)
 			}
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model, resolver)
+			extractClassBodyMembers(child, model, resolver, jf)
 		case parser.KindFieldDecl:
-			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+			model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver, jf)...)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver, jf))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver, jf))
 		case parser.KindAnnotation:
 			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			inner := classModelFromClassDeclNested(child, model.Name, resolver)
+			inner := classModelFromClassDeclNested(child, model.Name, resolver, jf)
 			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
 				InnerClass: inner.Name,
 				OuterClass: model.Name,
@@ -403,7 +467,7 @@ func classModelFromClassDeclNested(node *parser.Node, outerName string, resolver
 	return model
 }
 
-func innerClassesFromClassDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+func innerClassesFromClassDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) []*ClassModel {
 	outerClassName := ""
 	for _, child := range node.Children {
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
@@ -418,10 +482,10 @@ func innerClassesFromClassDecl(node *parser.Node, pkg string, resolver *typeReso
 	if outerClassName == "" {
 		return nil
 	}
-	return collectInnerClasses(node, outerClassName, resolver)
+	return collectInnerClasses(node, outerClassName, resolver, jf)
 }
 
-func innerClassesFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+func innerClassesFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) []*ClassModel {
 	outerClassName := ""
 	for _, child := range node.Children {
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
@@ -436,10 +500,10 @@ func innerClassesFromInterfaceDecl(node *parser.Node, pkg string, resolver *type
 	if outerClassName == "" {
 		return nil
 	}
-	return collectInnerClasses(node, outerClassName, resolver)
+	return collectInnerClasses(node, outerClassName, resolver, jf)
 }
 
-func innerClassesFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+func innerClassesFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) []*ClassModel {
 	outerClassName := ""
 	for _, child := range node.Children {
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
@@ -454,10 +518,10 @@ func innerClassesFromEnumDecl(node *parser.Node, pkg string, resolver *typeResol
 	if outerClassName == "" {
 		return nil
 	}
-	return collectInnerClasses(node, outerClassName, resolver)
+	return collectInnerClasses(node, outerClassName, resolver, jf)
 }
 
-func innerClassesFromRecordDecl(node *parser.Node, pkg string, resolver *typeResolver) []*ClassModel {
+func innerClassesFromRecordDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) []*ClassModel {
 	outerClassName := ""
 	for _, child := range node.Children {
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
@@ -472,51 +536,52 @@ func innerClassesFromRecordDecl(node *parser.Node, pkg string, resolver *typeRes
 	if outerClassName == "" {
 		return nil
 	}
-	return collectInnerClasses(node, outerClassName, resolver)
+	return collectInnerClasses(node, outerClassName, resolver, jf)
 }
 
-func collectInnerClasses(node *parser.Node, outerClassName string, resolver *typeResolver) []*ClassModel {
+func collectInnerClasses(node *parser.Node, outerClassName string, resolver *typeResolver, jf *javadocFinder) []*ClassModel {
 	var models []*ClassModel
 
 	// Look in direct children
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			innerModel := classModelFromClassDeclNested(child, outerClassName, resolver)
+			innerModel := classModelFromClassDeclNested(child, outerClassName, resolver, jf)
 			models = append(models, innerModel)
 			// Recursively collect nested inner classes
-			models = append(models, collectInnerClasses(child, innerModel.Name, resolver)...)
+			models = append(models, collectInnerClasses(child, innerModel.Name, resolver, jf)...)
 		case parser.KindBlock:
 			// Also look in blocks (class body)
-			models = append(models, collectInnerClassesFromBlock(child, outerClassName, resolver)...)
+			models = append(models, collectInnerClassesFromBlock(child, outerClassName, resolver, jf)...)
 		}
 	}
 
 	return models
 }
 
-func collectInnerClassesFromBlock(block *parser.Node, outerClassName string, resolver *typeResolver) []*ClassModel {
+func collectInnerClassesFromBlock(block *parser.Node, outerClassName string, resolver *typeResolver, jf *javadocFinder) []*ClassModel {
 	var models []*ClassModel
 
 	for _, child := range block.Children {
 		switch child.Kind {
 		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
-			innerModel := classModelFromClassDeclNested(child, outerClassName, resolver)
+			innerModel := classModelFromClassDeclNested(child, outerClassName, resolver, jf)
 			models = append(models, innerModel)
 			// Recursively collect nested inner classes
-			models = append(models, collectInnerClasses(child, innerModel.Name, resolver)...)
+			models = append(models, collectInnerClasses(child, innerModel.Name, resolver, jf)...)
 		}
 	}
 
 	return models
 }
 
-func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
+func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindInterface,
 		Package:    pkg,
 		Visibility: VisibilityPackage,
 		IsAbstract: true,
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -548,9 +613,9 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeRe
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
-			extractInterfaceBodyMembers(child, model, resolver)
+			extractInterfaceBodyMembers(child, model, resolver, jf)
 		case parser.KindFieldDecl:
-			fields := fieldModelsFromFieldDecl(child, resolver)
+			fields := fieldModelsFromFieldDecl(child, resolver, jf)
 			for i := range fields {
 				fields[i].IsStatic = true
 				fields[i].IsFinal = true
@@ -558,7 +623,7 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeRe
 			}
 			model.Fields = append(model.Fields, fields...)
 		case parser.KindMethodDecl:
-			method := methodModelFromMethodDecl(child, resolver)
+			method := methodModelFromMethodDecl(child, resolver, jf)
 			if !method.IsStatic && !method.IsDefault {
 				method.IsAbstract = true
 			}
@@ -572,11 +637,11 @@ func classModelFromInterfaceDecl(node *parser.Node, pkg string, resolver *typeRe
 	return model
 }
 
-func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver) {
+func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver, jf *javadocFinder) {
 	for _, child := range block.Children {
 		switch child.Kind {
 		case parser.KindFieldDecl:
-			fields := fieldModelsFromFieldDecl(child, resolver)
+			fields := fieldModelsFromFieldDecl(child, resolver, jf)
 			for i := range fields {
 				fields[i].IsStatic = true
 				fields[i].IsFinal = true
@@ -584,7 +649,7 @@ func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel, resolver
 			}
 			model.Fields = append(model.Fields, fields...)
 		case parser.KindMethodDecl:
-			method := methodModelFromMethodDecl(child, resolver)
+			method := methodModelFromMethodDecl(child, resolver, jf)
 			if !method.IsStatic && !method.IsDefault {
 				method.IsAbstract = true
 			}
@@ -594,12 +659,13 @@ func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel, resolver
 	}
 }
 
-func classModelFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
+func classModelFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindEnum,
 		Package:    pkg,
 		Visibility: VisibilityPackage,
 		SuperClass: "java.lang.Enum",
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -629,18 +695,18 @@ func classModelFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolve
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model, resolver)
+			extractClassBodyMembers(child, model, resolver, jf)
 		case parser.KindFieldDecl:
 			// Check if this is an enum constant or a regular field
 			if isEnumConstant(child) {
 				model.EnumConstants = append(model.EnumConstants, enumConstantFromFieldDecl(child))
 			} else {
-				model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver)...)
+				model.Fields = append(model.Fields, fieldModelsFromFieldDecl(child, resolver, jf)...)
 			}
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver, jf))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver, jf))
 		case parser.KindAnnotation:
 			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		}
@@ -649,13 +715,14 @@ func classModelFromEnumDecl(node *parser.Node, pkg string, resolver *typeResolve
 	return model
 }
 
-func classModelFromRecordDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
+func classModelFromRecordDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindRecord,
 		Package:    pkg,
 		Visibility: VisibilityPackage,
 		SuperClass: "java.lang.Record",
 		IsFinal:    true,
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -689,11 +756,11 @@ func classModelFromRecordDecl(node *parser.Node, pkg string, resolver *typeResol
 		case parser.KindType:
 			model.Interfaces = append(model.Interfaces, resolver.resolve(typeNameFromTypeNode(child, resolver)))
 		case parser.KindBlock:
-			extractClassBodyMembers(child, model, resolver)
+			extractClassBodyMembers(child, model, resolver, jf)
 		case parser.KindMethodDecl:
-			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver))
+			model.Methods = append(model.Methods, methodModelFromMethodDecl(child, resolver, jf))
 		case parser.KindConstructorDecl:
-			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver))
+			model.Methods = append(model.Methods, methodModelFromConstructorDecl(child, model.SimpleName, resolver, jf))
 		case parser.KindAnnotation:
 			model.Annotations = append(model.Annotations, annotationModelFromNode(child, resolver))
 		}
@@ -702,13 +769,14 @@ func classModelFromRecordDecl(node *parser.Node, pkg string, resolver *typeResol
 	return model
 }
 
-func classModelFromAnnotationDecl(node *parser.Node, pkg string, resolver *typeResolver) *ClassModel {
+func classModelFromAnnotationDecl(node *parser.Node, pkg string, resolver *typeResolver, jf *javadocFinder) *ClassModel {
 	model := &ClassModel{
 		Kind:       ClassKindAnnotation,
 		Package:    pkg,
 		Visibility: VisibilityPackage,
 		IsAbstract: true,
 		Interfaces: []string{"java.lang.annotation.Annotation"},
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -728,9 +796,9 @@ func classModelFromAnnotationDecl(node *parser.Node, pkg string, resolver *typeR
 				}
 			}
 		case parser.KindBlock:
-			extractAnnotationBodyMembers(child, model, resolver)
+			extractAnnotationBodyMembers(child, model, resolver, jf)
 		case parser.KindMethodDecl:
-			method := methodModelFromMethodDecl(child, resolver)
+			method := methodModelFromMethodDecl(child, resolver, jf)
 			method.IsAbstract = true
 			method.Visibility = VisibilityPublic
 			model.Methods = append(model.Methods, method)
@@ -742,10 +810,10 @@ func classModelFromAnnotationDecl(node *parser.Node, pkg string, resolver *typeR
 	return model
 }
 
-func extractAnnotationBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver) {
+func extractAnnotationBodyMembers(block *parser.Node, model *ClassModel, resolver *typeResolver, jf *javadocFinder) {
 	for _, child := range block.Children {
 		if child.Kind == parser.KindMethodDecl {
-			method := methodModelFromMethodDecl(child, resolver)
+			method := methodModelFromMethodDecl(child, resolver, jf)
 			method.IsAbstract = true
 			method.Visibility = VisibilityPublic
 			model.Methods = append(model.Methods, method)
@@ -933,10 +1001,11 @@ func typeArgumentFromNode(node *parser.Node, resolver *typeResolver) TypeArgumen
 	return arg
 }
 
-func fieldModelsFromFieldDecl(node *parser.Node, resolver *typeResolver) []FieldModel {
+func fieldModelsFromFieldDecl(node *parser.Node, resolver *typeResolver, jf *javadocFinder) []FieldModel {
 	var fields []FieldModel
 	baseField := FieldModel{
 		Visibility: VisibilityPackage,
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -991,9 +1060,10 @@ func applyModifiersToField(modifiers *parser.Node, field *FieldModel, resolver *
 	}
 }
 
-func methodModelFromMethodDecl(node *parser.Node, resolver *typeResolver) MethodModel {
+func methodModelFromMethodDecl(node *parser.Node, resolver *typeResolver, jf *javadocFinder) MethodModel {
 	model := MethodModel{
 		Visibility: VisibilityPackage,
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
@@ -1021,11 +1091,12 @@ func methodModelFromMethodDecl(node *parser.Node, resolver *typeResolver) Method
 	return model
 }
 
-func methodModelFromConstructorDecl(node *parser.Node, className string, resolver *typeResolver) MethodModel {
+func methodModelFromConstructorDecl(node *parser.Node, className string, resolver *typeResolver, jf *javadocFinder) MethodModel {
 	model := MethodModel{
 		Name:       "<init>",
 		Visibility: VisibilityPackage,
 		ReturnType: TypeModel{Name: "void"},
+		Javadoc:    jf.FindForNode(node),
 	}
 
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)

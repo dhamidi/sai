@@ -1,10 +1,15 @@
 package codebase
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/dhamidi/javalyzer/java"
 
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -86,7 +91,161 @@ func (ls *LSPServer) initialize(ctx *glsp.Context, params *protocol.InitializePa
 
 func (ls *LSPServer) initialized(ctx *glsp.Context, params *protocol.InitializedParams) error {
 	ls.codebase.ScanAll()
+	if javaSrc := os.Getenv("JAVA_SRC"); javaSrc != "" {
+		ls.scanJavaSrcZip(javaSrc)
+	}
 	return nil
+}
+
+func (ls *LSPServer) scanJavaSrcZip(zipPath string) {
+	ext := filepath.Ext(zipPath)
+	switch ext {
+	case ".zip", ".jar":
+		ls.scanZipOrJar(zipPath)
+	case ".class":
+		ls.scanClassFile(zipPath)
+	case ".java":
+		ls.codebase.ScanFile(zipPath)
+	}
+}
+
+func (ls *LSPServer) scanZipOrJar(zipPath string) {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return
+	}
+	defer r.Close()
+
+	var jarFiles []*zip.File
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		ext := filepath.Ext(f.Name)
+		switch ext {
+		case ".java":
+			ls.scanZipEntryJava(f, zipPath)
+		case ".class":
+			ls.scanZipEntryClass(f, zipPath)
+		case ".jar":
+			jarFiles = append(jarFiles, f)
+		}
+	}
+
+	for _, jarFile := range jarFiles {
+		ls.scanJarInZip(jarFile, zipPath)
+	}
+}
+
+func (ls *LSPServer) scanZipEntryJava(f *zip.File, zipPath string) {
+	rc, err := f.Open()
+	if err != nil {
+		return
+	}
+	defer rc.Close()
+
+	content, err := io.ReadAll(rc)
+	if err != nil {
+		return
+	}
+
+	virtualPath := "jdk:" + f.Name
+	ls.codebase.UpdateFile(virtualPath, content)
+}
+
+func (ls *LSPServer) scanZipEntryClass(f *zip.File, zipPath string) {
+	rc, err := f.Open()
+	if err != nil {
+		return
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return
+	}
+
+	model, err := java.ClassModelFromReader(bytes.NewReader(data))
+	if err != nil || model == nil {
+		return
+	}
+
+	ls.codebase.AddClassModel(model)
+}
+
+func (ls *LSPServer) scanJarInZip(jarFile *zip.File, zipPath string) {
+	rc, err := jarFile.Open()
+	if err != nil {
+		return
+	}
+	defer rc.Close()
+
+	jarData, err := io.ReadAll(rc)
+	if err != nil {
+		return
+	}
+
+	jarReader, err := zip.NewReader(bytes.NewReader(jarData), int64(len(jarData)))
+	if err != nil {
+		return
+	}
+
+	for _, f := range jarReader.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		ext := filepath.Ext(f.Name)
+		switch ext {
+		case ".java":
+			ls.scanNestedJarEntryJava(f, jarFile.Name)
+		case ".class":
+			ls.scanNestedJarEntryClass(f, jarFile.Name)
+		}
+	}
+}
+
+func (ls *LSPServer) scanNestedJarEntryJava(f *zip.File, jarName string) {
+	rc, err := f.Open()
+	if err != nil {
+		return
+	}
+	defer rc.Close()
+
+	content, err := io.ReadAll(rc)
+	if err != nil {
+		return
+	}
+
+	virtualPath := "jdk:" + jarName + "!" + f.Name
+	ls.codebase.UpdateFile(virtualPath, content)
+}
+
+func (ls *LSPServer) scanNestedJarEntryClass(f *zip.File, jarName string) {
+	rc, err := f.Open()
+	if err != nil {
+		return
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return
+	}
+
+	model, err := java.ClassModelFromReader(bytes.NewReader(data))
+	if err != nil || model == nil {
+		return
+	}
+
+	ls.codebase.AddClassModel(model)
+}
+
+func (ls *LSPServer) scanClassFile(path string) {
+	model, err := java.ClassModelFromFile(path)
+	if err != nil || model == nil {
+		return
+	}
+	ls.codebase.AddClassModel(model)
 }
 
 func (ls *LSPServer) shutdown(ctx *glsp.Context) error {

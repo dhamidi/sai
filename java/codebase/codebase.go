@@ -107,6 +107,12 @@ func (c *Codebase) RemoveFile(path string) {
 	c.rebuildClassesLocked()
 }
 
+func (c *Codebase) AddClassModel(model *java.ClassModel) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.classes = append(c.classes, model)
+}
+
 func (c *Codebase) GetFile(path string) *FileInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
