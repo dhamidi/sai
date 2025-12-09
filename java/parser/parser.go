@@ -832,7 +832,7 @@ func (p *Parser) parseEnumDecl(modifiers *Node) *Node {
 
 	p.expect(TokenLBrace)
 
-	for p.check(TokenIdent) || p.check(TokenAt) {
+	for p.isIdentifierLike() || p.check(TokenAt) {
 		node.AddChild(p.parseEnumConstant())
 		if p.check(TokenComma) {
 			p.advance()
@@ -2590,6 +2590,7 @@ func (p *Parser) isLambda() bool {
 	// We need to verify this is NOT an expression like (x instanceof Y) or (x + y)
 	// by checking for operators that can't appear in lambda parameter lists
 	depth := 1
+	angleDepth := 0
 	hasInvalidToken := false
 
 	for depth > 0 && !p.check(TokenEOF) {
@@ -2598,10 +2599,35 @@ func (p *Parser) isLambda() bool {
 			depth++
 		case TokenRParen:
 			depth--
+		case TokenLT:
+			// < can be a generic type parameter or a comparison operator
+			// In lambda params, it's valid as part of generic types
+			angleDepth++
+		case TokenGT:
+			// > closes generic type parameters
+			if angleDepth > 0 {
+				angleDepth--
+			} else {
+				hasInvalidToken = true
+			}
+		case TokenShr:
+			// >> can close nested generics
+			if angleDepth >= 2 {
+				angleDepth -= 2
+			} else {
+				hasInvalidToken = true
+			}
+		case TokenUShr:
+			// >>> can close triple-nested generics
+			if angleDepth >= 3 {
+				angleDepth -= 3
+			} else {
+				hasInvalidToken = true
+			}
 		case TokenInstanceof, TokenPlus, TokenMinus, TokenStar, TokenSlash,
 			TokenPercent, TokenBitAnd, TokenBitOr, TokenBitXor, TokenAnd, TokenOr,
-			TokenEQ, TokenNE, TokenLT, TokenGT, TokenLE, TokenGE,
-			TokenShl, TokenShr, TokenUShr, TokenAssign, TokenQuestion,
+			TokenEQ, TokenNE, TokenLE, TokenGE,
+			TokenShl, TokenAssign, TokenQuestion,
 			TokenNot, TokenBitNot, TokenIncrement, TokenDecrement:
 			// These operators cannot appear in lambda parameter lists
 			hasInvalidToken = true
