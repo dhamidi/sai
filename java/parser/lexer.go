@@ -187,6 +187,25 @@ func (l *Lexer) scanIdentOrKeyword(start Position) Token {
 	}
 	end := l.Position()
 	literal := string(l.input[start.Offset:end.Offset])
+
+	// Handle "non-sealed" contextual keyword (Java 17+)
+	if literal == "non" && l.peek() == '-' {
+		// Check if followed by "sealed"
+		remaining := l.input[l.pos:]
+		if len(remaining) >= 7 && string(remaining[:7]) == "-sealed" {
+			// Check that "sealed" is not followed by more identifier chars
+			if len(remaining) == 7 || !isJavaLetterOrDigit(remaining[7]) {
+				l.advanceN(7)
+				end = l.Position()
+				return Token{
+					Kind:    TokenNonSealed,
+					Span:    Span{Start: start, End: end},
+					Literal: "non-sealed",
+				}
+			}
+		}
+	}
+
 	kind := LookupKeyword(literal, l.isModuleInfo)
 	return Token{
 		Kind:    kind,
