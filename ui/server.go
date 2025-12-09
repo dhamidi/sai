@@ -88,6 +88,10 @@ func NewServer() (*Server, error) {
 	s.mux.HandleFunc("GET /c/{className...}", s.handleClass)
 	s.mux.HandleFunc("GET /", s.handleIndex)
 
+	if javaSrc := os.Getenv("JAVA_SRC"); javaSrc != "" {
+		s.scanner.Submit(scanner.Request{ZipFile: javaSrc})
+	}
+
 	return s, nil
 }
 

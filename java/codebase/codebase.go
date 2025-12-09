@@ -169,10 +169,11 @@ func (c *Codebase) CompletionsAtPoint(path string, line, column int) []Completio
 			continue
 		}
 		items = append(items, CompletionItem{
-			Label:      m.Name,
-			Kind:       CompletionKindMethod,
-			Detail:     formatMethodSignature(m),
-			InsertText: formatMethodInsert(m),
+			Label:         m.Name,
+			Kind:          CompletionKindMethod,
+			Detail:        formatMethodSignature(m),
+			InsertText:    formatMethodInsert(m),
+			Documentation: m.Javadoc,
 		})
 	}
 
@@ -181,10 +182,11 @@ func (c *Codebase) CompletionsAtPoint(path string, line, column int) []Completio
 			continue
 		}
 		items = append(items, CompletionItem{
-			Label:      f.Name,
-			Kind:       CompletionKindField,
-			Detail:     f.Type.Name,
-			InsertText: f.Name,
+			Label:         f.Name,
+			Kind:          CompletionKindField,
+			Detail:        f.Type.Name,
+			InsertText:    f.Name,
+			Documentation: f.Javadoc,
 		})
 	}
 
@@ -210,10 +212,11 @@ const (
 )
 
 type CompletionItem struct {
-	Label      string
-	Kind       CompletionKind
-	Detail     string
-	InsertText string
+	Label         string
+	Kind          CompletionKind
+	Detail        string
+	InsertText    string
+	Documentation string
 }
 
 func formatMethodSignature(m java.MethodModel) string {

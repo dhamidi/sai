@@ -328,13 +328,17 @@ func (ls *LSPServer) textDocumentCompletion(ctx *glsp.Context, params *protocol.
 		insertText := c.InsertText
 		format := protocol.InsertTextFormatSnippet
 
-		items = append(items, protocol.CompletionItem{
+		item := protocol.CompletionItem{
 			Label:            c.Label,
 			Kind:             &kind,
 			Detail:           &detail,
 			InsertText:       &insertText,
 			InsertTextFormat: &format,
-		})
+		}
+		if c.Documentation != "" {
+			item.Documentation = c.Documentation
+		}
+		items = append(items, item)
 	}
 
 	return items, nil
