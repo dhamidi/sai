@@ -86,6 +86,11 @@ func TestParseExpression(t *testing.T) {
 		{"obj::method", KindMethodRef},
 		{"x instanceof Foo", KindInstanceofExpr},
 		{"(int) x", KindCastExpr},
+		{"String.class", KindClassLiteral},
+		{"String[].class", KindClassLiteral},
+		{"String[][].class", KindClassLiteral},
+		{"int.class", KindClassLiteral},
+		{"int[].class", KindClassLiteral},
 	}
 
 	for _, tt := range tests {
@@ -325,6 +330,8 @@ func TestParseStatements(t *testing.T) {
 		{"local var", "class Foo { void m() { int x = 5; } }"},
 		{"local var infer", "class Foo { void m() { var x = 5; } }"},
 		{"local class", "class Foo { void m() { class Inner {} } }"},
+		{"class literal in if", "class Foo { void m() { if (String.class.equals(x)) {} } }"},
+		{"array class literal in if", "class Foo { void m() { if (String[].class.equals(x)) {} } }"},
 	}
 
 	for _, tt := range tests {

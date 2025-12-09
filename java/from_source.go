@@ -886,7 +886,7 @@ func typeArgumentFromNode(node *parser.Node, resolver *typeResolver) TypeArgumen
 
 	for _, child := range node.Children {
 		switch child.Kind {
-		case parser.KindType:
+		case parser.KindType, parser.KindArrayType:
 			tm := typeModelFromTypeNode(child, resolver)
 			if arg.BoundKind != "" {
 				arg.Bound = &tm
@@ -927,7 +927,7 @@ func fieldModelsFromFieldDecl(node *parser.Node, resolver *typeResolver) []Field
 
 	var fieldType TypeModel
 	for _, child := range node.Children {
-		if child.Kind == parser.KindType {
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			fieldType = typeModelFromTypeNode(child, resolver)
 			break
 		}
@@ -984,7 +984,7 @@ func methodModelFromMethodDecl(node *parser.Node, resolver *typeResolver) Method
 
 	for _, child := range node.Children {
 		switch child.Kind {
-		case parser.KindType:
+		case parser.KindType, parser.KindArrayType:
 			model.ReturnType = typeModelFromTypeNode(child, resolver)
 		case parser.KindIdentifier:
 			if child.Token != nil {

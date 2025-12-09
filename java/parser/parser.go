@@ -2874,6 +2874,13 @@ func (p *Parser) parsePostfixSuffix(expr *Node) *Node {
 				}
 			}
 		case TokenLBracket:
+			// Check if this is an array type class literal like String[].class
+			if p.peekN(1).Kind == TokenRBracket {
+				if classLiteral := p.tryParseArrayClassLiteral(expr); classLiteral != nil {
+					expr = classLiteral
+					continue
+				}
+			}
 			p.advance()
 			node := p.startNode(KindArrayAccess)
 			node.AddChild(expr)
@@ -3127,6 +3134,42 @@ func (p *Parser) parsePrimitiveClassLiteral() *Node {
 	p.expect(TokenDot)
 	p.expect(TokenClass)
 	return p.finishNode(node)
+}
+
+// tryParseArrayClassLiteral attempts to parse an array type class literal like String[].class
+// If successful, returns the ClassLiteral node. Otherwise returns nil (parser position unchanged).
+func (p *Parser) tryParseArrayClassLiteral(baseExpr *Node) *Node {
+	save := p.pos
+
+	// Count consecutive [] pairs
+	dims := 0
+	for p.check(TokenLBracket) && p.peekN(1).Kind == TokenRBracket {
+		p.advance() // [
+		p.advance() // ]
+		dims++
+	}
+
+	// Check if .class follows
+	if dims > 0 && p.check(TokenDot) && p.peekN(1).Kind == TokenClass {
+		p.advance() // .
+		p.advance() // class
+
+		// Build the array type node wrapping the base expression
+		typeNode := baseExpr
+		for i := 0; i < dims; i++ {
+			wrapper := p.startNode(KindArrayType)
+			wrapper.AddChild(typeNode)
+			typeNode = p.finishNode(wrapper)
+		}
+
+		node := p.startNode(KindClassLiteral)
+		node.AddChild(typeNode)
+		return p.finishNode(node)
+	}
+
+	// Not an array class literal, restore position
+	p.pos = save
+	return nil
 }
 
 func (p *Parser) parseSwitchExpr() *Node {
