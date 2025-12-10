@@ -44,6 +44,11 @@
                 el.classList.remove('active');
             });
             link.classList.add('active');
+            
+            const href = link.getAttribute('href');
+            if (href) {
+                history.pushState(null, '', href);
+            }
         });
     }
 
