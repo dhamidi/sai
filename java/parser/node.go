@@ -107,6 +107,10 @@ const (
 	KindClassLiteral
 	KindSwitchExpr
 	KindTemplateExpr
+
+	// Comments
+	KindComment
+	KindLineComment
 )
 
 var nodeKindNames = map[NodeKind]string{
@@ -200,6 +204,8 @@ var nodeKindNames = map[NodeKind]string{
 	KindClassLiteral:                  "ClassLiteral",
 	KindSwitchExpr:                    "SwitchExpr",
 	KindTemplateExpr:                  "TemplateExpr",
+	KindComment:                       "Comment",
+	KindLineComment:                   "LineComment",
 }
 
 func (k NodeKind) String() string {

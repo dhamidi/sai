@@ -40,6 +40,7 @@ type Parser struct {
 	lexer            *Lexer
 	tokens           []Token
 	comments         []Token
+	commentIndex     int // tracks which comments have been consumed
 	pos              int
 	entry            parseFunc
 	incomplete       bool
@@ -261,6 +262,48 @@ func (p *Parser) startNode(kind NodeKind) *Node {
 		Kind: kind,
 		Span: Span{Start: p.peek().Span.Start},
 	}
+}
+
+// startNodeWithComments creates a new node and attaches any leading comments.
+// Use this for declarations that can have leading comments (classes, methods, fields, etc.).
+func (p *Parser) startNodeWithComments(kind NodeKind) *Node {
+	comments := p.consumeLeadingComments()
+	node := p.startNode(kind)
+	for _, c := range comments {
+		node.AddChild(c)
+	}
+	return node
+}
+
+// consumeLeadingComments returns comment nodes for comments that appear before
+// the current token position. These should be attached as leading children.
+func (p *Parser) consumeLeadingComments() []*Node {
+	if !p.includeComments || len(p.comments) == 0 {
+		return nil
+	}
+
+	currentPos := p.peek().Span.Start
+	var result []*Node
+
+	for p.commentIndex < len(p.comments) {
+		comment := p.comments[p.commentIndex]
+		// Comment must end before the current token starts
+		if comment.Span.End.Line > currentPos.Line ||
+			(comment.Span.End.Line == currentPos.Line && comment.Span.End.Column > currentPos.Column) {
+			break
+		}
+		kind := KindComment
+		if comment.Kind == TokenLineComment {
+			kind = KindLineComment
+		}
+		result = append(result, &Node{
+			Kind:  kind,
+			Span:  comment.Span,
+			Token: &comment,
+		})
+		p.commentIndex++
+	}
+	return result
 }
 
 func (p *Parser) finishNode(n *Node) *Node {
@@ -524,7 +567,11 @@ func (p *Parser) isAnnotatedPackage() bool {
 }
 
 func (p *Parser) parsePackageDecl() *Node {
+	comments := p.consumeLeadingComments()
 	node := p.startNode(KindPackageDecl)
+	for _, c := range comments {
+		node.AddChild(c)
+	}
 
 	for p.check(TokenAt) {
 		node.AddChild(p.parseAnnotation())
@@ -616,7 +663,11 @@ func (p *Parser) parseTypeDecl() *Node {
 }
 
 func (p *Parser) parseModifiers() *Node {
+	comments := p.consumeLeadingComments()
 	node := p.startNode(KindModifiers)
+	for _, c := range comments {
+		node.AddChild(c)
+	}
 
 	for {
 		switch p.peek().Kind {
@@ -1144,11 +1195,25 @@ func (p *Parser) parseClassBody() *Node {
 
 func (p *Parser) parseClassMember() *Node {
 	if p.check(TokenLBrace) {
-		return p.parseBlock()
+		comments := p.consumeLeadingComments()
+		node := p.startNodeWithComments(KindBlock)
+		for _, c := range comments {
+			node.AddChild(c)
+		}
+		block := p.parseBlock()
+		for _, child := range block.Children {
+			node.AddChild(child)
+		}
+		node.Span = block.Span
+		return node
 	}
 
 	if p.check(TokenStatic) && p.peekN(1).Kind == TokenLBrace {
+		comments := p.consumeLeadingComments()
 		node := p.startNode(KindBlock)
+		for _, c := range comments {
+			node.AddChild(c)
+		}
 		tok := p.advance()
 		node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
 		block := p.parseBlock()

@@ -96,12 +96,6 @@ func main() {
 					} else {
 						fmt.Println(node.String())
 					}
-					if includeComments && len(p.Comments()) > 0 {
-						fmt.Println("\n=== Comments ===")
-						for _, c := range p.Comments() {
-							fmt.Printf("[%s] %s\n", c.Span.Start.String(), c.Literal)
-						}
-					}
 				}
 			default:
 				return fmt.Errorf("unsupported file extension: %s (expected .class or .java)", ext)
