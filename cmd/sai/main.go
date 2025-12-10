@@ -22,7 +22,7 @@ import (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "sai",
-		Short: "Java class file analyzer",
+		Short: "A toasty java toolchain",
 	}
 
 	var outputFormat string
