@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +27,6 @@ func main() {
 	}
 
 	var outputFormat string
-	var jsonOutput bool
 	var includeComments bool
 	var includePositions bool
 	parseCmd := &cobra.Command{
@@ -63,39 +63,34 @@ func main() {
 					return fmt.Errorf("read java file: %w", err)
 				}
 
-				if jsonOutput {
-					models, err := java.ClassModelsFromSource(data, parser.WithFile(filename))
+				opts := []parser.Option{parser.WithFile(filename)}
+				if includeComments {
+					opts = append(opts, parser.WithComments())
+				}
+				if includePositions {
+					opts = append(opts, parser.WithPositions())
+				}
+				p := parser.ParseCompilationUnit(bytes.NewReader(data), opts...)
+				node := p.Finish()
+				if node == nil {
+					return fmt.Errorf("parse java file: incomplete or invalid syntax")
+				}
+
+				switch outputFormat {
+				case "json":
+					jsonData, err := json.MarshalIndent(node, "", "  ")
 					if err != nil {
-						return fmt.Errorf("parse java file: %w", err)
+						return fmt.Errorf("encode json: %w", err)
 					}
-					if len(models) == 0 {
-						return fmt.Errorf("parse java file: no classes found")
-					}
-					encoder := format.NewJSONModelEncoder(os.Stdout)
-					for _, model := range models {
-						if err := encoder.Encode(model); err != nil {
-							return fmt.Errorf("encode: %w", err)
-						}
-						fmt.Println()
-					}
-				} else {
-					opts := []parser.Option{parser.WithFile(filename)}
-					if includeComments {
-						opts = append(opts, parser.WithComments())
-					}
-					if includePositions {
-						opts = append(opts, parser.WithPositions())
-					}
-					p := parser.ParseCompilationUnit(bytes.NewReader(data), opts...)
-					node := p.Finish()
-					if node == nil {
-						return fmt.Errorf("parse java file: incomplete or invalid syntax")
-					}
+					fmt.Println(string(jsonData))
+				case "java":
 					if p.IncludesPositions() {
 						fmt.Println(node.StringWithPositions())
 					} else {
 						fmt.Println(node.String())
 					}
+				default:
+					return fmt.Errorf("unknown format: %s", outputFormat)
 				}
 			default:
 				return fmt.Errorf("unsupported file extension: %s (expected .class or .java)", ext)
@@ -105,7 +100,6 @@ func main() {
 		},
 	}
 	parseCmd.Flags().StringVarP(&outputFormat, "format", "f", "json", "output format (json, java)")
-	parseCmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON for .java files")
 	parseCmd.Flags().BoolVar(&includeComments, "comments", true, "include comments in output for .java files")
 	parseCmd.Flags().BoolVar(&includePositions, "positions", true, "include token positions in output for .java files")
 
