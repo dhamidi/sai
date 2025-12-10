@@ -1,0 +1,1994 @@
+package format
+
+import (
+	"bytes"
+	"io"
+	"sort"
+
+	"github.com/dhamidi/sai/java/parser"
+)
+
+type JavaPrettyPrinter struct {
+	w            io.Writer
+	source       []byte
+	comments     []parser.Token
+	commentIndex int
+	indent       int
+	indentStr    string
+	atLineStart  bool
+	lastLine     int
+}
+
+func NewJavaPrettyPrinter(w io.Writer) *JavaPrettyPrinter {
+	return &JavaPrettyPrinter{
+		w:           w,
+		indentStr:   "    ",
+		atLineStart: true,
+		lastLine:    1,
+	}
+}
+
+func (p *JavaPrettyPrinter) Print(node *parser.Node, source []byte, comments []parser.Token) error {
+	p.source = source
+	p.comments = comments
+	sort.Slice(p.comments, func(i, j int) bool {
+		if p.comments[i].Span.Start.Line != p.comments[j].Span.Start.Line {
+			return p.comments[i].Span.Start.Line < p.comments[j].Span.Start.Line
+		}
+		return p.comments[i].Span.Start.Column < p.comments[j].Span.Start.Column
+	})
+	p.commentIndex = 0
+
+	p.printNode(node)
+	p.emitRemainingComments()
+	return nil
+}
+
+func (p *JavaPrettyPrinter) printNode(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindCompilationUnit:
+		p.printCompilationUnit(node)
+	case parser.KindPackageDecl:
+		p.printPackageDecl(node)
+	case parser.KindImportDecl:
+		p.printImportDecl(node)
+	case parser.KindClassDecl:
+		p.printClassDecl(node)
+	case parser.KindInterfaceDecl:
+		p.printInterfaceDecl(node)
+	case parser.KindEnumDecl:
+		p.printEnumDecl(node)
+	case parser.KindRecordDecl:
+		p.printRecordDecl(node)
+	case parser.KindAnnotationDecl:
+		p.printAnnotationDecl(node)
+	case parser.KindFieldDecl:
+		p.printFieldDecl(node)
+	case parser.KindMethodDecl:
+		p.printMethodDecl(node)
+	case parser.KindConstructorDecl:
+		p.printConstructorDecl(node)
+	case parser.KindBlock:
+		p.printBlock(node)
+	default:
+		p.printGenericNode(node)
+	}
+}
+
+func (p *JavaPrettyPrinter) printCompilationUnit(node *parser.Node) {
+	for _, child := range node.Children {
+		p.emitCommentsBeforeLine(child.Span.Start.Line)
+		p.printNode(child)
+	}
+}
+
+func (p *JavaPrettyPrinter) printPackageDecl(node *parser.Node) {
+	p.writeIndent()
+	p.write("package ")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+		}
+	}
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printImportDecl(node *parser.Node) {
+	p.writeIndent()
+	p.write("import ")
+	isStatic := false
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "static" {
+			isStatic = true
+		}
+	}
+	if isStatic {
+		p.write("static ")
+	}
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "*" {
+			p.write(".*")
+		}
+	}
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printQualifiedName(node *parser.Node) {
+	p.write(p.qualifiedNameString(node))
+}
+
+func (p *JavaPrettyPrinter) qualifiedNameString(node *parser.Node) string {
+	var parts []string
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			parts = append(parts, child.Token.Literal)
+		}
+	}
+	result := ""
+	for i, part := range parts {
+		if i > 0 {
+			result += "."
+		}
+		result += part
+	}
+	return result
+}
+
+func (p *JavaPrettyPrinter) printClassDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	p.write("class ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+			break
+		}
+	}
+
+	p.printTypeParameters(node)
+	p.printExtendsImplements(node)
+
+	p.write(" {\n")
+	p.atLineStart = true
+	p.indent++
+
+	p.printClassBody(node)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printInterfaceDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	p.write("interface ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+			break
+		}
+	}
+
+	p.printTypeParameters(node)
+	p.printExtendsImplements(node)
+
+	p.write(" {\n")
+	p.atLineStart = true
+	p.indent++
+
+	p.printClassBody(node)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printEnumDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	p.write("enum ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+			break
+		}
+	}
+
+	p.printExtendsImplements(node)
+
+	p.write(" {\n")
+	p.atLineStart = true
+	p.indent++
+
+	p.printEnumBody(node)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printRecordDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	p.write("record ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+			break
+		}
+	}
+
+	params := node.FirstChildOfKind(parser.KindParameters)
+	if params != nil {
+		p.printParameters(params)
+	}
+
+	p.printExtendsImplements(node)
+
+	p.write(" {\n")
+	p.atLineStart = true
+	p.indent++
+
+	p.printClassBody(node)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printAnnotationDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	p.write("@interface ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+			break
+		}
+	}
+
+	p.write(" {\n")
+	p.atLineStart = true
+	p.indent++
+
+	p.printClassBody(node)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printModifiers(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindComment || child.Kind == parser.KindLineComment {
+			continue
+		}
+		if child.Kind == parser.KindAnnotation {
+			p.printAnnotation(child)
+			p.write("\n")
+			p.atLineStart = true
+			p.writeIndent()
+		} else if child.Token != nil {
+			p.write(child.Token.Literal)
+			p.write(" ")
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
+	p.write("@")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindAnnotationElement {
+			p.write("(")
+			p.printAnnotationElements(node)
+			p.write(")")
+			break
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printAnnotationElements(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindAnnotationElement {
+			if !first {
+				p.write(", ")
+			}
+			p.printAnnotationElement(child)
+			first = false
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printAnnotationElement(node *parser.Node) {
+	var name string
+	var valueNode *parser.Node
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			name = child.Token.Literal
+		} else {
+			valueNode = child
+		}
+	}
+
+	if name != "" && name != "value" {
+		p.write(name)
+		p.write(" = ")
+	}
+
+	if valueNode != nil {
+		p.printAnnotationValue(valueNode)
+	}
+}
+
+func (p *JavaPrettyPrinter) printAnnotationValue(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindLiteral:
+		if node.Token != nil {
+			p.write(node.Token.Literal)
+		}
+	case parser.KindIdentifier:
+		if node.Token != nil {
+			p.write(node.Token.Literal)
+		}
+	case parser.KindFieldAccess:
+		p.printFieldAccess(node)
+	case parser.KindAnnotation:
+		p.printAnnotation(node)
+	case parser.KindArrayInit:
+		p.write("{")
+		first := true
+		for _, child := range node.Children {
+			if !first {
+				p.write(", ")
+			}
+			p.printAnnotationValue(child)
+			first = false
+		}
+		p.write("}")
+	default:
+		p.printGenericExpr(node)
+	}
+}
+
+func (p *JavaPrettyPrinter) printTypeParameters(node *parser.Node) {
+	tp := node.FirstChildOfKind(parser.KindTypeParameters)
+	if tp == nil {
+		return
+	}
+
+	p.write("<")
+	first := true
+	for _, child := range tp.Children {
+		if child.Kind == parser.KindTypeParameter {
+			if !first {
+				p.write(", ")
+			}
+			p.printTypeParameter(child)
+			first = false
+		}
+	}
+	p.write(">")
+}
+
+func (p *JavaPrettyPrinter) printTypeParameter(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindType {
+			p.write(" extends ")
+			p.printType(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printExtendsImplements(node *parser.Node) {
+	var superClass *parser.Node
+	var interfaces []*parser.Node
+	seenExtends := false
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindType {
+			if !seenExtends {
+				superClass = child
+				seenExtends = true
+			} else {
+				interfaces = append(interfaces, child)
+			}
+		}
+	}
+
+	if superClass != nil {
+		p.write(" extends ")
+		p.printType(superClass)
+	}
+
+	if len(interfaces) > 0 {
+		if node.Kind == parser.KindInterfaceDecl {
+			if superClass == nil {
+				p.write(" extends ")
+			} else {
+				p.write(", ")
+			}
+		} else {
+			p.write(" implements ")
+		}
+		for i, iface := range interfaces {
+			if i > 0 {
+				p.write(", ")
+			}
+			p.printType(iface)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printType(node *parser.Node) {
+	if node.Kind == parser.KindArrayType {
+		p.printArrayType(node)
+		return
+	}
+
+	if node.Token != nil {
+		p.write(node.Token.Literal)
+		return
+	}
+
+	var hasTypeArgs bool
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				p.write(child.Token.Literal)
+			}
+		case parser.KindQualifiedName:
+			p.printQualifiedName(child)
+		case parser.KindParameterizedType:
+			p.printParameterizedType(child)
+		case parser.KindArrayType:
+			p.printArrayType(child)
+		case parser.KindType:
+			p.printType(child)
+		case parser.KindTypeArguments:
+			p.printTypeArguments(child)
+			hasTypeArgs = true
+		}
+	}
+	_ = hasTypeArgs
+}
+
+func (p *JavaPrettyPrinter) printParameterizedType(node *parser.Node) {
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				p.write(child.Token.Literal)
+			}
+		case parser.KindQualifiedName:
+			p.printQualifiedName(child)
+		case parser.KindTypeArguments:
+			p.printTypeArguments(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printTypeArguments(node *parser.Node) {
+	p.write("<")
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindTypeArgument || child.Kind == parser.KindType {
+			if !first {
+				p.write(", ")
+			}
+			p.printTypeArgument(child)
+			first = false
+		}
+	}
+	p.write(">")
+}
+
+func (p *JavaPrettyPrinter) printTypeArgument(node *parser.Node) {
+	if node.Kind == parser.KindType {
+		p.printType(node)
+		return
+	}
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType:
+			p.printType(child)
+		case parser.KindWildcard:
+			p.printWildcard(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printWildcard(node *parser.Node) {
+	p.write("?")
+	for _, child := range node.Children {
+		if child.Token != nil {
+			if child.Token.Literal == "extends" || child.Token.Literal == "super" {
+				p.write(" ")
+				p.write(child.Token.Literal)
+				p.write(" ")
+			}
+		}
+		if child.Kind == parser.KindType {
+			p.printType(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printArrayType(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType || child.Kind == parser.KindIdentifier || child.Kind == parser.KindQualifiedName {
+			p.printType(child)
+			break
+		}
+	}
+	p.write("[]")
+}
+
+func (p *JavaPrettyPrinter) printClassBody(node *parser.Node) {
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printClassBodyMembers(block)
+		return
+	}
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindFieldDecl, parser.KindMethodDecl, parser.KindConstructorDecl,
+			parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl, parser.KindAnnotationDecl:
+			p.printClassBodyMember(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printClassBodyMembers(block *parser.Node) {
+	for _, child := range block.Children {
+		p.printClassBodyMember(child)
+	}
+}
+
+func (p *JavaPrettyPrinter) printClassBodyMember(child *parser.Node) {
+	p.emitCommentsBeforeLine(child.Span.Start.Line)
+	p.printNode(child)
+}
+
+func (p *JavaPrettyPrinter) printEnumBody(node *parser.Node) {
+	block := node.FirstChildOfKind(parser.KindBlock)
+	var members []*parser.Node
+	var constants []*parser.Node
+
+	if block != nil {
+		for _, child := range block.Children {
+			if child.Kind == parser.KindFieldDecl && p.isEnumConstant(child) {
+				constants = append(constants, child)
+			} else {
+				members = append(members, child)
+			}
+		}
+	}
+
+	for i, c := range constants {
+		p.emitCommentsBeforeLine(c.Span.Start.Line)
+		p.writeIndent()
+		p.printEnumConstant(c)
+		if i < len(constants)-1 {
+			p.write(",\n")
+		} else if len(members) > 0 {
+			p.write(";\n\n")
+		} else {
+			p.write("\n")
+		}
+		p.atLineStart = true
+	}
+
+	for _, m := range members {
+		p.emitCommentsBeforeLine(m.Span.Start.Line)
+		p.printNode(m)
+	}
+}
+
+func (p *JavaPrettyPrinter) isEnumConstant(node *parser.Node) bool {
+	if node.Kind != parser.KindFieldDecl {
+		return false
+	}
+	return node.FirstChildOfKind(parser.KindType) == nil
+}
+
+func (p *JavaPrettyPrinter) printEnumConstant(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindParameters {
+			p.write("(")
+			p.printArguments(child)
+			p.write(")")
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printFieldDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	var fieldType *parser.Node
+	var names []string
+	var initializer *parser.Node
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			fieldType = child
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+			names = append(names, child.Token.Literal)
+		} else if child.Kind == parser.KindAssignExpr || child.Kind == parser.KindLiteral ||
+			child.Kind == parser.KindNewExpr || child.Kind == parser.KindCallExpr {
+			initializer = child
+		}
+	}
+
+	if fieldType != nil {
+		p.printType(fieldType)
+		p.write(" ")
+	}
+
+	for i, name := range names {
+		if i > 0 {
+			p.write(", ")
+		}
+		p.write(name)
+	}
+
+	if initializer != nil {
+		p.write(" = ")
+		p.printExpr(initializer)
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printMethodDecl(node *parser.Node) {
+	p.write("\n")
+	p.atLineStart = true
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	typeParams := node.FirstChildOfKind(parser.KindTypeParameters)
+	if typeParams != nil {
+		p.write("<")
+		first := true
+		for _, child := range typeParams.Children {
+			if child.Kind == parser.KindTypeParameter {
+				if !first {
+					p.write(", ")
+				}
+				p.printTypeParameter(child)
+				first = false
+			}
+		}
+		p.write("> ")
+	}
+
+	var returnType *parser.Node
+	var name string
+	var params *parser.Node
+	var throwsList *parser.Node
+	var body *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType:
+			returnType = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		case parser.KindParameters:
+			params = child
+		case parser.KindThrowsList:
+			throwsList = child
+		case parser.KindBlock:
+			body = child
+		}
+	}
+
+	if returnType != nil {
+		p.printType(returnType)
+		p.write(" ")
+	}
+
+	p.write(name)
+	p.printParameters(params)
+
+	if throwsList != nil {
+		p.write(" throws ")
+		p.printThrowsList(throwsList)
+	}
+
+	if body != nil {
+		p.write(" ")
+		p.printBlock(body)
+	} else {
+		p.write(";\n")
+	}
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printConstructorDecl(node *parser.Node) {
+	p.write("\n")
+	p.atLineStart = true
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	var name string
+	var params *parser.Node
+	var throwsList *parser.Node
+	var body *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		case parser.KindParameters:
+			params = child
+		case parser.KindThrowsList:
+			throwsList = child
+		case parser.KindBlock:
+			body = child
+		}
+	}
+
+	p.write(name)
+	p.printParameters(params)
+
+	if throwsList != nil {
+		p.write(" throws ")
+		p.printThrowsList(throwsList)
+	}
+
+	if body != nil {
+		p.write(" ")
+		p.printBlock(body)
+	}
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printParameters(node *parser.Node) {
+	if node == nil {
+		p.write("()")
+		return
+	}
+
+	p.write("(")
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindParameter {
+			if !first {
+				p.write(", ")
+			}
+			p.printParameter(child)
+			first = false
+		}
+	}
+	p.write(")")
+}
+
+func (p *JavaPrettyPrinter) printParameter(node *parser.Node) {
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	var paramType *parser.Node
+	var name string
+	var isVarargs bool
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType:
+			paramType = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		}
+	}
+
+	if node.Token != nil && node.Token.Literal == "..." {
+		isVarargs = true
+	}
+
+	if paramType != nil {
+		p.printType(paramType)
+	}
+	if isVarargs {
+		p.write("...")
+	}
+	if name != "" {
+		p.write(" ")
+		p.write(name)
+	}
+}
+
+func (p *JavaPrettyPrinter) printThrowsList(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindType {
+			if !first {
+				p.write(", ")
+			}
+			p.printType(child)
+			first = false
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printBlock(node *parser.Node) {
+	p.write("{\n")
+	p.atLineStart = true
+	p.indent++
+
+	for _, child := range node.Children {
+		p.emitCommentsBeforeLine(child.Span.Start.Line)
+		p.printStatement(child)
+	}
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printStatement(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindBlock:
+		p.writeIndent()
+		p.printBlock(node)
+	case parser.KindLocalVarDecl:
+		p.printLocalVarDecl(node)
+	case parser.KindExplicitConstructorInvocation:
+		p.printExplicitConstructorInvocation(node)
+	case parser.KindExprStmt:
+		p.printExprStmt(node)
+	case parser.KindReturnStmt:
+		p.printReturnStmt(node)
+	case parser.KindIfStmt:
+		p.printIfStmt(node)
+	case parser.KindForStmt:
+		p.printForStmt(node)
+	case parser.KindEnhancedForStmt:
+		p.printEnhancedForStmt(node)
+	case parser.KindWhileStmt:
+		p.printWhileStmt(node)
+	case parser.KindDoStmt:
+		p.printDoStmt(node)
+	case parser.KindSwitchStmt:
+		p.printSwitchStmt(node)
+	case parser.KindTryStmt:
+		p.printTryStmt(node)
+	case parser.KindThrowStmt:
+		p.printThrowStmt(node)
+	case parser.KindBreakStmt:
+		p.printBreakStmt(node)
+	case parser.KindContinueStmt:
+		p.printContinueStmt(node)
+	case parser.KindSynchronizedStmt:
+		p.printSynchronizedStmt(node)
+	case parser.KindAssertStmt:
+		p.printAssertStmt(node)
+	case parser.KindEmptyStmt:
+		p.writeIndent()
+		p.write(";\n")
+		p.atLineStart = true
+	case parser.KindLabeledStmt:
+		p.printLabeledStmt(node)
+	case parser.KindYieldStmt:
+		p.printYieldStmt(node)
+	default:
+		p.writeIndent()
+		p.printGenericNode(node)
+		p.write(";\n")
+		p.atLineStart = true
+	}
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
+	p.writeIndent()
+
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiers(modifiers)
+	}
+
+	var varType *parser.Node
+	var name string
+	var initializer *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType:
+			varType = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		default:
+			if varType != nil && name != "" {
+				initializer = child
+			}
+		}
+	}
+
+	if varType != nil {
+		p.printType(varType)
+		p.write(" ")
+	}
+
+	p.write(name)
+
+	if initializer != nil {
+		p.write(" = ")
+		p.printExpr(initializer)
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printExprStmt(node *parser.Node) {
+	p.writeIndent()
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printReturnStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("return")
+	for _, child := range node.Children {
+		p.write(" ")
+		p.printExpr(child)
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printIfStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("if (")
+
+	children := node.Children
+	if len(children) > 0 {
+		p.printExpr(children[0])
+	}
+	p.write(") ")
+
+	if len(children) > 1 {
+		p.printBranchBody(children[1])
+	}
+
+	if len(children) > 2 {
+		p.writeIndent()
+		p.write("else ")
+		p.printBranchBody(children[2])
+	}
+}
+
+func (p *JavaPrettyPrinter) printBranchBody(node *parser.Node) {
+	if node.Kind == parser.KindBlock {
+		p.printBlock(node)
+	} else {
+		p.write("\n")
+		p.atLineStart = true
+		p.indent++
+		p.printStatement(node)
+		p.indent--
+	}
+}
+
+func (p *JavaPrettyPrinter) printForStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("for (")
+
+	init := node.FirstChildOfKind(parser.KindForInit)
+	if init != nil {
+		p.printForInit(init)
+	}
+	p.write("; ")
+
+	for _, child := range node.Children {
+		if child.Kind != parser.KindForInit && child.Kind != parser.KindForUpdate && child.Kind != parser.KindBlock {
+			p.printExpr(child)
+			break
+		}
+	}
+	p.write("; ")
+
+	update := node.FirstChildOfKind(parser.KindForUpdate)
+	if update != nil {
+		p.printForUpdate(update)
+	}
+	p.write(") ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlock(block)
+	} else {
+		p.write(";\n")
+		p.atLineStart = true
+	}
+}
+
+func (p *JavaPrettyPrinter) printForInit(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if !first {
+			p.write(", ")
+		}
+		if child.Kind == parser.KindLocalVarDecl {
+			p.printForLocalVarDecl(child)
+		} else {
+			p.printExpr(child)
+		}
+		first = false
+	}
+}
+
+func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
+	var varType *parser.Node
+	var name string
+	var initializer *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType:
+			varType = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		default:
+			if varType != nil && name != "" {
+				initializer = child
+			}
+		}
+	}
+
+	if varType != nil {
+		p.printType(varType)
+		p.write(" ")
+	}
+
+	p.write(name)
+
+	if initializer != nil {
+		p.write(" = ")
+		p.printExpr(initializer)
+	}
+}
+
+func (p *JavaPrettyPrinter) printForUpdate(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if !first {
+			p.write(", ")
+		}
+		p.printExpr(child)
+		first = false
+	}
+}
+
+func (p *JavaPrettyPrinter) printEnhancedForStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("for (")
+
+	var paramType *parser.Node
+	var name string
+	var iterable *parser.Node
+	var body *parser.Node
+	foundName := false
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindModifiers:
+			continue
+		case parser.KindType, parser.KindArrayType:
+			paramType = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				if !foundName {
+					name = child.Token.Literal
+					foundName = true
+				} else {
+					iterable = child
+				}
+			}
+		case parser.KindBlock:
+			body = child
+		default:
+			if paramType != nil && foundName && iterable == nil {
+				iterable = child
+			}
+		}
+	}
+
+	if paramType != nil {
+		p.printType(paramType)
+		p.write(" ")
+	}
+	p.write(name)
+	p.write(" : ")
+	if iterable != nil {
+		p.printExpr(iterable)
+	}
+	p.write(") ")
+
+	if body != nil {
+		p.printBlock(body)
+	}
+}
+
+func (p *JavaPrettyPrinter) printWhileStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("while (")
+
+	children := node.Children
+	if len(children) > 0 {
+		p.printExpr(children[0])
+	}
+	p.write(") ")
+
+	if len(children) > 1 {
+		p.printBranchBody(children[1])
+	}
+}
+
+func (p *JavaPrettyPrinter) printDoStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("do ")
+
+	var body *parser.Node
+	var condition *parser.Node
+
+	for i, child := range node.Children {
+		if child.Kind == parser.KindBlock {
+			body = child
+		} else if i == len(node.Children)-1 {
+			condition = child
+		}
+	}
+
+	if body != nil {
+		p.printBlock(body)
+	}
+
+	p.writeIndent()
+	p.write("while (")
+	if condition != nil {
+		p.printExpr(condition)
+	}
+	p.write(");\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printSwitchStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("switch (")
+
+	children := node.Children
+	if len(children) > 0 {
+		p.printExpr(children[0])
+	}
+	p.write(") {\n")
+	p.atLineStart = true
+
+	for _, child := range children[1:] {
+		if child.Kind == parser.KindSwitchCase {
+			p.printSwitchCase(child)
+		}
+	}
+
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printSwitchCase(node *parser.Node) {
+	labels := node.ChildrenOfKind(parser.KindSwitchLabel)
+	for _, label := range labels {
+		p.writeIndent()
+		p.printSwitchLabel(label)
+	}
+
+	p.indent++
+	for _, child := range node.Children {
+		if child.Kind != parser.KindSwitchLabel {
+			p.printStatement(child)
+		}
+	}
+	p.indent--
+}
+
+func (p *JavaPrettyPrinter) printSwitchLabel(node *parser.Node) {
+	isDefault := true
+	for _, child := range node.Children {
+		if child.Kind != parser.KindIdentifier || child.Token == nil || child.Token.Literal != "default" {
+			isDefault = false
+			break
+		}
+	}
+
+	if isDefault || len(node.Children) == 0 {
+		p.write("default:\n")
+	} else {
+		p.write("case ")
+		first := true
+		for _, child := range node.Children {
+			if !first {
+				p.write(", ")
+			}
+			p.printExpr(child)
+			first = false
+		}
+		p.write(":\n")
+	}
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("try ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlock(block)
+	}
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindCatchClause {
+			p.printCatchClause(child)
+		} else if child.Kind == parser.KindFinallyClause {
+			p.printFinallyClause(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
+	p.writeIndent()
+	p.write("catch (")
+
+	param := node.FirstChildOfKind(parser.KindParameter)
+	if param != nil {
+		p.printParameter(param)
+	}
+
+	p.write(") ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlock(block)
+	}
+}
+
+func (p *JavaPrettyPrinter) printFinallyClause(node *parser.Node) {
+	p.writeIndent()
+	p.write("finally ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlock(block)
+	}
+}
+
+func (p *JavaPrettyPrinter) printThrowStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("throw ")
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printBreakStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("break")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(" ")
+			p.write(child.Token.Literal)
+		}
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printContinueStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("continue")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(" ")
+			p.write(child.Token.Literal)
+		}
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printSynchronizedStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("synchronized (")
+
+	children := node.Children
+	if len(children) > 0 {
+		p.printExpr(children[0])
+	}
+	p.write(") ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlock(block)
+	}
+}
+
+func (p *JavaPrettyPrinter) printAssertStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("assert ")
+	first := true
+	for _, child := range node.Children {
+		if !first {
+			p.write(" : ")
+		}
+		p.printExpr(child)
+		first = false
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printLabeledStmt(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.writeIndent()
+			p.write(child.Token.Literal)
+			p.write(":\n")
+			p.atLineStart = true
+		} else {
+			p.printStatement(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printYieldStmt(node *parser.Node) {
+	p.writeIndent()
+	p.write("yield ")
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printExplicitConstructorInvocation(node *parser.Node) {
+	p.writeIndent()
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindThis:
+			p.write("this")
+		case parser.KindSuper:
+			p.write("super")
+		case parser.KindParameters:
+			p.write("(")
+			p.printArguments(child)
+			p.write(")")
+		}
+	}
+	p.write(";\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printExpr(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindLiteral:
+		if node.Token != nil {
+			p.write(node.Token.Literal)
+		}
+	case parser.KindIdentifier:
+		if node.Token != nil {
+			p.write(node.Token.Literal)
+		}
+	case parser.KindThis:
+		p.write("this")
+	case parser.KindSuper:
+		p.write("super")
+	case parser.KindQualifiedName:
+		p.printQualifiedName(node)
+	case parser.KindBinaryExpr:
+		p.printBinaryExpr(node)
+	case parser.KindUnaryExpr:
+		p.printUnaryExpr(node)
+	case parser.KindPostfixExpr:
+		p.printPostfixExpr(node)
+	case parser.KindAssignExpr:
+		p.printAssignExpr(node)
+	case parser.KindTernaryExpr:
+		p.printTernaryExpr(node)
+	case parser.KindCallExpr:
+		p.printCallExpr(node)
+	case parser.KindNewExpr:
+		p.printNewExpr(node)
+	case parser.KindNewArrayExpr:
+		p.printNewArrayExpr(node)
+	case parser.KindArrayInit:
+		p.printArrayInit(node)
+	case parser.KindFieldAccess:
+		p.printFieldAccess(node)
+	case parser.KindArrayAccess:
+		p.printArrayAccess(node)
+	case parser.KindCastExpr:
+		p.printCastExpr(node)
+	case parser.KindInstanceofExpr:
+		p.printInstanceofExpr(node)
+	case parser.KindParenExpr:
+		p.printParenExpr(node)
+	case parser.KindLambdaExpr:
+		p.printLambdaExpr(node)
+	case parser.KindMethodRef:
+		p.printMethodRef(node)
+	case parser.KindClassLiteral:
+		p.printClassLiteral(node)
+	case parser.KindSwitchExpr:
+		p.printSwitchExpr(node)
+	default:
+		p.printGenericExpr(node)
+	}
+}
+
+func (p *JavaPrettyPrinter) printBinaryExpr(node *parser.Node) {
+	children := node.Children
+	if len(children) >= 3 {
+		p.printExpr(children[0])
+		p.write(" ")
+		if children[1].Token != nil {
+			p.write(children[1].Token.Literal)
+		}
+		p.write(" ")
+		p.printExpr(children[2])
+	} else if len(children) >= 2 {
+		p.printExpr(children[0])
+		if node.Token != nil {
+			p.write(" ")
+			p.write(node.Token.Literal)
+			p.write(" ")
+		}
+		p.printExpr(children[1])
+	}
+}
+
+func (p *JavaPrettyPrinter) printUnaryExpr(node *parser.Node) {
+	if node.Token != nil {
+		p.write(node.Token.Literal)
+	}
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+}
+
+func (p *JavaPrettyPrinter) printPostfixExpr(node *parser.Node) {
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+	if node.Token != nil {
+		p.write(node.Token.Literal)
+	}
+}
+
+func (p *JavaPrettyPrinter) printAssignExpr(node *parser.Node) {
+	children := node.Children
+	if len(children) >= 3 {
+		p.printExpr(children[0])
+		p.write(" ")
+		if children[1].Token != nil {
+			p.write(children[1].Token.Literal)
+		} else {
+			p.write("=")
+		}
+		p.write(" ")
+		p.printExpr(children[2])
+	} else if len(children) >= 2 {
+		p.printExpr(children[0])
+		if node.Token != nil {
+			p.write(" ")
+			p.write(node.Token.Literal)
+			p.write(" ")
+		} else {
+			p.write(" = ")
+		}
+		p.printExpr(children[1])
+	}
+}
+
+func (p *JavaPrettyPrinter) printTernaryExpr(node *parser.Node) {
+	children := node.Children
+	if len(children) >= 3 {
+		p.printExpr(children[0])
+		p.write(" ? ")
+		p.printExpr(children[1])
+		p.write(" : ")
+		p.printExpr(children[2])
+	}
+}
+
+func (p *JavaPrettyPrinter) printCallExpr(node *parser.Node) {
+	var receiver *parser.Node
+	var name string
+	var typeArgs *parser.Node
+	var args *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindTypeArguments:
+			typeArgs = child
+		case parser.KindParameters:
+			args = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		default:
+			if child.Kind != parser.KindModifiers {
+				receiver = child
+			}
+		}
+	}
+
+	if receiver != nil {
+		if receiver.Kind == parser.KindFieldAccess && name == "" {
+			p.printCallReceiver(receiver)
+		} else {
+			p.printExpr(receiver)
+			if name != "" {
+				p.write(".")
+			}
+		}
+	}
+
+	if typeArgs != nil {
+		p.printTypeArguments(typeArgs)
+	}
+
+	p.write(name)
+	p.write("(")
+	if args != nil {
+		p.printArguments(args)
+	}
+	p.write(")")
+}
+
+func (p *JavaPrettyPrinter) printCallReceiver(node *parser.Node) {
+	children := node.Children
+	if len(children) == 0 {
+		return
+	}
+
+	for i, child := range children {
+		if i > 0 {
+			p.write(".")
+		}
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindFieldAccess {
+			p.printCallReceiver(child)
+		} else {
+			p.printExpr(child)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printArguments(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if !first {
+			p.write(", ")
+		}
+		p.printExpr(child)
+		first = false
+	}
+}
+
+func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
+	p.write("new ")
+
+	var classType *parser.Node
+	var typeArgs *parser.Node
+	var args *parser.Node
+	var body *parser.Node
+
+	var className string
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindParameterizedType:
+			classType = child
+		case parser.KindQualifiedName:
+			className = p.qualifiedNameString(child)
+		case parser.KindTypeArguments:
+			typeArgs = child
+		case parser.KindParameters:
+			args = child
+		case parser.KindBlock:
+			body = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				className = child.Token.Literal
+			}
+		}
+	}
+
+	if className != "" {
+		p.write(className)
+	}
+
+	if typeArgs != nil {
+		p.printTypeArguments(typeArgs)
+	}
+
+	if classType != nil {
+		p.printType(classType)
+	}
+
+	p.write("(")
+	if args != nil {
+		p.printArguments(args)
+	}
+	p.write(")")
+
+	if body != nil {
+		p.write(" ")
+		p.printBlock(body)
+	}
+}
+
+func (p *JavaPrettyPrinter) printNewArrayExpr(node *parser.Node) {
+	p.write("new ")
+
+	var elemType *parser.Node
+	var dims []*parser.Node
+	var init *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType:
+			elemType = child
+		case parser.KindArrayInit:
+			init = child
+		default:
+			dims = append(dims, child)
+		}
+	}
+
+	if elemType != nil {
+		p.printType(elemType)
+	}
+
+	for _, dim := range dims {
+		p.write("[")
+		p.printExpr(dim)
+		p.write("]")
+	}
+
+	if init != nil {
+		p.write(" ")
+		p.printArrayInit(init)
+	}
+}
+
+func (p *JavaPrettyPrinter) printArrayInit(node *parser.Node) {
+	p.write("{")
+	first := true
+	for _, child := range node.Children {
+		if !first {
+			p.write(", ")
+		}
+		p.printExpr(child)
+		first = false
+	}
+	p.write("}")
+}
+
+func (p *JavaPrettyPrinter) printFieldAccess(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if !first {
+			p.write(".")
+		}
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+		} else {
+			p.printExpr(child)
+		}
+		first = false
+	}
+}
+
+func (p *JavaPrettyPrinter) printArrayAccess(node *parser.Node) {
+	children := node.Children
+	if len(children) >= 2 {
+		p.printExpr(children[0])
+		p.write("[")
+		p.printExpr(children[1])
+		p.write("]")
+	}
+}
+
+func (p *JavaPrettyPrinter) printCastExpr(node *parser.Node) {
+	p.write("(")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			p.printType(child)
+			break
+		}
+	}
+	p.write(") ")
+	for _, child := range node.Children {
+		if child.Kind != parser.KindType && child.Kind != parser.KindArrayType {
+			p.printExpr(child)
+			break
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printInstanceofExpr(node *parser.Node) {
+	children := node.Children
+	if len(children) >= 2 {
+		p.printExpr(children[0])
+		p.write(" instanceof ")
+		if children[1].Kind == parser.KindType || children[1].Kind == parser.KindArrayType {
+			p.printType(children[1])
+		} else {
+			p.printExpr(children[1])
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printParenExpr(node *parser.Node) {
+	p.write("(")
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+	p.write(")")
+}
+
+func (p *JavaPrettyPrinter) printLambdaExpr(node *parser.Node) {
+	params := node.FirstChildOfKind(parser.KindParameters)
+	if params != nil {
+		p.printParameters(params)
+	} else {
+		for _, child := range node.Children {
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(child.Token.Literal)
+				break
+			}
+		}
+	}
+
+	p.write(" -> ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindBlock {
+			p.printBlock(child)
+			return
+		}
+		if child.Kind != parser.KindParameters && child.Kind != parser.KindIdentifier {
+			p.printExpr(child)
+			return
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printMethodRef(node *parser.Node) {
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if !first {
+				p.write("::")
+			}
+			p.write(child.Token.Literal)
+			first = false
+		} else if child.Kind == parser.KindType {
+			p.printType(child)
+			first = false
+		} else {
+			p.printExpr(child)
+			first = false
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printClassLiteral(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			p.printType(child)
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(child.Token.Literal)
+		}
+	}
+	p.write(".class")
+}
+
+func (p *JavaPrettyPrinter) printSwitchExpr(node *parser.Node) {
+	p.write("switch (")
+	children := node.Children
+	if len(children) > 0 {
+		p.printExpr(children[0])
+	}
+	p.write(") {\n")
+	p.atLineStart = true
+	p.indent++
+
+	for _, child := range children[1:] {
+		if child.Kind == parser.KindSwitchCase {
+			p.printSwitchCase(child)
+		}
+	}
+
+	p.indent--
+	p.writeIndent()
+	p.write("}")
+}
+
+func (p *JavaPrettyPrinter) printGenericExpr(node *parser.Node) {
+	if node.Token != nil {
+		p.write(node.Token.Literal)
+	}
+	for _, child := range node.Children {
+		p.printExpr(child)
+	}
+}
+
+func (p *JavaPrettyPrinter) printGenericNode(node *parser.Node) {
+	if node.Token != nil {
+		p.write(node.Token.Literal)
+	}
+	for _, child := range node.Children {
+		p.printNode(child)
+	}
+}
+
+func (p *JavaPrettyPrinter) emitCommentsBeforeLine(line int) {
+	for p.commentIndex < len(p.comments) {
+		comment := p.comments[p.commentIndex]
+		if comment.Span.Start.Line >= line {
+			break
+		}
+		if comment.Span.Start.Line > p.lastLine+1 {
+			p.write("\n")
+		}
+		p.writeIndent()
+		p.write(comment.Literal)
+		p.write("\n")
+		p.atLineStart = true
+		p.lastLine = comment.Span.End.Line
+		p.commentIndex++
+	}
+}
+
+func (p *JavaPrettyPrinter) emitRemainingComments() {
+	for p.commentIndex < len(p.comments) {
+		comment := p.comments[p.commentIndex]
+		if comment.Span.Start.Line > p.lastLine+1 {
+			p.write("\n")
+		}
+		p.writeIndent()
+		p.write(comment.Literal)
+		p.write("\n")
+		p.atLineStart = true
+		p.lastLine = comment.Span.End.Line
+		p.commentIndex++
+	}
+}
+
+func (p *JavaPrettyPrinter) writeIndent() {
+	if !p.atLineStart {
+		return
+	}
+	for i := 0; i < p.indent; i++ {
+		p.write(p.indentStr)
+	}
+	p.atLineStart = false
+}
+
+func (p *JavaPrettyPrinter) write(s string) {
+	p.w.Write([]byte(s))
+}
+
+func PrettyPrintJava(source []byte) ([]byte, error) {
+	opts := []parser.Option{parser.WithComments()}
+	pr := parser.ParseCompilationUnit(bytes.NewReader(source), opts...)
+	node := pr.Finish()
+	if node == nil {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	pp := NewJavaPrettyPrinter(&buf)
+	if err := pp.Print(node, source, pr.Comments()); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}

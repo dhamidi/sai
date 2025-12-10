@@ -854,6 +854,106 @@ func hasError(node *Node) bool {
 	return false
 }
 
+func TestDiamondOperator(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantEmpty bool // true if type arguments should be empty (diamond)
+	}{
+		{
+			"diamond operator",
+			"class Foo { List<String> items = new ArrayList<>(); }",
+			true,
+		},
+		{
+			"explicit type args",
+			"class Foo { List<String> items = new ArrayList<String>(); }",
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+				return
+			}
+			newExpr := findNode(node, KindNewExpr)
+			if newExpr == nil {
+				t.Fatal("expected to find NewExpr node")
+			}
+			typeArgs := newExpr.FirstChildOfKind(KindTypeArguments)
+			if typeArgs == nil {
+				t.Fatal("expected to find TypeArguments node in NewExpr")
+			}
+			isEmpty := len(typeArgs.Children) == 0
+			if isEmpty != tt.wantEmpty {
+				t.Errorf("type arguments empty = %v, want %v", isEmpty, tt.wantEmpty)
+			}
+		})
+	}
+}
+
+func TestExtendsImplementsClauses(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantExtends    bool
+		wantImplements bool
+	}{
+		{
+			"class with extends only",
+			"class Foo extends Bar {}",
+			true, false,
+		},
+		{
+			"class with implements only",
+			"class Foo implements Runnable {}",
+			false, true,
+		},
+		{
+			"class with extends and implements",
+			"class Foo extends Bar implements Runnable, Comparable {}",
+			true, true,
+		},
+		{
+			"interface with extends",
+			"interface Foo extends Bar, Baz {}",
+			true, false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ParseCompilationUnit(strings.NewReader(tt.input))
+			node := p.Finish()
+			if hasError(node) {
+				t.Errorf("parse error in: %s", tt.input)
+				printErrors(t, node, 0)
+				return
+			}
+			classDecl := findNode(node, KindClassDecl)
+			if classDecl == nil {
+				classDecl = findNode(node, KindInterfaceDecl)
+			}
+			if classDecl == nil {
+				t.Fatal("expected to find class or interface declaration")
+			}
+			extendsClause := classDecl.FirstChildOfKind(KindExtendsClause)
+			implClause := classDecl.FirstChildOfKind(KindImplementsClause)
+			if (extendsClause != nil) != tt.wantExtends {
+				t.Errorf("extends clause present = %v, want %v", extendsClause != nil, tt.wantExtends)
+			}
+			if (implClause != nil) != tt.wantImplements {
+				t.Errorf("implements clause present = %v, want %v", implClause != nil, tt.wantImplements)
+			}
+		})
+	}
+}
+
 func printErrors(t *testing.T, node *Node, depth int) {
 	if node == nil {
 		return

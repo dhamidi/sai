@@ -202,11 +202,51 @@ func main() {
 	}
 	dumpCmd.Flags().StringVarP(&dumpFormat, "format", "f", "line", "output format (json, java, line)")
 
+	fmtCmd := &cobra.Command{
+		Use:   "fmt [file]",
+		Short: "Pretty-print a .java file, preserving comments",
+		Long: `Pretty-print a .java file to stdout.
+
+If a file is provided, it must have a .java extension.
+If no file is provided, reads Java source from stdin.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var source []byte
+			var err error
+
+			if len(args) == 0 {
+				source, err = io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("read stdin: %w", err)
+				}
+			} else {
+				filename := args[0]
+				ext := filepath.Ext(filename)
+				if ext != ".java" {
+					return fmt.Errorf("expected .java file, got %s", ext)
+				}
+				source, err = os.ReadFile(filename)
+				if err != nil {
+					return fmt.Errorf("read file: %w", err)
+				}
+			}
+
+			output, err := format.PrettyPrintJava(source)
+			if err != nil {
+				return fmt.Errorf("format: %w", err)
+			}
+
+			_, err = os.Stdout.Write(output)
+			return err
+		},
+	}
+
 	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(uiCmd)
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(lspCmd)
 	rootCmd.AddCommand(dumpCmd)
+	rootCmd.AddCommand(fmtCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

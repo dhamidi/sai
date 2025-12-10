@@ -44,6 +44,11 @@ const (
 	KindAnnotation
 	KindAnnotationElement
 
+	// Type clauses (for class/interface declarations)
+	KindExtendsClause
+	KindImplementsClause
+	KindPermitsClause
+
 	// Method components
 	KindParameters
 	KindParameter
@@ -146,6 +151,9 @@ var nodeKindNames = map[NodeKind]string{
 	KindWildcard:                      "Wildcard",
 	KindAnnotation:                    "Annotation",
 	KindAnnotationElement:             "AnnotationElement",
+	KindExtendsClause:                 "ExtendsClause",
+	KindImplementsClause:              "ImplementsClause",
+	KindPermitsClause:                 "PermitsClause",
 	KindParameters:                    "Parameters",
 	KindParameter:                     "Parameter",
 	KindThrowsList:                    "ThrowsList",

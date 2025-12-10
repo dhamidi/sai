@@ -777,15 +777,18 @@ func (p *Parser) parseClassDecl(modifiers *Node) *Node {
 	}
 
 	if p.check(TokenExtends) {
+		extendsClause := p.startNode(KindExtendsClause)
 		p.advance()
-		node.AddChild(p.parseType())
+		extendsClause.AddChild(p.parseType())
+		node.AddChild(p.finishNode(extendsClause))
 	}
 
 	if p.check(TokenImplements) {
+		implClause := p.startNode(KindImplementsClause)
 		p.advance()
 		for {
 			progress := p.mustProgress()
-			node.AddChild(p.parseType())
+			implClause.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
@@ -794,13 +797,15 @@ func (p *Parser) parseClassDecl(modifiers *Node) *Node {
 				break
 			}
 		}
+		node.AddChild(p.finishNode(implClause))
 	}
 
 	if p.check(TokenPermits) {
+		permitsClause := p.startNode(KindPermitsClause)
 		p.advance()
 		for {
 			progress := p.mustProgress()
-			node.AddChild(p.parseType())
+			permitsClause.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
@@ -809,6 +814,7 @@ func (p *Parser) parseClassDecl(modifiers *Node) *Node {
 				break
 			}
 		}
+		node.AddChild(p.finishNode(permitsClause))
 	}
 
 	node.AddChild(p.parseClassBody())
@@ -832,10 +838,11 @@ func (p *Parser) parseInterfaceDecl(modifiers *Node) *Node {
 	}
 
 	if p.check(TokenExtends) {
+		extendsClause := p.startNode(KindExtendsClause)
 		p.advance()
 		for {
 			progress := p.mustProgress()
-			node.AddChild(p.parseType())
+			extendsClause.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
@@ -844,13 +851,15 @@ func (p *Parser) parseInterfaceDecl(modifiers *Node) *Node {
 				break
 			}
 		}
+		node.AddChild(p.finishNode(extendsClause))
 	}
 
 	if p.check(TokenPermits) {
+		permitsClause := p.startNode(KindPermitsClause)
 		p.advance()
 		for {
 			progress := p.mustProgress()
-			node.AddChild(p.parseType())
+			permitsClause.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
@@ -859,6 +868,7 @@ func (p *Parser) parseInterfaceDecl(modifiers *Node) *Node {
 				break
 			}
 		}
+		node.AddChild(p.finishNode(permitsClause))
 	}
 
 	node.AddChild(p.parseClassBody())
@@ -878,10 +888,11 @@ func (p *Parser) parseEnumDecl(modifiers *Node) *Node {
 	}
 
 	if p.check(TokenImplements) {
+		implClause := p.startNode(KindImplementsClause)
 		p.advance()
 		for {
 			progress := p.mustProgress()
-			node.AddChild(p.parseType())
+			implClause.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
@@ -890,6 +901,7 @@ func (p *Parser) parseEnumDecl(modifiers *Node) *Node {
 				break
 			}
 		}
+		node.AddChild(p.finishNode(implClause))
 	}
 
 	p.expect(TokenLBrace)
@@ -955,10 +967,11 @@ func (p *Parser) parseRecordDecl(modifiers *Node) *Node {
 	node.AddChild(p.parseParameters())
 
 	if p.check(TokenImplements) {
+		implClause := p.startNode(KindImplementsClause)
 		p.advance()
 		for {
 			progress := p.mustProgress()
-			node.AddChild(p.parseType())
+			implClause.AddChild(p.parseType())
 			if !p.check(TokenComma) {
 				break
 			}
@@ -967,6 +980,7 @@ func (p *Parser) parseRecordDecl(modifiers *Node) *Node {
 				break
 			}
 		}
+		node.AddChild(p.finishNode(implClause))
 	}
 
 	node.AddChild(p.parseClassBody())
@@ -3316,8 +3330,9 @@ func (p *Parser) parseNewExpr() *Node {
 
 	qualName := p.parseQualifiedName()
 
+	var typeArgs *Node
 	if p.check(TokenLT) {
-		p.parseTypeArguments()
+		typeArgs = p.parseTypeArguments()
 	}
 
 	if p.check(TokenAt) || p.check(TokenLBracket) {
@@ -3348,6 +3363,9 @@ func (p *Parser) parseNewExpr() *Node {
 
 	node := p.startNode(KindNewExpr)
 	node.AddChild(qualName)
+	if typeArgs != nil {
+		node.AddChild(typeArgs)
+	}
 	node.AddChild(p.parseArguments())
 
 	if p.check(TokenLBrace) {
