@@ -366,10 +366,10 @@ func (s *Server) handleSSEClasses(w http.ResponseWriter, r *http.Request) {
 			}
 			fmt.Fprintf(&buf, `<a href="/c/%s" class="class-item%s" data-filter-value="%s">`, c.Name, activeAttr, c.Name)
 			fmt.Fprintf(&buf, `<span class="class-type">%s</span>`, kindLetter)
-			fmt.Fprintf(&buf, `<span class="class-name" title="%s">%s</span>`, c.Name, c.SimpleName)
 			if c.Package != "" {
-				fmt.Fprintf(&buf, `<span class="class-package">%s</span>`, c.Package)
+				fmt.Fprintf(&buf, `<span class="class-package" title="%s">%s</span>`, c.Package, c.Package)
 			}
+			fmt.Fprintf(&buf, `<span class="class-name" title="%s">%s</span>`, c.Name, c.SimpleName)
 			buf.WriteString("</a>\n")
 		}
 

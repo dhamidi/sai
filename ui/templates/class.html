@@ -23,8 +23,8 @@
                 {{range limit 100 .Classes}}
                 <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}" data-filter-value="{{.Name}}">
                     <span class="class-type">{{if eq .Kind "interface"}}I{{else if eq .Kind "enum"}}E{{else if eq .Kind "annotation"}}@{{else if eq .Kind "record"}}R{{else}}C{{end}}</span>
+                    {{if .Package}}<span class="class-package" title="{{.Package}}">{{.Package}}</span>{{end}}
                     <span class="class-name" title="{{.Name}}">{{.SimpleName}}</span>
-                    {{if .Package}}<span class="class-package">{{.Package}}</span>{{end}}
                 </a>
                 {{else}}
                 <p class="empty">No classes loaded. <a href="/">Start a scan</a></p>

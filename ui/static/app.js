@@ -140,22 +140,33 @@
             if (!filterList) return;
             
             const limit = parseInt(filterList.dataset.limit) || Infinity;
-            const items = filterList.querySelectorAll('[data-filter-value]');
+            const items = Array.from(filterList.querySelectorAll('[data-filter-value]'));
             
             // Get query from argument or from associated search input
             if (query === undefined) {
-                const searchInput = document.querySelector(`[data-search-input="${getSelector(filterList)}"]`);
+                // Find input that targets this filter list
+                const listId = filterList.id;
+                const searchInput = listId 
+                    ? document.querySelector(`[data-search-input="#${listId}"]`)
+                    : null;
                 query = searchInput ? searchInput.value : '';
             }
             
             const normalizedQuery = query.toLowerCase().trim();
+            
+            // Score and sort items
+            const scored = items.map(item => {
+                const value = item.dataset.filterValue || '';
+                const score = fuzzyScore(normalizedQuery, value.toLowerCase(), value);
+                return { item, score };
+            });
+            
+            // Sort by score (higher is better), then show top results
+            scored.sort((a, b) => b.score - a.score);
+            
             let visibleCount = 0;
-
-            items.forEach(item => {
-                const value = (item.dataset.filterValue || '').toLowerCase();
-                const matches = fuzzyMatch(normalizedQuery, value);
-                
-                if (matches && visibleCount < limit) {
+            scored.forEach(({ item, score }) => {
+                if (score > 0 && visibleCount < limit) {
                     item.style.display = '';
                     item.classList.remove('filtered-out');
                     visibleCount++;
@@ -164,31 +175,71 @@
                     item.classList.add('filtered-out');
                 }
             });
+            
+            // Reorder DOM to match sorted order
+            scored.forEach(({ item }) => {
+                filterList.appendChild(item);
+            });
 
             // Update count display if exists
             const countEl = document.querySelector('[data-filter-count]');
             if (countEl) {
                 const total = items.length;
-                if (normalizedQuery || visibleCount < total) {
-                    countEl.textContent = `${visibleCount} / ${total}`;
+                const matchCount = scored.filter(s => s.score > 0).length;
+                if (normalizedQuery) {
+                    countEl.textContent = `${Math.min(visibleCount, matchCount)} / ${matchCount}`;
                 } else {
-                    countEl.textContent = `${total}`;
+                    countEl.textContent = `${visibleCount} / ${total}`;
                 }
             }
         }
     };
 
-    // Fuzzy matching - matches if all characters appear in order
-    function fuzzyMatch(pattern, text) {
-        if (!pattern) return true;
+    // Fuzzy scoring - returns score based on match quality (higher is better, 0 = no match)
+    function fuzzyScore(pattern, textLower, textOriginal) {
+        if (!pattern) return 1; // Empty pattern matches everything
         
+        // Extract simple class name from fully qualified name
+        const lastDot = textOriginal.lastIndexOf('.');
+        const simpleName = lastDot >= 0 ? textOriginal.substring(lastDot + 1) : textOriginal;
+        const simpleNameLower = simpleName.toLowerCase();
+        
+        // Exact match on simple name (highest priority)
+        if (simpleNameLower === pattern) return 10000;
+        
+        // Simple name starts with pattern
+        if (simpleNameLower.startsWith(pattern)) return 5000 + (pattern.length / simpleName.length) * 1000;
+        
+        // Simple name contains pattern as substring
+        if (simpleNameLower.includes(pattern)) return 3000 + (pattern.length / simpleName.length) * 500;
+        
+        // Exact match on full name
+        if (textLower === pattern) return 2000;
+        
+        // Full name starts with pattern
+        if (textLower.startsWith(pattern)) return 1500;
+        
+        // Full name contains pattern as substring
+        if (textLower.includes(pattern)) return 1000;
+        
+        // Fuzzy match - all characters appear in order
         let patternIdx = 0;
-        for (let i = 0; i < text.length && patternIdx < pattern.length; i++) {
-            if (text[i] === pattern[patternIdx]) {
+        let score = 0;
+        let lastMatchIdx = -1;
+        
+        for (let i = 0; i < textLower.length && patternIdx < pattern.length; i++) {
+            if (textLower[i] === pattern[patternIdx]) {
+                // Bonus for consecutive matches
+                if (lastMatchIdx === i - 1) score += 10;
+                // Bonus for matching at word boundaries (after . or at start)
+                if (i === 0 || textLower[i - 1] === '.') score += 20;
+                score += 1;
+                lastMatchIdx = i;
                 patternIdx++;
             }
         }
-        return patternIdx === pattern.length;
+        
+        return patternIdx === pattern.length ? score : 0;
     }
 
     function debounce(fn, delay) {
