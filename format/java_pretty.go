@@ -1520,67 +1520,49 @@ func (p *JavaPrettyPrinter) printExpr(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printBinaryExpr(node *parser.Node) {
+	// BinaryExpr always has 3 children: [left, operator(Identifier), right]
 	children := node.Children
-	if len(children) >= 3 {
-		p.printExpr(children[0])
-		p.write(" ")
-		if children[1].Token != nil {
-			p.write(children[1].Token.Literal)
-		}
-		p.write(" ")
-		p.printExpr(children[2])
-	} else if len(children) >= 2 {
-		p.printExpr(children[0])
-		if node.Token != nil {
-			p.write(" ")
-			p.write(node.Token.Literal)
-			p.write(" ")
-		}
-		p.printExpr(children[1])
+	if len(children) < 3 {
+		return
 	}
+	p.printExpr(children[0])
+	p.write(" ")
+	p.write(children[1].TokenLiteral())
+	p.write(" ")
+	p.printExpr(children[2])
 }
 
 func (p *JavaPrettyPrinter) printUnaryExpr(node *parser.Node) {
-	if node.Token != nil {
-		p.write(node.Token.Literal)
+	// UnaryExpr has 2 children: [operator(Identifier), operand]
+	children := node.Children
+	if len(children) < 2 {
+		return
 	}
-	for _, child := range node.Children {
-		p.printExpr(child)
-	}
+	p.write(children[0].TokenLiteral())
+	p.printExpr(children[1])
 }
 
 func (p *JavaPrettyPrinter) printPostfixExpr(node *parser.Node) {
-	for _, child := range node.Children {
-		p.printExpr(child)
+	// PostfixExpr has 2 children: [operand, operator(Identifier)]
+	children := node.Children
+	if len(children) < 2 {
+		return
 	}
-	if node.Token != nil {
-		p.write(node.Token.Literal)
-	}
+	p.printExpr(children[0])
+	p.write(children[1].TokenLiteral())
 }
 
 func (p *JavaPrettyPrinter) printAssignExpr(node *parser.Node) {
+	// AssignExpr always has 3 children: [left, operator(Identifier), right]
 	children := node.Children
-	if len(children) >= 3 {
-		p.printExpr(children[0])
-		p.write(" ")
-		if children[1].Token != nil {
-			p.write(children[1].Token.Literal)
-		} else {
-			p.write("=")
-		}
-		p.write(" ")
-		p.printExpr(children[2])
-	} else if len(children) >= 2 {
-		p.printExpr(children[0])
-		if node.Token != nil {
-			p.write(" ")
-			p.write(node.Token.Literal)
-			p.write(" ")
-		} else {
-			p.write(" = ")
-		}
-		p.printExpr(children[1])
+	if len(children) < 3 {
+		return
 	}
+	p.printExpr(children[0])
+	p.write(" ")
+	p.write(children[1].TokenLiteral())
+	p.write(" ")
+	p.printExpr(children[2])
 }
 
 func (p *JavaPrettyPrinter) printTernaryExpr(node *parser.Node) {
@@ -1595,69 +1577,22 @@ func (p *JavaPrettyPrinter) printTernaryExpr(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printCallExpr(node *parser.Node) {
-	var receiver *parser.Node
-	var name string
-	var typeArgs *parser.Node
-	var args *parser.Node
-
-	for _, child := range node.Children {
-		switch child.Kind {
-		case parser.KindTypeArguments:
-			typeArgs = child
-		case parser.KindParameters:
-			args = child
-		case parser.KindIdentifier:
-			if child.Token != nil {
-				name = child.Token.Literal
-			}
-		default:
-			if child.Kind != parser.KindModifiers {
-				receiver = child
-			}
-		}
+	// CallExpr has 2 children: [target, Parameters]
+	// target can be Identifier, FieldAccess, or other expression
+	children := node.Children
+	if len(children) < 2 {
+		return
 	}
 
-	if receiver != nil {
-		if receiver.Kind == parser.KindFieldAccess && name == "" {
-			p.printCallReceiver(receiver)
-		} else {
-			p.printExpr(receiver)
-			if name != "" {
-				p.write(".")
-			}
-		}
-	}
+	target := children[0]
+	args := children[1]
 
-	if typeArgs != nil {
-		p.printTypeArguments(typeArgs)
-	}
-
-	p.write(name)
+	p.printExpr(target)
 	p.write("(")
 	if args != nil {
 		p.printArguments(args)
 	}
 	p.write(")")
-}
-
-func (p *JavaPrettyPrinter) printCallReceiver(node *parser.Node) {
-	children := node.Children
-	if len(children) == 0 {
-		return
-	}
-
-	for i, child := range children {
-		if i > 0 {
-			p.write(".")
-		}
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
-			p.write(child.Token.Literal)
-		} else if child.Kind == parser.KindFieldAccess {
-			p.printCallReceiver(child)
-		} else {
-			p.printExpr(child)
-		}
-	}
 }
 
 func (p *JavaPrettyPrinter) printArguments(node *parser.Node) {
