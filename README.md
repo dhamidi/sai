@@ -1,10 +1,83 @@
-# Sai - a bun-like tool for Java
+# Sai - A Toasty Java Toolchain
 
 <p align="center">
   <img src="./docs/sai-logo.png" width="256" height="256">
 </p>
 
-Sai can format your java code and build a complete, navigable model of the code.
+<p align="center">
+  <em>Parse, format, and navigate Java code with ease</em>
+</p>
 
+---
 
+Sai is a lightweight Java toolchain written in Go. It parses `.java` and `.class` files, builds navigable code models, and includes an LSP server for editor integration.
 
+## Features
+
+- **Parse** — Analyze `.java` source files and `.class` bytecode
+- **Dump** — Extract class models in JSON, Java, or line-based formats  
+- **Scan** — Batch process directories, JARs, and ZIP archives
+- **LSP** — Language Server Protocol support for editor integration
+- **Web UI** — Interactive browser-based code explorer
+
+## Installation
+
+```bash
+go install github.com/dhamidi/sai/cmd/sai@latest
+```
+
+## Usage
+
+### Parse a file
+
+```bash
+# Parse Java source
+sai parse MyClass.java -f json
+
+# Parse compiled bytecode
+sai parse MyClass.class -f java
+```
+
+### Dump class models
+
+```bash
+# Output as JSON
+sai dump MyClass.java -f json
+
+# Output as Java-like declaration
+sai dump MyClass.java -f java
+
+# Output as line format (default)
+sai dump MyClass.java
+```
+
+### Scan a codebase
+
+```bash
+# Scan a directory
+sai scan ./src
+
+# Scan a JAR file
+sai scan library.jar
+
+# With custom timeout
+sai scan ./src -t 30s
+```
+
+### Start the LSP server
+
+```bash
+sai lsp
+```
+
+### Launch the web UI
+
+```bash
+sai ui -a :8080
+```
+
+Then open http://localhost:8080 in your browser.
+
+## License
+
+MIT
