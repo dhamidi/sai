@@ -43,7 +43,29 @@ type Parent struct {
 }
 
 type Properties struct {
-	Entries map[string]string `xml:",any"`
+	Entries map[string]string
+}
+
+func (p *Properties) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	p.Entries = make(map[string]string)
+	for {
+		token, err := d.Token()
+		if err != nil {
+			return err
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			var value string
+			if err := d.DecodeElement(&value, &t); err != nil {
+				return err
+			}
+			p.Entries[t.Name.Local] = value
+		case xml.EndElement:
+			if t.Name == start.Name {
+				return nil
+			}
+		}
+	}
 }
 
 type Dependency struct {
