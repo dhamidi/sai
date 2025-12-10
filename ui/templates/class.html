@@ -106,28 +106,21 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Visibility</th>
                             <th>Type</th>
                             <th>Name</th>
-                            <th>Modifiers</th>
                         </tr>
                     </thead>
                     <tbody>
                         {{range .}}
                         <tr>
-                            <td class="visibility">{{.Visibility}}</td>
-                            <td class="type">{{linkifyType $.KnownClasses .Type}}</td>
-                            <td class="name">{{.Name}}</td>
-                            <td class="modifiers">
-                                {{if .IsStatic}}static{{end}}
-                                {{if .IsFinal}}final{{end}}
-                                {{if .IsVolatile}}volatile{{end}}
-                                {{if .IsTransient}}transient{{end}}
+                            <td class="type">
+                                <span class="modifiers">{{if eq .Visibility "public"}}<abbr title="public">pub</abbr> {{else if eq .Visibility "private"}}<abbr title="private">priv</abbr> {{else if eq .Visibility "protected"}}<abbr title="protected">prot</abbr> {{end}}{{if .IsStatic}}<abbr title="static">stat</abbr> {{end}}{{if .IsFinal}}<abbr title="final">fin</abbr> {{end}}{{if .IsVolatile}}<abbr title="volatile">vol</abbr> {{end}}{{if .IsTransient}}<abbr title="transient">trans</abbr> {{end}}</span>{{linkifyType $.KnownClasses .Type}}
                             </td>
+                            <td class="name">{{.Name}}</td>
                         </tr>
                         {{if hasJavadoc .Javadoc}}
                         <tr class="javadoc-row">
-                            <td colspan="4" class="javadoc">{{formatJavadoc .Javadoc}}</td>
+                            <td colspan="2" class="javadoc">{{formatJavadoc .Javadoc}}</td>
                         </tr>
                         {{end}}
                         {{end}}
@@ -170,34 +163,24 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Visibility</th>
+                            <th>Mods</th>
                             <th>Return</th>
                             <th>Name</th>
                             <th>Parameters</th>
-                            <th>Modifiers</th>
                         </tr>
                     </thead>
                     <tbody>
                         {{range .ActiveClass.Methods}}
                         {{if not (isConstructor .)}}{{if not (isStaticInitializer .)}}{{if not .IsSynthetic}}{{if not .IsBridge}}
                         <tr>
-                            <td class="visibility">{{.Visibility}}</td>
+                            <td class="modifiers">{{if eq .Visibility "public"}}<abbr title="public">pub</abbr> {{else if eq .Visibility "private"}}<abbr title="private">priv</abbr> {{else if eq .Visibility "protected"}}<abbr title="protected">prot</abbr> {{end}}{{if .IsStatic}}<abbr title="static">stat</abbr> {{end}}{{if .IsFinal}}<abbr title="final">fin</abbr> {{end}}{{if .IsAbstract}}<abbr title="abstract">abs</abbr> {{end}}{{if .IsSynchronized}}<abbr title="synchronized">sync</abbr> {{end}}{{if .IsNative}}<abbr title="native">nat</abbr> {{end}}</td>
                             <td class="type">{{linkifyType $.KnownClasses .ReturnType}}</td>
                             <td class="name">{{.Name}}</td>
-                            <td class="params">
-                                {{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyType $.KnownClasses $p.Type}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}}
-                            </td>
-                            <td class="modifiers">
-                                {{if .IsStatic}}static{{end}}
-                                {{if .IsFinal}}final{{end}}
-                                {{if .IsAbstract}}abstract{{end}}
-                                {{if .IsSynchronized}}synchronized{{end}}
-                                {{if .IsNative}}native{{end}}
-                            </td>
+                            <td class="params">{{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyType $.KnownClasses $p.Type}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}}</td>
                         </tr>
                         {{if hasJavadoc .Javadoc}}
                         <tr class="javadoc-row">
-                            <td colspan="5" class="javadoc">{{formatJavadoc .Javadoc}}</td>
+                            <td colspan="4" class="javadoc">{{formatJavadoc .Javadoc}}</td>
                         </tr>
                         {{end}}
                         {{end}}{{end}}{{end}}{{end}}
