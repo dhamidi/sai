@@ -1,4 +1,4 @@
-module github.com/dhamidi/javalyzer
+module github.com/dhamidi/sai
 
 go 1.24.3
 

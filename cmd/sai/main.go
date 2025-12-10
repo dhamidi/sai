@@ -11,17 +11,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dhamidi/javalyzer/format"
-	"github.com/dhamidi/javalyzer/java"
-	"github.com/dhamidi/javalyzer/java/codebase"
-	"github.com/dhamidi/javalyzer/java/parser"
-	"github.com/dhamidi/javalyzer/ui"
+	"github.com/dhamidi/sai/format"
+	"github.com/dhamidi/sai/java"
+	"github.com/dhamidi/sai/java/codebase"
+	"github.com/dhamidi/sai/java/parser"
+	"github.com/dhamidi/sai/ui"
 	"github.com/spf13/cobra"
 )
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "javalyzer",
+		Use:   "sai",
 		Short: "Java class file analyzer",
 	}
 

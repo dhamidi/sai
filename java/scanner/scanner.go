@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dhamidi/javalyzer/java"
-	"github.com/dhamidi/javalyzer/java/parser"
+	"github.com/dhamidi/sai/java"
+	"github.com/dhamidi/sai/java/parser"
 )
 
 type Status string

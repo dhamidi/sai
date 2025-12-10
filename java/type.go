@@ -3,7 +3,7 @@ package java
 import (
 	"strings"
 
-	"github.com/dhamidi/javalyzer/classfile"
+	"github.com/dhamidi/sai/classfile"
 )
 
 type Type struct {

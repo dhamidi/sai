@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/dhamidi/javalyzer/java/parser"
+	"github.com/dhamidi/sai/java/parser"
 )
 
 func TestTypeAtPoint(t *testing.T) {

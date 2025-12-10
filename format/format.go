@@ -3,7 +3,7 @@ package format
 import (
 	"encoding"
 
-	"github.com/dhamidi/javalyzer/java"
+	"github.com/dhamidi/sai/java"
 )
 
 type Encoder interface {

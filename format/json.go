@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/dhamidi/javalyzer/java"
+	"github.com/dhamidi/sai/java"
 )
 
 type JSONEncoder struct {

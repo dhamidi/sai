@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dhamidi/javalyzer/java"
-	"github.com/dhamidi/javalyzer/java/scanner"
+	"github.com/dhamidi/sai/java"
+	"github.com/dhamidi/sai/java/scanner"
 )
 
 //go:embed static templates
@@ -133,7 +133,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 
 		if file, header, err := r.FormFile("zipfile"); err == nil {
 			defer file.Close()
-			tmpFile, err := os.CreateTemp("", "javalyzer-*.zip")
+			tmpFile, err := os.CreateTemp("", "sai-*.zip")
 			if err != nil {
 				http.Error(w, "failed to create temp file: "+err.Error(), http.StatusInternalServerError)
 				return

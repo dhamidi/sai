@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dhamidi/javalyzer/java/parser"
+	"github.com/dhamidi/sai/java/parser"
 )
 
 // javadocFinder helps find Javadoc comments for declarations based on position.

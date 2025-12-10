@@ -1,7 +1,7 @@
 package java
 
 import (
-	"github.com/dhamidi/javalyzer/java/parser"
+	"github.com/dhamidi/sai/java/parser"
 )
 
 // TypeAtPoint returns the fully qualified type name of the value at the given position.

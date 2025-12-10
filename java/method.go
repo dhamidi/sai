@@ -1,6 +1,6 @@
 package java
 
-import "github.com/dhamidi/javalyzer/classfile"
+import "github.com/dhamidi/sai/classfile"
 
 type Method struct {
 	info *classfile.MethodInfo

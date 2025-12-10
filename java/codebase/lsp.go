@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dhamidi/javalyzer/java"
+	"github.com/dhamidi/sai/java"
 
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -18,7 +18,7 @@ import (
 	_ "github.com/tliron/commonlog/simple"
 )
 
-const lsName = "javalyzer"
+const lsName = "sai"
 
 type LSPServer struct {
 	codebase *Codebase
