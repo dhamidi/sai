@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/dhamidi/sai/java"
 	"github.com/dhamidi/sai/java/scanner"
@@ -35,6 +34,9 @@ func NewServer() (*Server, error) {
 	funcMap := template.FuncMap{
 		"add": func(a, b int) int {
 			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
 		},
 		"limit": func(n int, classes []*java.ClassModel) []*java.ClassModel {
 			if n >= len(classes) {
@@ -120,7 +122,7 @@ func NewServer() (*Server, error) {
 	s.mux.HandleFunc("POST /scan", s.handleScan)
 	s.mux.HandleFunc("GET /scans/{id}", s.handleGetScan)
 	s.mux.HandleFunc("GET /c/{className...}", s.handleClass)
-	s.mux.HandleFunc("GET /sse/classes", s.handleSSEClasses)
+	s.mux.HandleFunc("GET /sidebar", s.handleSidebar)
 	s.mux.HandleFunc("GET /", s.handleIndex)
 
 	if javaSrc := os.Getenv("JAVA_SRC"); javaSrc != "" {
@@ -271,19 +273,29 @@ type ClassViewData struct {
 	ActiveClass  *java.ClassModel
 	KnownClasses map[string]bool
 	Implementers []*java.ClassModel
+	TotalMatches int
+	HasMore      bool
 }
 
 func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 	className := r.PathValue("className")
-	classes := s.scanner.AllClasses()
+	allClasses := s.scanner.AllClasses()
 
 	knownClasses := make(map[string]bool)
-	for _, c := range classes {
+	for _, c := range allClasses {
 		knownClasses[c.Name] = true
+	}
+
+	const maxResults = 200
+	classes := allClasses
+	if len(allClasses) > maxResults {
+		classes = allClasses[:maxResults]
 	}
 
 	data := ClassViewData{
 		Classes:      classes,
+		TotalMatches: len(allClasses),
+		HasMore:      len(allClasses) > maxResults,
 		KnownClasses: knownClasses,
 	}
 
@@ -294,7 +306,7 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if data.ActiveClass.Kind == java.ClassKindInterface {
-			for _, c := range classes {
+			for _, c := range allClasses {
 				for _, iface := range c.Interfaces {
 					if iface == className {
 						data.Implementers = append(data.Implementers, c)
@@ -325,78 +337,45 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "index.html", data)
 }
 
-func (s *Server) handleSSEClasses(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
+func (s *Server) handleSidebar(w http.ResponseWriter, r *http.Request) {
+	query := strings.ToLower(r.URL.Query().Get("q"))
+	activeClassName := r.URL.Query().Get("active")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "SSE not supported", http.StatusInternalServerError)
-		return
-	}
+	const maxResults = 200
 
-	activeClass := r.URL.Query().Get("active")
-	lastCount := -1
+	allClasses := s.scanner.AllClasses()
 
-	sendUpdate := func() bool {
-		classes := s.scanner.AllClasses()
-		if len(classes) == lastCount {
-			return true
+	var classes []*java.ClassModel
+	var totalMatches int
+	if query == "" {
+		totalMatches = len(allClasses)
+		if len(allClasses) > maxResults {
+			classes = allClasses[:maxResults]
+		} else {
+			classes = allClasses
 		}
-		lastCount = len(classes)
-
-		var buf strings.Builder
-		for _, c := range classes {
-			activeAttr := ""
-			if c.Name == activeClass {
-				activeAttr = " active"
-			}
-			kindLetter := "C"
-			switch c.Kind {
-			case "interface":
-				kindLetter = "I"
-			case "enum":
-				kindLetter = "E"
-			case "annotation":
-				kindLetter = "@"
-			case "record":
-				kindLetter = "R"
-			}
-			fmt.Fprintf(&buf, `<a href="/c/%s" class="class-item%s" data-filter-value="%s">`, c.Name, activeAttr, c.Name)
-			fmt.Fprintf(&buf, `<span class="class-type">%s</span>`, kindLetter)
-			if c.Package != "" {
-				fmt.Fprintf(&buf, `<span class="class-package" title="%s">%s</span>`, c.Package, c.Package)
-			}
-			fmt.Fprintf(&buf, `<span class="class-name" title="%s">%s</span>`, c.Name, c.SimpleName)
-			buf.WriteString("</a>\n")
-		}
-
-		data := buf.String()
-		lines := strings.Split(data, "\n")
-		fmt.Fprintf(w, "event: update\n")
-		for _, line := range lines {
-			fmt.Fprintf(w, "data: %s\n", line)
-		}
-		fmt.Fprintf(w, "\n")
-		flusher.Flush()
-		return true
-	}
-
-	sendUpdate()
-
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ticker.C:
-			if !sendUpdate() {
-				return
+	} else {
+		for _, c := range allClasses {
+			if strings.Contains(strings.ToLower(c.Name), query) ||
+				strings.Contains(strings.ToLower(c.SimpleName), query) {
+				totalMatches++
+				if len(classes) < maxResults {
+					classes = append(classes, c)
+				}
 			}
 		}
 	}
+
+	data := struct {
+		Classes         []*java.ClassModel
+		ActiveClassName string
+		TotalMatches    int
+		HasMore         bool
+	}{
+		Classes:         classes,
+		ActiveClassName: activeClassName,
+		TotalMatches:    totalMatches,
+		HasMore:         totalMatches > maxResults,
+	}
+	s.render(w, "_sidebar.html", data)
 }
