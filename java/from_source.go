@@ -46,8 +46,13 @@ func (jf *javadocFinder) FindForNode(node *parser.Node) string {
 			continue
 		}
 		endLine := c.Span.End.Line
-		// The Javadoc must end before the declaration starts
-		if endLine >= startLine {
+		endCol := c.Span.End.Column
+		// The Javadoc must end before the declaration starts (either on an earlier line,
+		// or on the same line but before the node's start column for single-line javadocs)
+		if endLine > startLine {
+			continue
+		}
+		if endLine == startLine && endCol >= node.Span.Start.Column {
 			continue
 		}
 		distance := startLine - endLine

@@ -4,6 +4,58 @@ import (
 	"testing"
 )
 
+func TestSingleLineJavadoc(t *testing.T) {
+	source := []byte(`package com.example;
+
+/** A single-line javadoc */ public class Test {
+    /** Field doc */ private String name;
+    /** Method doc */ public void test() {}
+}
+`)
+
+	models, err := ClassModelsFromSource(source)
+	if err != nil {
+		t.Fatalf("Failed to parse source: %v", err)
+	}
+
+	if len(models) != 1 {
+		t.Fatalf("Expected 1 class model, got %d", len(models))
+	}
+
+	cls := models[0]
+
+	t.Run("single-line class javadoc", func(t *testing.T) {
+		if cls.Javadoc != "/** A single-line javadoc */" {
+			t.Errorf("Expected class javadoc %q, got %q", "/** A single-line javadoc */", cls.Javadoc)
+		}
+	})
+
+	t.Run("single-line field javadoc", func(t *testing.T) {
+		if len(cls.Fields) != 1 {
+			t.Fatalf("Expected 1 field, got %d", len(cls.Fields))
+		}
+		if cls.Fields[0].Javadoc != "/** Field doc */" {
+			t.Errorf("Expected field javadoc %q, got %q", "/** Field doc */", cls.Fields[0].Javadoc)
+		}
+	})
+
+	t.Run("single-line method javadoc", func(t *testing.T) {
+		var method *MethodModel
+		for i := range cls.Methods {
+			if cls.Methods[i].Name == "test" {
+				method = &cls.Methods[i]
+				break
+			}
+		}
+		if method == nil {
+			t.Fatal("Expected to find test method")
+		}
+		if method.Javadoc != "/** Method doc */" {
+			t.Errorf("Expected method javadoc %q, got %q", "/** Method doc */", method.Javadoc)
+		}
+	})
+}
+
 func TestJavadocExtraction(t *testing.T) {
 	source := []byte(`package com.example;
 
