@@ -51,6 +51,19 @@ sai dump MyClass.java -f java
 sai dump MyClass.java
 ```
 
+### Format Java source
+
+```bash
+# Format to stdout
+sai fmt MyClass.java
+
+# Format from stdin
+cat MyClass.java | sai fmt
+
+# Overwrite file in place
+sai fmt -w MyClass.java
+```
+
 ### Scan a codebase
 
 ```bash

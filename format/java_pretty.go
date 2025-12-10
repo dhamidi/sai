@@ -435,29 +435,23 @@ func (p *JavaPrettyPrinter) printTypeParameter(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printExtendsImplements(node *parser.Node) {
-	var superClass *parser.Node
-	var interfaces []*parser.Node
-	seenExtends := false
+	extendsClause := node.FirstChildOfKind(parser.KindExtendsClause)
+	implementsClause := node.FirstChildOfKind(parser.KindImplementsClause)
 
-	for _, child := range node.Children {
-		if child.Kind == parser.KindType {
-			if !seenExtends {
-				superClass = child
-				seenExtends = true
-			} else {
-				interfaces = append(interfaces, child)
+	if extendsClause != nil {
+		p.write(" extends ")
+		types := extendsClause.ChildrenOfKind(parser.KindType)
+		for i, t := range types {
+			if i > 0 {
+				p.write(", ")
 			}
+			p.printType(t)
 		}
 	}
 
-	if superClass != nil {
-		p.write(" extends ")
-		p.printType(superClass)
-	}
-
-	if len(interfaces) > 0 {
+	if implementsClause != nil {
 		if node.Kind == parser.KindInterfaceDecl {
-			if superClass == nil {
+			if extendsClause == nil {
 				p.write(" extends ")
 			} else {
 				p.write(", ")
@@ -465,11 +459,12 @@ func (p *JavaPrettyPrinter) printExtendsImplements(node *parser.Node) {
 		} else {
 			p.write(" implements ")
 		}
-		for i, iface := range interfaces {
+		types := implementsClause.ChildrenOfKind(parser.KindType)
+		for i, t := range types {
 			if i > 0 {
 				p.write(", ")
 			}
-			p.printType(iface)
+			p.printType(t)
 		}
 	}
 }
@@ -612,13 +607,21 @@ func (p *JavaPrettyPrinter) printEnumBody(node *parser.Node) {
 	var members []*parser.Node
 	var constants []*parser.Node
 
+	var children []*parser.Node
 	if block != nil {
-		for _, child := range block.Children {
-			if child.Kind == parser.KindFieldDecl && p.isEnumConstant(child) {
-				constants = append(constants, child)
-			} else {
-				members = append(members, child)
-			}
+		children = block.Children
+	} else {
+		children = node.Children
+	}
+
+	for _, child := range children {
+		if child.Kind == parser.KindFieldDecl && p.isEnumConstant(child) {
+			constants = append(constants, child)
+		} else if child.Kind == parser.KindFieldDecl || child.Kind == parser.KindMethodDecl ||
+			child.Kind == parser.KindConstructorDecl || child.Kind == parser.KindClassDecl ||
+			child.Kind == parser.KindInterfaceDecl || child.Kind == parser.KindEnumDecl ||
+			child.Kind == parser.KindRecordDecl || child.Kind == parser.KindAnnotationDecl {
+			members = append(members, child)
 		}
 	}
 
@@ -678,8 +681,10 @@ func (p *JavaPrettyPrinter) printFieldDecl(node *parser.Node) {
 			fieldType = child
 		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
 			names = append(names, child.Token.Literal)
-		} else if child.Kind == parser.KindAssignExpr || child.Kind == parser.KindLiteral ||
-			child.Kind == parser.KindNewExpr || child.Kind == parser.KindCallExpr {
+		} else if child.Kind == parser.KindModifiers {
+			// Already handled above
+		} else {
+			// Any other child is likely an initializer expression
 			initializer = child
 		}
 	}
@@ -1141,6 +1146,51 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 	}
 }
 
+func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		for _, child := range modifiers.Children {
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(child.Token.Literal)
+				p.write(" ")
+			}
+		}
+	}
+
+	var varType *parser.Node
+	var name string
+	var initializer *parser.Node
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType:
+			varType = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				name = child.Token.Literal
+			}
+		case parser.KindModifiers:
+			// Already handled above
+		default:
+			if varType != nil && name != "" {
+				initializer = child
+			}
+		}
+	}
+
+	if varType != nil {
+		p.printType(varType)
+		p.write(" ")
+	}
+
+	p.write(name)
+
+	if initializer != nil {
+		p.write(" = ")
+		p.printExpr(initializer)
+	}
+}
+
 func (p *JavaPrettyPrinter) printForUpdate(node *parser.Node) {
 	first := true
 	for _, child := range node.Children {
@@ -1313,6 +1363,25 @@ func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
 	p.writeIndent()
 	p.write("try ")
 
+	// Collect try-with-resources declarations
+	var resources []*parser.Node
+	for _, child := range node.Children {
+		if child.Kind == parser.KindLocalVarDecl {
+			resources = append(resources, child)
+		}
+	}
+
+	if len(resources) > 0 {
+		p.write("(")
+		for i, res := range resources {
+			if i > 0 {
+				p.write("; ")
+			}
+			p.printLocalVarDeclInline(res)
+		}
+		p.write(") ")
+	}
+
 	block := node.FirstChildOfKind(parser.KindBlock)
 	if block != nil {
 		p.printBlock(block)
@@ -1334,6 +1403,27 @@ func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
 	param := node.FirstChildOfKind(parser.KindParameter)
 	if param != nil {
 		p.printParameter(param)
+	} else {
+		// Catch parameter is inlined as Type and Identifier children
+		var types []*parser.Node
+		var name string
+		for _, child := range node.Children {
+			if child.Kind == parser.KindType {
+				types = append(types, child)
+			} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+				name = child.Token.Literal
+			}
+		}
+		for i, t := range types {
+			if i > 0 {
+				p.write(" | ")
+			}
+			p.printType(t)
+		}
+		if name != "" {
+			p.write(" ")
+			p.write(name)
+		}
 	}
 
 	p.write(") ")

@@ -202,25 +202,32 @@ func main() {
 	}
 	dumpCmd.Flags().StringVarP(&dumpFormat, "format", "f", "line", "output format (json, java, line)")
 
+	var fmtOverwrite bool
 	fmtCmd := &cobra.Command{
 		Use:   "fmt [file]",
 		Short: "Pretty-print a .java file, preserving comments",
 		Long: `Pretty-print a .java file to stdout.
 
 If a file is provided, it must have a .java extension.
-If no file is provided, reads Java source from stdin.`,
+If no file is provided, reads Java source from stdin.
+
+Use -w to overwrite the file in place (requires a file argument).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var source []byte
 			var err error
+			var filename string
 
 			if len(args) == 0 {
+				if fmtOverwrite {
+					return fmt.Errorf("-w requires a file argument")
+				}
 				source, err = io.ReadAll(os.Stdin)
 				if err != nil {
 					return fmt.Errorf("read stdin: %w", err)
 				}
 			} else {
-				filename := args[0]
+				filename = args[0]
 				ext := filepath.Ext(filename)
 				if ext != ".java" {
 					return fmt.Errorf("expected .java file, got %s", ext)
@@ -236,10 +243,14 @@ If no file is provided, reads Java source from stdin.`,
 				return fmt.Errorf("format: %w", err)
 			}
 
+			if fmtOverwrite {
+				return os.WriteFile(filename, output, 0644)
+			}
 			_, err = os.Stdout.Write(output)
 			return err
 		},
 	}
+	fmtCmd.Flags().BoolVarP(&fmtOverwrite, "write", "w", false, "overwrite the file in place")
 
 	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(uiCmd)
