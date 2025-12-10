@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dhamidi/sai/format"
 	"github.com/dhamidi/sai/java"
+	"github.com/dhamidi/sai/java/parser"
 
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -42,6 +44,7 @@ func NewLSPServer(version string) *LSPServer {
 		TextDocumentDidClose:   ls.textDocumentDidClose,
 		TextDocumentDidSave:    ls.textDocumentDidSave,
 		TextDocumentCompletion: ls.textDocumentCompletion,
+		TextDocumentFormatting: ls.textDocumentFormatting,
 	}
 
 	ls.server = server.NewServer(&ls.handler, lsName, false)
@@ -79,6 +82,8 @@ func (ls *LSPServer) initialize(ctx *glsp.Context, params *protocol.InitializePa
 	capabilities.CompletionProvider = &protocol.CompletionOptions{
 		TriggerCharacters: triggerChars,
 	}
+
+	capabilities.DocumentFormattingProvider = true
 
 	return protocol.InitializeResult{
 		Capabilities: capabilities,
@@ -398,4 +403,55 @@ func getRootDir() string {
 		return "."
 	}
 	return dir
+}
+
+func (ls *LSPServer) textDocumentFormatting(ctx *glsp.Context, params *protocol.DocumentFormattingParams) ([]protocol.TextEdit, error) {
+	path, err := uriToPath(params.TextDocument.URI)
+	if err != nil {
+		return nil, nil
+	}
+
+	if !strings.HasSuffix(path, ".java") {
+		return nil, nil
+	}
+
+	file := ls.codebase.GetFile(path)
+	if file == nil {
+		return nil, nil
+	}
+
+	content := file.Content
+	p := parser.ParseCompilationUnit(bytes.NewReader(content), parser.WithComments(), parser.WithPositions())
+	node := p.Finish()
+	if node == nil {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	printer := format.NewJavaPrettyPrinter(&buf)
+	if err := printer.Print(node, content, p.Comments()); err != nil {
+		return nil, nil
+	}
+
+	formatted := buf.String()
+	if formatted == string(content) {
+		return nil, nil
+	}
+
+	lines := strings.Split(string(content), "\n")
+	lastLine := uint32(len(lines) - 1)
+	lastChar := uint32(0)
+	if len(lines) > 0 {
+		lastChar = uint32(len(lines[len(lines)-1]))
+	}
+
+	return []protocol.TextEdit{
+		{
+			Range: protocol.Range{
+				Start: protocol.Position{Line: 0, Character: 0},
+				End:   protocol.Position{Line: lastLine, Character: lastChar},
+			},
+			NewText: formatted,
+		},
+	}, nil
 }
