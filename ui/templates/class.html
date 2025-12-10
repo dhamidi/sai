@@ -40,6 +40,9 @@
                     </span>
                     {{end}}
                 </div>
+                {{if hasJavadoc .ActiveClass.Javadoc}}
+                <div class="javadoc">{{formatJavadoc .ActiveClass.Javadoc}}</div>
+                {{end}}
             </header>
 
             {{if .Implementers}}
@@ -102,6 +105,11 @@
                                 {{if .IsTransient}}transient{{end}}
                             </td>
                         </tr>
+                        {{if hasJavadoc .Javadoc}}
+                        <tr class="javadoc-row">
+                            <td colspan="4" class="javadoc">{{formatJavadoc .Javadoc}}</td>
+                        </tr>
+                        {{end}}
                         {{end}}
                     </tbody>
                 </table>
@@ -126,6 +134,11 @@
                                 {{$.ActiveClass.SimpleName}}({{range $i, $p := .Parameters}}{{if $i}}, {{end}}{{linkifyType $.KnownClasses $p.Type}}{{if $p.Name}} {{$p.Name}}{{end}}{{end}})
                             </td>
                         </tr>
+                        {{if hasJavadoc .Javadoc}}
+                        <tr class="javadoc-row">
+                            <td colspan="2" class="javadoc">{{formatJavadoc .Javadoc}}</td>
+                        </tr>
+                        {{end}}
                         {{end}}
                     </tbody>
                 </table>
@@ -162,6 +175,11 @@
                                 {{if .IsNative}}native{{end}}
                             </td>
                         </tr>
+                        {{if hasJavadoc .Javadoc}}
+                        <tr class="javadoc-row">
+                            <td colspan="5" class="javadoc">{{formatJavadoc .Javadoc}}</td>
+                        </tr>
+                        {{end}}
                         {{end}}{{end}}{{end}}{{end}}
                         {{end}}
                     </tbody>

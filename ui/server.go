@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/dhamidi/sai/java"
 	"github.com/dhamidi/sai/java/scanner"
@@ -31,6 +32,29 @@ func NewServer() (*Server, error) {
 	templateFS := overlayFS("ui/templates", mustSub(embeddedFS, "templates"))
 
 	funcMap := template.FuncMap{
+		"formatJavadoc": func(javadoc string) template.HTML {
+			if javadoc == "" {
+				return ""
+			}
+			lines := strings.Split(javadoc, "\n")
+			var result []string
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "/**" || line == "*/" {
+					continue
+				}
+				if strings.HasPrefix(line, "* ") {
+					line = line[2:]
+				} else if line == "*" {
+					line = ""
+				}
+				result = append(result, template.HTMLEscapeString(line))
+			}
+			return template.HTML(strings.Join(result, "<br>"))
+		},
+		"hasJavadoc": func(javadoc string) bool {
+			return javadoc != ""
+		},
 		"linkifyClass": func(knownClasses map[string]bool, className string) template.HTML {
 			escaped := template.HTMLEscapeString(className)
 			if knownClasses[className] {
