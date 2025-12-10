@@ -5,14 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{if .ActiveClass}}{{.ActiveClass.SimpleName}} - {{end}}Javalyzer</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/app.js" defer></script>
 </head>
 <body>
     <div class="layout">
         <aside class="sidebar">
             <h1><a href="/">Javalyzer</a></h1>
-            <nav class="class-list">
-                {{range .Classes}}
-                <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}">
+            <div class="sidebar-search">
+                <input type="text" 
+                       placeholder="Search classes..." 
+                       data-search-input="#class-nav"
+                       data-search-param="q"
+                       autocomplete="off">
+                <span class="search-count" data-filter-count>{{len .Classes}}</span>
+            </div>
+            <nav id="class-nav" class="class-list" data-filter-list data-limit="100" data-sse-connect="/sse/classes{{if .ActiveClass}}?active={{.ActiveClass.Name}}{{end}}">
+                {{range limit 100 .Classes}}
+                <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}" data-filter-value="{{.Name}}">
                     <span class="class-type">{{if eq .Kind "interface"}}I{{else if eq .Kind "enum"}}E{{else if eq .Kind "annotation"}}@{{else if eq .Kind "record"}}R{{else}}C{{end}}</span>
                     <span class="class-name" title="{{.Name}}">{{.SimpleName}}</span>
                     {{if .Package}}<span class="class-package">{{.Package}}</span>{{end}}

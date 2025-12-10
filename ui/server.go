@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dhamidi/sai/java"
 	"github.com/dhamidi/sai/java/scanner"
@@ -32,6 +33,15 @@ func NewServer() (*Server, error) {
 	templateFS := overlayFS("ui/templates", mustSub(embeddedFS, "templates"))
 
 	funcMap := template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"limit": func(n int, classes []*java.ClassModel) []*java.ClassModel {
+			if n >= len(classes) {
+				return classes
+			}
+			return classes[:n]
+		},
 		"formatJavadoc": func(javadoc string) template.HTML {
 			if javadoc == "" {
 				return ""
@@ -110,6 +120,7 @@ func NewServer() (*Server, error) {
 	s.mux.HandleFunc("POST /scan", s.handleScan)
 	s.mux.HandleFunc("GET /scans/{id}", s.handleGetScan)
 	s.mux.HandleFunc("GET /c/{className...}", s.handleClass)
+	s.mux.HandleFunc("GET /sse/classes", s.handleSSEClasses)
 	s.mux.HandleFunc("GET /", s.handleIndex)
 
 	if javaSrc := os.Getenv("JAVA_SRC"); javaSrc != "" {
@@ -229,6 +240,32 @@ func (o *overlayFSType) Open(name string) (fs.File, error) {
 	return o.secondary.Open(name)
 }
 
+func (o *overlayFSType) ReadDir(name string) ([]fs.DirEntry, error) {
+	entries := make(map[string]fs.DirEntry)
+
+	if rd, ok := o.secondary.(fs.ReadDirFS); ok {
+		if list, err := rd.ReadDir(name); err == nil {
+			for _, e := range list {
+				entries[e.Name()] = e
+			}
+		}
+	}
+
+	if rd, ok := o.primary.(fs.ReadDirFS); ok {
+		if list, err := rd.ReadDir(name); err == nil {
+			for _, e := range list {
+				entries[e.Name()] = e
+			}
+		}
+	}
+
+	result := make([]fs.DirEntry, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, e)
+	}
+	return result, nil
+}
+
 type ClassViewData struct {
 	Classes      []*java.ClassModel
 	ActiveClass  *java.ClassModel
@@ -286,4 +323,80 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		Scans: s.scanner.List(),
 	}
 	s.render(w, "index.html", data)
+}
+
+func (s *Server) handleSSEClasses(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	activeClass := r.URL.Query().Get("active")
+	lastCount := -1
+
+	sendUpdate := func() bool {
+		classes := s.scanner.AllClasses()
+		if len(classes) == lastCount {
+			return true
+		}
+		lastCount = len(classes)
+
+		var buf strings.Builder
+		for _, c := range classes {
+			activeAttr := ""
+			if c.Name == activeClass {
+				activeAttr = " active"
+			}
+			kindLetter := "C"
+			switch c.Kind {
+			case "interface":
+				kindLetter = "I"
+			case "enum":
+				kindLetter = "E"
+			case "annotation":
+				kindLetter = "@"
+			case "record":
+				kindLetter = "R"
+			}
+			fmt.Fprintf(&buf, `<a href="/c/%s" class="class-item%s" data-filter-value="%s">`, c.Name, activeAttr, c.Name)
+			fmt.Fprintf(&buf, `<span class="class-type">%s</span>`, kindLetter)
+			fmt.Fprintf(&buf, `<span class="class-name" title="%s">%s</span>`, c.Name, c.SimpleName)
+			if c.Package != "" {
+				fmt.Fprintf(&buf, `<span class="class-package">%s</span>`, c.Package)
+			}
+			buf.WriteString("</a>\n")
+		}
+
+		data := buf.String()
+		lines := strings.Split(data, "\n")
+		fmt.Fprintf(w, "event: update\n")
+		for _, line := range lines {
+			fmt.Fprintf(w, "data: %s\n", line)
+		}
+		fmt.Fprintf(w, "\n")
+		flusher.Flush()
+		return true
+	}
+
+	sendUpdate()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if !sendUpdate() {
+				return
+			}
+		}
+	}
 }

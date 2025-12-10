@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dhamidi/sai/format"
@@ -111,7 +112,11 @@ func main() {
 			if err != nil {
 				return fmt.Errorf("create server: %w", err)
 			}
-			fmt.Printf("Starting server at http://%s\n", addr)
+			displayAddr := addr
+			if strings.HasPrefix(addr, ":") {
+				displayAddr = "localhost" + addr
+			}
+			fmt.Printf("Starting server at http://%s\n", displayAddr)
 			return http.ListenAndServe(addr, server)
 		},
 	}

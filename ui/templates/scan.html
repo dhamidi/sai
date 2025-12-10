@@ -66,28 +66,11 @@
 
             {{if .Classes}}
             <h3>Classes ({{len .Classes}})</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Package</th>
-                        <th>Type</th>
-                        <th>Visibility</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range .Classes}}
-                    <tr>
-                        <td><a href="/c/{{.Name}}">{{.SimpleName}}</a></td>
-                        <td>{{.Package}}</td>
-                        <td>
-                            {{if eq .Kind "interface"}}interface{{else if eq .Kind "enum"}}enum{{else if eq .Kind "annotation"}}annotation{{else if eq .Kind "record"}}record{{else}}class{{end}}
-                        </td>
-                        <td>{{.Visibility}}</td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
+            <ul class="class-list">
+                {{range .Classes}}
+                <li><a href="/c/{{.Name}}">{{.Name}}</a></li>
+                {{end}}
+            </ul>
             {{end}}
         </section>
     </div>
