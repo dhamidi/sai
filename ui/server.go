@@ -286,7 +286,7 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 		knownClasses[c.Name] = true
 	}
 
-	const maxResults = 200
+	const maxResults = 20
 	classes := allClasses
 	if len(allClasses) > maxResults {
 		classes = allClasses[:maxResults]
@@ -341,7 +341,7 @@ func (s *Server) handleSidebar(w http.ResponseWriter, r *http.Request) {
 	query := strings.ToLower(r.URL.Query().Get("q"))
 	activeClassName := r.URL.Query().Get("active")
 
-	const maxResults = 200
+	const maxResults = 20
 
 	allClasses := s.scanner.AllClasses()
 

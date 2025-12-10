@@ -23,8 +23,27 @@
                     url += '&active=' + encodeURIComponent(activeClass);
                 }
                 
-                classListFrame.src = url;
+                fetch(url)
+                    .then(r => r.text())
+                    .then(html => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        const newFrame = doc.getElementById('class-list');
+                        if (newFrame) {
+                            classListFrame.innerHTML = newFrame.innerHTML;
+                        }
+                    });
             }, 150);
+        });
+
+        document.addEventListener('click', (e) => {
+            const link = e.target.closest('.class-item');
+            if (!link) return;
+            
+            document.querySelectorAll('.class-item.active').forEach(el => {
+                el.classList.remove('active');
+            });
+            link.classList.add('active');
         });
     }
 
