@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dhamidi/sai/java"
@@ -101,6 +102,20 @@ func NewServer() (*Server, error) {
 		},
 		"isStaticInitializer": func(m java.MethodModel) bool {
 			return m.Name == "<clinit>"
+		},
+		"relativeSourcePath": func(u java.URLString) string {
+			if u.IsZero() || u.Scheme != "file" {
+				return ""
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return u.Path
+			}
+			rel, err := filepath.Rel(cwd, u.Path)
+			if err != nil {
+				return u.Path
+			}
+			return rel
 		},
 	}
 

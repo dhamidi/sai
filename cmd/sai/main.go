@@ -167,7 +167,7 @@ func main() {
 				if e != nil {
 					return fmt.Errorf("read java file: %w", e)
 				}
-				models, err = java.ClassModelsFromSource(data, parser.WithFile(filename))
+				models, err = java.ClassModelsFromSource(data, parser.WithFile(filename), parser.WithSourcePath(filename))
 				if err != nil {
 					return fmt.Errorf("parse java file: %w", err)
 				}
@@ -268,7 +268,7 @@ func scanSingleFile(path string, timeout time.Duration) ([]*java.ClassModel, []s
 			if err != nil {
 				parseErr = err
 			} else {
-				classes, parseErr = java.ClassModelsFromSource(data, parser.WithFile(path))
+				classes, parseErr = java.ClassModelsFromSource(data, parser.WithFile(path), parser.WithSourcePath(path))
 			}
 		}
 	}()
@@ -400,7 +400,7 @@ func scanZipEntry(f *zip.File, zipPath string, timeout time.Duration) ([]*java.C
 				classes = []*java.ClassModel{class}
 			}
 		case ".java":
-			classes, parseErr = java.ClassModelsFromSource(data, parser.WithFile(f.Name))
+			classes, parseErr = java.ClassModelsFromSource(data, parser.WithFile(f.Name), parser.WithSourcePath(f.Name))
 		}
 	}()
 
@@ -511,7 +511,7 @@ func scanJarInZip(jarFile *zip.File, timeout time.Duration, progress *int, total
 					fileClasses = []*java.ClassModel{class}
 				}
 			case ".java":
-				fileClasses, parseErr = java.ClassModelsFromSource(data, parser.WithFile(f.Name))
+				fileClasses, parseErr = java.ClassModelsFromSource(data, parser.WithFile(f.Name), parser.WithSourcePath(f.Name))
 			}
 		}()
 

@@ -43,6 +43,7 @@ type jsonClass struct {
 	Version             jsonVersion      `json:"version"`
 	Signature           string           `json:"signature,omitempty"`
 	SourceFile          string           `json:"sourceFile,omitempty"`
+	SourceURL           java.URLString   `json:"sourceURL,omitempty"`
 	Deprecated          bool             `json:"deprecated,omitempty"`
 	Annotations         []jsonAnnotation `json:"annotations,omitempty"`
 	RecordComponents    []jsonRecordComp `json:"recordComponents,omitempty"`
@@ -406,6 +407,7 @@ func (e *JSONModelEncoder) buildClassData() jsonClass {
 		Version:             jsonVersion{Major: m.MajorVersion, Minor: m.MinorVersion},
 		Signature:           m.Signature,
 		SourceFile:          m.SourceFile,
+		SourceURL:           m.SourceURL,
 		Deprecated:          m.IsDeprecated,
 		Annotations:         buildModelAnnotations(m.Annotations),
 		RecordComponents:    e.buildRecordComponents(),

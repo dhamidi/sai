@@ -56,6 +56,9 @@
                         {{range $i, $iface := .ActiveClass.Interfaces}}{{if $i}}, {{end}}{{linkifyClass $.KnownClasses $iface}}{{end}}
                     </span>
                     {{end}}
+                    {{with relativeSourcePath .ActiveClass.SourceURL}}
+                    <span class="source-file">{{.}}</span>
+                    {{end}}
                 </div>
                 {{if hasJavadoc .ActiveClass.Javadoc}}
                 <div class="javadoc">{{formatJavadoc .ActiveClass.Javadoc}}</div>

@@ -372,6 +372,11 @@ dt {
     color: #000;
 }
 
+.class-meta .source-file {
+    color: #666;
+    font-size: 12px;
+}
+
 .content section {
     margin-top: 32px;
 }

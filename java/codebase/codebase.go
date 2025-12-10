@@ -74,7 +74,7 @@ func (c *Codebase) updateFileLocked(path string, content []byte) error {
 	var classes []*java.ClassModel
 	var parseErr error
 	if ast != nil {
-		classes, parseErr = java.ClassModelsFromSource(content, parser.WithFile(filepath.Base(path)))
+		classes, parseErr = java.ClassModelsFromSource(content, parser.WithFile(filepath.Base(path)), parser.WithSourcePath(path))
 	}
 
 	c.files[path] = &FileInfo{

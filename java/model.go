@@ -37,6 +37,7 @@ type ClassModel struct {
 	MinorVersion        uint16
 	Signature           string
 	SourceFile          string
+	SourceURL           URLString
 	IsDeprecated        bool
 	Javadoc             string
 	Annotations         []AnnotationModel

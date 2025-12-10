@@ -79,7 +79,16 @@ func ClassModelsFromSource(source []byte, opts ...parser.Option) ([]*ClassModel,
 		return nil, nil
 	}
 	comments := p.Comments()
-	return classModelsFromCompilationUnit(node, comments), nil
+	models := classModelsFromCompilationUnit(node, comments)
+
+	if sourcePath := p.SourcePath(); sourcePath != "" {
+		sourceURL := FileURL(sourcePath)
+		for _, m := range models {
+			m.SourceURL = sourceURL
+		}
+	}
+
+	return models, nil
 }
 
 func classModelsFromCompilationUnit(cu *parser.Node, comments []parser.Token) []*ClassModel {

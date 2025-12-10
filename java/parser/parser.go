@@ -28,10 +28,17 @@ func WithPositions() Option {
 	}
 }
 
+func WithSourcePath(path string) Option {
+	return func(p *Parser) {
+		p.sourcePath = path
+	}
+}
+
 type parseFunc func(*Parser) *Node
 
 type Parser struct {
 	file             string
+	sourcePath       string
 	startLine        int
 	includeComments  bool
 	includePositions bool
@@ -48,6 +55,10 @@ type Parser struct {
 
 func (p *Parser) IncludesPositions() bool {
 	return p.includePositions
+}
+
+func (p *Parser) SourcePath() string {
+	return p.sourcePath
 }
 
 func (p *Parser) Comments() []Token {

@@ -19,7 +19,9 @@ func ClassModelFromFile(path string) (*ClassModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ClassModelFromClassFile(cf), nil
+	model := ClassModelFromClassFile(cf)
+	model.SourceURL = FileURL(path)
+	return model, nil
 }
 
 func ClassModelFromClassFile(cf *classfile.ClassFile) *ClassModel {

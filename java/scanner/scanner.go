@@ -152,7 +152,7 @@ func (s *Scanner) scanFiles(id string, files []string) ([]*java.ClassModel, []st
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("read %s: %v", file, err))
 			} else {
-				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(file)))
+				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(file)), parser.WithSourcePath(file))
 				if err != nil {
 					errors = append(errors, fmt.Sprintf("parse %s: %v", file, err))
 				} else {
@@ -230,7 +230,7 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("read %s: %v", f.Name, err))
 			} else {
-				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)))
+				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
 				if err != nil {
 					errors = append(errors, fmt.Sprintf("parse %s: %v", f.Name, err))
 				} else {
@@ -342,7 +342,7 @@ func (s *Scanner) scanJarInZip(jarFile *zip.File, onProgress func()) ([]*java.Cl
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("read %s in %s: %v", f.Name, jarFile.Name, err))
 			} else {
-				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)))
+				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
 				if err != nil {
 					errors = append(errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
 				} else {
