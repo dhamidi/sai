@@ -324,16 +324,26 @@ func (p *JavaPrettyPrinter) printModifiers(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
 	p.write("@")
+	hasValue := false
 	for _, child := range node.Children {
 		if child.Kind == parser.KindQualifiedName {
 			p.printQualifiedName(child)
 		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
 			p.write(child.Token.Literal)
 		} else if child.Kind == parser.KindAnnotationElement {
-			p.write("(")
+			if !hasValue {
+				p.write("(")
+			}
 			p.printAnnotationElements(node)
 			p.write(")")
+			hasValue = true
 			break
+		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral {
+			// Single value annotation like @SuppressWarnings({"unchecked"}) or @Value("x")
+			p.write("(")
+			p.printAnnotationValue(child)
+			p.write(")")
+			hasValue = true
 		}
 	}
 }
@@ -522,7 +532,7 @@ func (p *JavaPrettyPrinter) printTypeArguments(node *parser.Node) {
 	p.write("<")
 	first := true
 	for _, child := range node.Children {
-		if child.Kind == parser.KindTypeArgument || child.Kind == parser.KindType {
+		if child.Kind == parser.KindTypeArgument || child.Kind == parser.KindType || child.Kind == parser.KindWildcard {
 			if !first {
 				p.write(", ")
 			}
@@ -536,6 +546,10 @@ func (p *JavaPrettyPrinter) printTypeArguments(node *parser.Node) {
 func (p *JavaPrettyPrinter) printTypeArgument(node *parser.Node) {
 	if node.Kind == parser.KindType {
 		p.printType(node)
+		return
+	}
+	if node.Kind == parser.KindWildcard {
+		p.printWildcard(node)
 		return
 	}
 
@@ -1753,6 +1767,7 @@ func (p *JavaPrettyPrinter) printNewArrayExpr(node *parser.Node) {
 	p.write("new ")
 
 	var elemType *parser.Node
+	var elemName *parser.Node
 	var dims []*parser.Node
 	var init *parser.Node
 
@@ -1760,8 +1775,12 @@ func (p *JavaPrettyPrinter) printNewArrayExpr(node *parser.Node) {
 		switch child.Kind {
 		case parser.KindType, parser.KindArrayType:
 			elemType = child
+		case parser.KindQualifiedName:
+			elemName = child
 		case parser.KindArrayInit:
 			init = child
+		case parser.KindAnnotation:
+			// Skip annotations for now
 		default:
 			dims = append(dims, child)
 		}
@@ -1769,6 +1788,13 @@ func (p *JavaPrettyPrinter) printNewArrayExpr(node *parser.Node) {
 
 	if elemType != nil {
 		p.printType(elemType)
+	} else if elemName != nil {
+		p.printQualifiedName(elemName)
+	}
+
+	// For array initializers without explicit dimensions, we need []
+	if init != nil && len(dims) == 0 {
+		p.write("[]")
 	}
 
 	for _, dim := range dims {
@@ -1778,7 +1804,6 @@ func (p *JavaPrettyPrinter) printNewArrayExpr(node *parser.Node) {
 	}
 
 	if init != nil {
-		p.write(" ")
 		p.printArrayInit(init)
 	}
 }
@@ -1798,16 +1823,36 @@ func (p *JavaPrettyPrinter) printArrayInit(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printFieldAccess(node *parser.Node) {
 	first := true
+	prevWasTypeArgs := false
 	for _, child := range node.Children {
-		if !first {
-			p.write(".")
-		}
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
-			p.write(child.Token.Literal)
-		} else {
+		switch child.Kind {
+		case parser.KindTypeArguments:
+			// Type arguments appear before method name in generic method calls
+			// e.g., Collections.<String>emptyList()
+			if !first {
+				p.write(".")
+			}
+			p.printTypeArguments(child)
+			first = false
+			prevWasTypeArgs = true
+		case parser.KindIdentifier:
+			// Don't add dot if previous was type arguments (already part of same access)
+			if !first && !prevWasTypeArgs {
+				p.write(".")
+			}
+			if child.Token != nil {
+				p.write(child.Token.Literal)
+			}
+			first = false
+			prevWasTypeArgs = false
+		default:
+			if !first {
+				p.write(".")
+			}
 			p.printExpr(child)
+			first = false
+			prevWasTypeArgs = false
 		}
-		first = false
 	}
 }
 

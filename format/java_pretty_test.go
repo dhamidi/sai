@@ -857,3 +857,205 @@ func TestPrintComplexExpressions(t *testing.T) {
 		})
 	}
 }
+
+// Tests for wildcards in generic types - use valid expression forms like .class literals
+func TestPrintWildcardGenerics(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "wildcard unbounded",
+			input:    "List<?>.class",
+			expected: "List<?>.class",
+		},
+		{
+			name:     "wildcard extends",
+			input:    "List<? extends Number>.class",
+			expected: "List<? extends Number>.class",
+		},
+		{
+			name:     "wildcard super",
+			input:    "List<? super Integer>.class",
+			expected: "List<? super Integer>.class",
+		},
+		{
+			name:     "map with wildcards",
+			input:    "Map<String, ?>.class",
+			expected: "Map<String, ?>.class",
+		},
+		{
+			name:     "class literal with wildcard",
+			input:    "Class<?>.class",
+			expected: "Class<?>.class",
+		},
+		{
+			name:     "wildcard cast",
+			input:    "(List<?>) x",
+			expected: "(List<?>) x",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatExpr(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("formatExpr(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// Helper to format annotation by parsing it in a class context
+func formatAnnotation(t *testing.T, annotation string) string {
+	t.Helper()
+	// Wrap annotation in a class to make it valid Java
+	input := annotation + "\nclass X {}"
+	p := parser.ParseCompilationUnit(strings.NewReader(input))
+	node := p.Finish()
+	if node == nil || node.Kind == parser.KindError {
+		t.Fatalf("parse error for input %q", input)
+	}
+
+	// Find the annotation in the AST
+	classDecl := node.FirstChildOfKind(parser.KindClassDecl)
+	if classDecl == nil {
+		t.Fatalf("no class decl found")
+	}
+	modifiers := classDecl.FirstChildOfKind(parser.KindModifiers)
+	if modifiers == nil {
+		t.Fatalf("no modifiers found")
+	}
+	annotNode := modifiers.FirstChildOfKind(parser.KindAnnotation)
+	if annotNode == nil {
+		t.Fatalf("no annotation found")
+	}
+
+	var buf bytes.Buffer
+	printer := NewJavaPrettyPrinter(&buf)
+	printer.printAnnotation(annotNode)
+	return buf.String()
+}
+
+func TestPrintAnnotationArrays(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "annotation with single value array",
+			input:    `@SuppressWarnings({"unchecked"})`,
+			expected: `@SuppressWarnings({"unchecked"})`,
+		},
+		{
+			name:     "annotation with multiple values",
+			input:    `@SuppressWarnings({"deprecation", "rawtypes", "unchecked"})`,
+			expected: `@SuppressWarnings({"deprecation", "rawtypes", "unchecked"})`,
+		},
+		{
+			name:     "annotation with value key",
+			input:    `@SuppressWarnings(value = {"unchecked"})`,
+			expected: `@SuppressWarnings({"unchecked"})`, // "value = " is optional in Java, printer normalizes
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatAnnotation(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("formatAnnotation(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintDiamondOperator(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "diamond operator in new",
+			input:    "new ArrayList<>()",
+			expected: "new ArrayList<>()",
+		},
+		{
+			name:     "diamond with arguments",
+			input:    "new HashMap<>(16)",
+			expected: "new HashMap<>(16)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatExpr(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("formatExpr(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintGenericMethodCall(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "explicit type argument",
+			input:    "Collections.<String>emptyList()",
+			expected: "Collections.<String>emptyList()",
+		},
+		{
+			name:     "multiple type arguments",
+			input:    "Collections.<String, Object>emptyMap()",
+			expected: "Collections.<String, Object>emptyMap()",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatExpr(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("formatExpr(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintNewArrayWithInit(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "new array with initializer",
+			input:    `new String[]{"a", "b"}`,
+			expected: `new String[]{"a", "b"}`,
+		},
+		{
+			name:     "new int array with values",
+			input:    "new int[]{1, 2, 3}",
+			expected: "new int[]{1, 2, 3}",
+		},
+		{
+			name:     "new byte array with initializer",
+			input:    "new byte[]{byteCode}",
+			expected: "new byte[]{byteCode}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatExpr(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("formatExpr(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
