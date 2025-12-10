@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,11 +77,11 @@ func main() {
 
 				switch outputFormat {
 				case "json":
-					jsonData, err := json.MarshalIndent(node, "", "  ")
-					if err != nil {
+					enc := format.NewASTJSONEncoder(os.Stdout)
+					if err := enc.Encode(node); err != nil {
 						return fmt.Errorf("encode json: %w", err)
 					}
-					fmt.Println(string(jsonData))
+					fmt.Println()
 				case "java":
 					if p.IncludesPositions() {
 						fmt.Println(node.StringWithPositions())
