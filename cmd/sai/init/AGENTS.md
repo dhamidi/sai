@@ -21,6 +21,22 @@ sai classpath
 
 Returns a colon-separated list of JAR paths for use with `javac` or `java`.
 
+### Compiling
+
+```bash
+sai compile
+```
+
+Compiles the application.
+
+### Running
+
+```bash
+sai run
+```
+
+Runs the Cli.java entrypoint.
+
 ### Formatting
 
 ```bash

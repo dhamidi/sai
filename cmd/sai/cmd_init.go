@@ -17,35 +17,17 @@ var gitignoreContent string
 //go:embed init/AGENTS.md
 var agentsMDContent string
 
-var coreModuleInfoTemplate = `module {{PROJECT_ID}}.core {
-    exports {{PROJECT_ID}}.core;
-}
-`
+//go:embed init/core-module-info.java.tmpl
+var coreModuleInfoTemplate string
 
-var mainModuleInfoTemplate = `module {{PROJECT_ID}}.main {
-    requires {{PROJECT_ID}}.core;
-}
-`
+//go:embed init/main-module-info.java.tmpl
+var mainModuleInfoTemplate string
 
-var helloJavaTemplate = `package {{PROJECT_ID}}.core;
+//go:embed init/Hello.java.tmpl
+var helloJavaTemplate string
 
-public class Hello {
-    public static String greet(String name) {
-        return "Hello, " + name + "!";
-    }
-}
-`
-
-var cliJavaTemplate = `package {{PROJECT_ID}}.main;
-
-import {{PROJECT_ID}}.core.Hello;
-
-public class Cli {
-    public static void main(String[] args) {
-        System.out.println(Hello.greet("world"));
-    }
-}
-`
+//go:embed init/Cli.java.tmpl
+var cliJavaTemplate string
 
 func newInitCmd() *cobra.Command {
 	var projectID string
