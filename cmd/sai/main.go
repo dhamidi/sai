@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -297,6 +298,32 @@ Examples:
 	}
 	classpathCmd.Flags().StringVarP(&cpLibDir, "lib", "l", "lib", "directory containing JAR files")
 
+	initCmd := &cobra.Command{
+		Use:   "init [directory]",
+		Short: "Initialize a new sai Java project",
+		Long: `Initialize a new sai Java project.
+
+If a directory is provided, creates it and initializes the project there.
+Otherwise, initializes in the current directory.
+
+This command:
+  - Ensures a git repository exists
+  - Creates AGENTS.md with sai workflow instructions
+  - Creates CLAUDE.md as a symlink to AGENTS.md
+
+Examples:
+  sai init              # Initialize in current directory
+  sai init myproject    # Create and initialize myproject/`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+			return runInit(dir)
+		},
+	}
+
 	rootCmd.AddCommand(parseCmd)
 	rootCmd.AddCommand(uiCmd)
 	rootCmd.AddCommand(scanCmd)
@@ -305,6 +332,7 @@ Examples:
 	rootCmd.AddCommand(fmtCmd)
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(classpathCmd)
+	rootCmd.AddCommand(initCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -632,6 +660,115 @@ func scanJarInZip(jarFile *zip.File, timeout time.Duration, progress *int, total
 
 	return classes, errors
 }
+
+func runInit(dir string) error {
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create directory: %w", err)
+		}
+		fmt.Printf("Created %s/\n", dir)
+	}
+
+	gitDir := filepath.Join(dir, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		cmd := exec.Command("git", "init")
+		cmd.Dir = dir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("git init: %w", err)
+		}
+	} else {
+		fmt.Println("Git repository already exists")
+	}
+
+	agentsPath := filepath.Join(dir, "AGENTS.md")
+	if _, err := os.Stat(agentsPath); os.IsNotExist(err) {
+		if err := os.WriteFile(agentsPath, []byte(agentsMDContent), 0644); err != nil {
+			return fmt.Errorf("create AGENTS.md: %w", err)
+		}
+		fmt.Println("Created AGENTS.md")
+	} else {
+		fmt.Println("AGENTS.md already exists")
+	}
+
+	claudePath := filepath.Join(dir, "CLAUDE.md")
+	if _, err := os.Lstat(claudePath); os.IsNotExist(err) {
+		if err := os.Symlink("AGENTS.md", claudePath); err != nil {
+			return fmt.Errorf("create CLAUDE.md symlink: %w", err)
+		}
+		fmt.Println("Created CLAUDE.md -> AGENTS.md")
+	} else {
+		fmt.Println("CLAUDE.md already exists")
+	}
+
+	fmt.Println("\nProject initialized! Next steps:")
+	fmt.Println("  - Add dependencies: sai add <groupId:artifactId:version>")
+	fmt.Println("  - Create src/ directory for Java source files")
+	return nil
+}
+
+const agentsMDContent = `# Sai Java Project
+
+This project uses **sai** instead of Maven or Gradle for Java development.
+
+## Commands
+
+### Adding Dependencies
+
+` + "```" + `bash
+sai add <groupId:artifactId:version>
+# Example: sai add com.google.guava:guava:32.1.3-jre
+` + "```" + `
+
+Dependencies are downloaded to ` + "`lib/`" + `.
+
+### Getting the Classpath
+
+` + "```" + `bash
+sai classpath
+` + "```" + `
+
+Returns a colon-separated list of JAR paths for use with ` + "`javac`" + ` or ` + "`java`" + `.
+
+### Compiling
+
+` + "```" + `bash
+javac -cp "$(sai classpath)" -d out src/**/*.java
+` + "```" + `
+
+### Running
+
+` + "```" + `bash
+java -cp "out:$(sai classpath)" com.example.Main
+` + "```" + `
+
+### Formatting
+
+` + "```" + `bash
+sai fmt src/Main.java        # Print formatted output
+sai fmt -w src/Main.java     # Overwrite file in place
+` + "```" + `
+
+## Project Structure
+
+` + "```" + `
+.
+├── AGENTS.md       # This file
+├── CLAUDE.md       # Symlink to AGENTS.md
+├── lib/            # Downloaded JAR dependencies
+├── src/            # Java source files
+└── out/            # Compiled class files
+` + "```" + `
+
+## Notes for AI Agents
+
+- Do NOT use Maven (` + "`mvn`" + `) or Gradle (` + "`gradle`" + `, ` + "`./gradlew`" + `)
+- Use ` + "`sai add`" + ` to add dependencies
+- Use ` + "`sai classpath`" + ` to get the classpath for compilation/execution
+- Use ` + "`sai fmt -w`" + ` to format Java files
+- The ` + "`lib/`" + ` directory contains all JAR dependencies
+`
 
 func runClasspath(libDir string) error {
 	if _, err := os.Stat("pom.xml"); err == nil {
