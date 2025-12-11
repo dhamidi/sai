@@ -10,6 +10,8 @@ import (
 )
 
 func newCompileCmd() *cobra.Command {
+	var verbose bool
+
 	cmd := &cobra.Command{
 		Use:   "compile",
 		Short: "Compile the Java project",
@@ -22,13 +24,16 @@ This command:
 
 The project identifier is detected from the src/ directory structure.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCompile()
+			return runCompile(verbose)
 		},
 	}
+
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print exact commands being executed")
+
 	return cmd
 }
 
-func runCompile() error {
+func runCompile(verbose bool) error {
 	projectID, err := detectProjectID()
 	if err != nil {
 		return err
@@ -59,6 +64,9 @@ func runCompile() error {
 	}
 
 	fmt.Printf("Compiling %s.core...\n", projectID)
+	if verbose {
+		fmt.Printf("+ javac %s\n", formatArgs(coreArgs))
+	}
 	javacCore := exec.Command("javac", coreArgs...)
 	javacCore.Stdout = os.Stdout
 	javacCore.Stderr = os.Stderr
@@ -82,6 +90,9 @@ func runCompile() error {
 	}
 
 	fmt.Printf("Compiling %s.main...\n", projectID)
+	if verbose {
+		fmt.Printf("+ javac %s\n", formatArgs(mainArgs))
+	}
 	javacMain := exec.Command("javac", mainArgs...)
 	javacMain.Stdout = os.Stdout
 	javacMain.Stderr = os.Stderr
@@ -91,6 +102,30 @@ func runCompile() error {
 
 	fmt.Println("Compilation successful!")
 	return nil
+}
+
+func formatArgs(args []string) string {
+	result := ""
+	for i, arg := range args {
+		if i > 0 {
+			result += " "
+		}
+		if needsQuoting(arg) {
+			result += fmt.Sprintf("%q", arg)
+		} else {
+			result += arg
+		}
+	}
+	return result
+}
+
+func needsQuoting(s string) bool {
+	for _, r := range s {
+		if r == ' ' || r == '\t' || r == '"' || r == '\'' || r == '\\' {
+			return true
+		}
+	}
+	return false
 }
 
 func detectProjectID() (string, error) {

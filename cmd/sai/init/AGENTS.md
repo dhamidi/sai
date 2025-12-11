@@ -102,7 +102,10 @@ java -p lib:out -m {{PROJECT_ID}}.main/{{PROJECT_ID}}.main.Main
 ## Notes for AI Agents
 
 - Do NOT use Maven (`mvn`) or Gradle (`gradle`, `./gradlew`)
+- **MUST use `sai compile` to compile** - do not invoke `javac` directly
+- **MUST use `sai run` to run the application** - do not invoke `java` directly
 - Use `sai add` to add dependencies
 - Use `sai classpath` to get the classpath for compilation/execution
 - Use `sai fmt -w` to format Java files
 - The `lib/` directory contains all JAR dependencies
+- Use `-v` flag with `sai compile -v` or `sai run -v` to see exact commands being executed
