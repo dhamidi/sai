@@ -1059,3 +1059,37 @@ func TestPrintNewArrayWithInit(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintElseIfOnOneLine(t *testing.T) {
+	input := `class X {
+    void foo() {
+        if (a) {
+            x();
+        } else if (b) {
+            y();
+        } else {
+            z();
+        }
+    }
+}`
+	expected := `class X {
+
+    void foo() {
+        if (a) {
+            x();
+        } else if (b) {
+            y();
+        } else {
+            z();
+        }
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("else if not on one line:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}

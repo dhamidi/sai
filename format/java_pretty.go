@@ -1047,7 +1047,13 @@ func (p *JavaPrettyPrinter) printReturnStmt(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printIfStmt(node *parser.Node) {
-	p.writeIndent()
+	p.printIfStmtInner(node, true)
+}
+
+func (p *JavaPrettyPrinter) printIfStmtInner(node *parser.Node, writeIndent bool) {
+	if writeIndent {
+		p.writeIndent()
+	}
 	p.write("if (")
 
 	children := node.Children
@@ -1057,13 +1063,50 @@ func (p *JavaPrettyPrinter) printIfStmt(node *parser.Node) {
 	p.write(") ")
 
 	if len(children) > 1 {
-		p.printBranchBody(children[1])
+		p.printBranchBodyWithElse(children[1], children)
 	}
+}
 
-	if len(children) > 2 {
+func (p *JavaPrettyPrinter) printBranchBodyWithElse(body *parser.Node, ifChildren []*parser.Node) {
+	if body.Kind == parser.KindBlock {
+		p.write("{\n")
+		p.atLineStart = true
+		p.indent++
+
+		for _, child := range body.Children {
+			p.emitCommentsBeforeLine(child.Span.Start.Line)
+			p.printStatement(child)
+		}
+
+		p.indent--
 		p.writeIndent()
-		p.write("else ")
-		p.printBranchBody(children[2])
+		p.write("}")
+
+		if len(ifChildren) > 2 {
+			elseBody := ifChildren[2]
+			if elseBody.Kind == parser.KindIfStmt {
+				p.write(" else ")
+				p.printIfStmtInner(elseBody, false)
+			} else {
+				p.write(" else ")
+				p.printBranchBody(elseBody)
+			}
+		} else {
+			p.write("\n")
+			p.atLineStart = true
+		}
+	} else {
+		p.write("\n")
+		p.atLineStart = true
+		p.indent++
+		p.printStatement(body)
+		p.indent--
+
+		if len(ifChildren) > 2 {
+			p.writeIndent()
+			p.write("else ")
+			p.printBranchBody(ifChildren[2])
+		}
 	}
 }
 
