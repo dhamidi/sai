@@ -1,0 +1,31 @@
+package {{PROJECT_ID}}.test;
+
+import {{PROJECT_ID}}.core.Hello;
+import org.junit.jupiter.api.Test;
+
+import java.io.StringWriter;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class HelloTest {
+
+    @Test
+    void greetWritesToWriter() throws Exception {
+        var writer = new StringWriter();
+        var hello = new Hello(writer);
+        
+        hello.greet("world");
+        
+        assertEquals("Hello, world!", writer.toString());
+    }
+
+    @Test
+    void greetWithDifferentName() throws Exception {
+        var writer = new StringWriter();
+        var hello = new Hello(writer);
+        
+        hello.greet("JUnit");
+        
+        assertEquals("Hello, JUnit!", writer.toString());
+    }
+}

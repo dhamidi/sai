@@ -1,9 +1,14 @@
 package {{PROJECT_ID}}.main;
 
 import {{PROJECT_ID}}.core.Hello;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 
 public class Cli {
-    public static void main(String[] args) {
-        System.out.println(Hello.greet("world"));
+    public static void main(String[] args) throws Exception {
+        var writer = new PrintWriter(new OutputStreamWriter(System.out), true);
+        var hello = new Hello(writer);
+        hello.greet("world");
+        writer.println();
     }
 }

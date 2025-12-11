@@ -1,7 +1,20 @@
 package {{PROJECT_ID}}.core;
 
+import java.io.IOException;
+import java.io.Writer;
+
 public class Hello {
-    public static String greet(String name) {
+    private final Writer writer;
+
+    public Hello(Writer writer) {
+        this.writer = writer;
+    }
+
+    public void greet(String name) throws IOException {
+        writer.write("Hello, " + name + "!");
+    }
+
+    public static String greetToString(String name) {
         return "Hello, " + name + "!";
     }
 }

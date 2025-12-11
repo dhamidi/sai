@@ -29,6 +29,12 @@ var helloJavaTemplate string
 //go:embed init/Cli.java.tmpl
 var cliJavaTemplate string
 
+//go:embed init/test-module-info.java.tmpl
+var testModuleInfoTemplate string
+
+//go:embed init/HelloTest.java.tmpl
+var helloTestJavaTemplate string
+
 func newInitCmd() *cobra.Command {
 	var projectID string
 
@@ -45,10 +51,11 @@ Java identifier. Use -p to override.
 
 This command:
   - Ensures a git repository exists
-  - Creates the modular source structure: src/<project-id>/{core,main}/
+  - Creates the modular source structure: src/<project-id>/{core,main,test}/
   - Creates .gitignore with out/ and mlib/
   - Creates AGENTS.md with sai workflow instructions
   - Creates CLAUDE.md as a symlink to AGENTS.md
+  - Installs JUnit 5 dependencies for testing
 
 Examples:
   sai init myapp                 # Create myapp/ with project id "myapp"
@@ -114,6 +121,12 @@ func runInit(dir string, projectID string) error {
 		return fmt.Errorf("create src/%s/main: %w", projectID, err)
 	}
 	fmt.Printf("Created src/%s/main/\n", projectID)
+
+	testPath := filepath.Join(dir, "src", projectID, "test")
+	if err := os.MkdirAll(testPath, 0755); err != nil {
+		return fmt.Errorf("create src/%s/test: %w", projectID, err)
+	}
+	fmt.Printf("Created src/%s/test/\n", projectID)
 
 	libPath := filepath.Join(dir, "lib")
 	if err := os.MkdirAll(libPath, 0755); err != nil {
@@ -188,9 +201,44 @@ func runInit(dir string, projectID string) error {
 		fmt.Printf("Created src/%s/main/Cli.java\n", projectID)
 	}
 
+	testModuleInfo := filepath.Join(testPath, "module-info.java")
+	if _, err := os.Stat(testModuleInfo); os.IsNotExist(err) {
+		content := strings.ReplaceAll(testModuleInfoTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(testModuleInfo, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create test module-info.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/test/module-info.java\n", projectID)
+	}
+
+	helloTestJava := filepath.Join(testPath, "HelloTest.java")
+	if _, err := os.Stat(helloTestJava); os.IsNotExist(err) {
+		content := strings.ReplaceAll(helloTestJavaTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(helloTestJava, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create HelloTest.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/test/HelloTest.java\n", projectID)
+	}
+
+	// Install JUnit 5 dependencies
+	fmt.Println("\nInstalling JUnit 5 dependencies...")
+	junitDeps := []string{
+		"org.junit.jupiter:junit-jupiter:5.13.0",
+		"org.junit.platform:junit-platform-console-standalone:1.13.0",
+	}
+	for _, dep := range junitDeps {
+		cmd := exec.Command("sai", "add", dep)
+		cmd.Dir = dir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("install %s: %w", dep, err)
+		}
+	}
+
 	fmt.Println("\nProject initialized! Next steps:")
 	fmt.Println("  - Compile: sai compile")
 	fmt.Println("  - Run: sai run")
+	fmt.Println("  - Test: sai test")
 	fmt.Println("  - Add dependencies: sai add <groupId:artifactId:version>")
 	return nil
 }

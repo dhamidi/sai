@@ -1,0 +1,129 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+)
+
+func newTestCmd() *cobra.Command {
+	var verbose bool
+
+	cmd := &cobra.Command{
+		Use:   "test [-- args...]",
+		Short: "Run tests using JUnit",
+		Long: `Run tests using JUnit Platform Console Standalone.
+
+This command:
+  - Compiles the project (core and main modules)
+  - Compiles the test module
+  - Runs JUnit with the Jupiter engine
+
+Any arguments after -- are forwarded to the JUnit console runner.
+
+Examples:
+  sai test                           # Run all tests
+  sai test -- --select-class=MyTest  # Run specific test class
+  sai test -- --fail-if-no-tests     # Fail if no tests found`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTest(args, verbose)
+		},
+	}
+
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print exact commands being executed")
+
+	return cmd
+}
+
+func runTest(junitArgs []string, verbose bool) error {
+	// First compile the main project
+	if err := runCompile(verbose); err != nil {
+		return err
+	}
+
+	projectID, err := detectProjectID()
+	if err != nil {
+		return err
+	}
+
+	// Check if test module exists
+	testSrcDir := filepath.Join("src", projectID, "test")
+	if _, err := os.Stat(testSrcDir); os.IsNotExist(err) {
+		return fmt.Errorf("no test module found at %s", testSrcDir)
+	}
+
+	// Create test output directory
+	testOutDir := filepath.Join("out", projectID+".test")
+	if err := os.MkdirAll(testOutDir, 0755); err != nil {
+		return fmt.Errorf("create %s: %w", testOutDir, err)
+	}
+
+	// Compile test module
+	testModuleInfo := filepath.Join(testSrcDir, "module-info.java")
+	testJavaFiles, err := filepath.Glob(filepath.Join(testSrcDir, "*.java"))
+	if err != nil {
+		return fmt.Errorf("glob test java files: %w", err)
+	}
+
+	testArgs := []string{"-p", "lib:out", "-d", testOutDir, testModuleInfo}
+	for _, f := range testJavaFiles {
+		if f != testModuleInfo {
+			testArgs = append(testArgs, f)
+		}
+	}
+
+	fmt.Printf("Compiling %s.test...\n", projectID)
+	if verbose {
+		fmt.Printf("+ javac %s\n", formatArgs(testArgs))
+	}
+	javacTest := exec.Command("javac", testArgs...)
+	javacTest.Stdout = os.Stdout
+	javacTest.Stderr = os.Stderr
+	if err := javacTest.Run(); err != nil {
+		return fmt.Errorf("compile test: %w", err)
+	}
+
+	// Find junit-platform-console-standalone jar
+	junitJar, err := findJUnitConsoleLauncher()
+	if err != nil {
+		return err
+	}
+
+	// Build classpath for test execution
+	classpath := fmt.Sprintf("out/%s.core:out/%s.test:lib/*", projectID, projectID)
+
+	// Run JUnit
+	javaArgs := []string{
+		"-jar", junitJar,
+		"execute",
+		"-cp", classpath,
+		"--scan-classpath",
+		"-e", "junit-jupiter",
+	}
+	javaArgs = append(javaArgs, junitArgs...)
+
+	fmt.Println("\nRunning tests...")
+	if verbose {
+		fmt.Printf("+ java %s\n", formatArgs(javaArgs))
+	}
+
+	javaCmd := exec.Command("java", javaArgs...)
+	javaCmd.Stdout = os.Stdout
+	javaCmd.Stderr = os.Stderr
+
+	return javaCmd.Run()
+}
+
+func findJUnitConsoleLauncher() (string, error) {
+	matches, err := filepath.Glob("lib/junit-platform-console-standalone-*.jar")
+	if err != nil {
+		return "", fmt.Errorf("search for junit console launcher: %w", err)
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("junit-platform-console-standalone not found in lib/; run: sai add org.junit.platform:junit-platform-console-standalone:1.13.0")
+	}
+	return matches[0], nil
+}

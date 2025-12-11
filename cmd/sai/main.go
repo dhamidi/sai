@@ -24,6 +24,7 @@ func main() {
 	rootCmd.AddCommand(newLibsCmd())
 	rootCmd.AddCommand(newCompileCmd())
 	rootCmd.AddCommand(newRunCmd())
+	rootCmd.AddCommand(newTestCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
