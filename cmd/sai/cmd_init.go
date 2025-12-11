@@ -17,6 +17,36 @@ var gitignoreContent string
 //go:embed init/AGENTS.md
 var agentsMDContent string
 
+var coreModuleInfoTemplate = `module {{PROJECT_ID}}.core {
+    exports {{PROJECT_ID}}.core;
+}
+`
+
+var mainModuleInfoTemplate = `module {{PROJECT_ID}}.main {
+    requires {{PROJECT_ID}}.core;
+}
+`
+
+var helloJavaTemplate = `package {{PROJECT_ID}}.core;
+
+public class Hello {
+    public static String greet(String name) {
+        return "Hello, " + name + "!";
+    }
+}
+`
+
+var cliJavaTemplate = `package {{PROJECT_ID}}.main;
+
+import {{PROJECT_ID}}.core.Hello;
+
+public class Cli {
+    public static void main(String[] args) {
+        System.out.println(Hello.greet("world"));
+    }
+}
+`
+
 func newInitCmd() *cobra.Command {
 	var projectID string
 
@@ -140,9 +170,46 @@ func runInit(dir string, projectID string) error {
 		fmt.Println("CLAUDE.md already exists")
 	}
 
+	coreModuleInfo := filepath.Join(corePath, "module-info.java")
+	if _, err := os.Stat(coreModuleInfo); os.IsNotExist(err) {
+		content := strings.ReplaceAll(coreModuleInfoTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(coreModuleInfo, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create core module-info.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/core/module-info.java\n", projectID)
+	}
+
+	helloJava := filepath.Join(corePath, "Hello.java")
+	if _, err := os.Stat(helloJava); os.IsNotExist(err) {
+		content := strings.ReplaceAll(helloJavaTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(helloJava, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create Hello.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/core/Hello.java\n", projectID)
+	}
+
+	mainModuleInfo := filepath.Join(mainPath, "module-info.java")
+	if _, err := os.Stat(mainModuleInfo); os.IsNotExist(err) {
+		content := strings.ReplaceAll(mainModuleInfoTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(mainModuleInfo, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create main module-info.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/main/module-info.java\n", projectID)
+	}
+
+	cliJava := filepath.Join(mainPath, "Cli.java")
+	if _, err := os.Stat(cliJava); os.IsNotExist(err) {
+		content := strings.ReplaceAll(cliJavaTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(cliJava, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create Cli.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/main/Cli.java\n", projectID)
+	}
+
 	fmt.Println("\nProject initialized! Next steps:")
+	fmt.Println("  - Compile: sai compile")
+	fmt.Println("  - Run: sai run")
 	fmt.Println("  - Add dependencies: sai add <groupId:artifactId:version>")
-	fmt.Printf("  - Add source files to src/%s/core/ and src/%s/main/\n", projectID, projectID)
 	return nil
 }
 

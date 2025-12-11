@@ -21,6 +21,9 @@ func main() {
 	rootCmd.AddCommand(newAddCmd())
 	rootCmd.AddCommand(newClasspathCmd())
 	rootCmd.AddCommand(newInitCmd())
+	rootCmd.AddCommand(newLibsCmd())
+	rootCmd.AddCommand(newCompileCmd())
+	rootCmd.AddCommand(newRunCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
