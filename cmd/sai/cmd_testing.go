@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -99,6 +104,7 @@ func runTest(junitArgs []string, verbose bool) error {
 	javaArgs := []string{
 		"-jar", junitJar,
 		"execute",
+		"--disable-banner",
 		"-cp", classpath,
 		"--scan-classpath",
 		"-e", "junit-jupiter",
@@ -111,10 +117,76 @@ func runTest(junitArgs []string, verbose bool) error {
 	}
 
 	javaCmd := exec.Command("java", javaArgs...)
-	javaCmd.Stdout = os.Stdout
 	javaCmd.Stderr = os.Stderr
 
-	return javaCmd.Run()
+	stdout, err := javaCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("create stdout pipe: %w", err)
+	}
+
+	if err := javaCmd.Start(); err != nil {
+		return fmt.Errorf("start junit: %w", err)
+	}
+
+	summary := filterJUnitOutput(stdout, os.Stdout)
+
+	exitErr := javaCmd.Wait()
+
+	// Print summary line
+	if summary.failed > 0 {
+		fmt.Printf("\n%d/%d tests failed\n", summary.failed, summary.total)
+	} else if summary.total > 0 {
+		fmt.Printf("\n%d tests passed\n", summary.total)
+	}
+
+	if exitErr != nil {
+		os.Exit(1)
+	}
+	return nil
+}
+
+type testSummary struct {
+	total  int
+	failed int
+}
+
+func filterJUnitOutput(r io.Reader, w io.Writer) testSummary {
+	scanner := bufio.NewScanner(r)
+	summary := testSummary{}
+	inSummary := false
+
+	testsFoundRe := regexp.MustCompile(`\[\s*(\d+) tests found\s*\]`)
+	testsFailedRe := regexp.MustCompile(`\[\s*(\d+) tests failed\s*\]`)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Detect start of summary block
+		if strings.HasPrefix(line, "Test run finished") {
+			inSummary = true
+			continue
+		}
+
+		if inSummary {
+			// Parse summary lines
+			if m := testsFoundRe.FindStringSubmatch(line); m != nil {
+				summary.total, _ = strconv.Atoi(m[1])
+			}
+			if m := testsFailedRe.FindStringSubmatch(line); m != nil {
+				summary.failed, _ = strconv.Atoi(m[1])
+			}
+			continue
+		}
+
+		// Skip sponsorship message
+		if strings.Contains(line, "Thanks for using JUnit") {
+			continue
+		}
+
+		fmt.Fprintln(w, line)
+	}
+
+	return summary
 }
 
 func findJUnitConsoleLauncher() (string, error) {
