@@ -1,0 +1,51 @@
+package {{PROJECT_ID}}.test;
+
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
+
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class LinePerTestReporter implements TestExecutionListener {
+    private final Map<String, Long> startTimes = new ConcurrentHashMap<>();
+
+    @Override
+    public void executionStarted(TestIdentifier testIdentifier) {
+        if (testIdentifier.isTest()) {
+            startTimes.put(testIdentifier.getUniqueId(), System.nanoTime());
+        }
+    }
+
+    @Override
+    public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result) {
+        if (testIdentifier.isTest()) {
+            long endTime = System.nanoTime();
+            Long startTime = startTimes.remove(testIdentifier.getUniqueId());
+            Duration duration = Duration.ofNanos(endTime - (startTime != null ? startTime : endTime));
+            
+            String status = switch (result.getStatus()) {
+                case SUCCESSFUL -> "✓";
+                case FAILED -> "✗";
+                case ABORTED -> "○";
+            };
+            
+            String className = testIdentifier.getSource()
+                .flatMap(source -> {
+                    if (source instanceof org.junit.platform.engine.support.descriptor.MethodSource ms) {
+                        return java.util.Optional.of(ms.getClassName());
+                    }
+                    return java.util.Optional.empty();
+                })
+                .map(name -> name.substring(name.lastIndexOf('.') + 1))
+                .orElse("");
+            
+            System.out.printf(" %s %s > %s (%dms)%n",
+                status,
+                className,
+                testIdentifier.getDisplayName(),
+                duration.toMillis());
+        }
+    }
+}

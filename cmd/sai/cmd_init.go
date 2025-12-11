@@ -35,6 +35,12 @@ var testModuleInfoTemplate string
 //go:embed init/HelloTest.java.tmpl
 var helloTestJavaTemplate string
 
+//go:embed init/TestRunner.java.tmpl
+var testRunnerJavaTemplate string
+
+//go:embed init/LinePerTestReporter.java.tmpl
+var linePerTestReporterJavaTemplate string
+
 func newInitCmd() *cobra.Command {
 	var projectID string
 
@@ -219,11 +225,29 @@ func runInit(dir string, projectID string) error {
 		fmt.Printf("Created src/%s/test/HelloTest.java\n", projectID)
 	}
 
+	testRunnerJava := filepath.Join(testPath, "TestRunner.java")
+	if _, err := os.Stat(testRunnerJava); os.IsNotExist(err) {
+		content := strings.ReplaceAll(testRunnerJavaTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(testRunnerJava, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create TestRunner.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/test/TestRunner.java\n", projectID)
+	}
+
+	linePerTestReporterJava := filepath.Join(testPath, "LinePerTestReporter.java")
+	if _, err := os.Stat(linePerTestReporterJava); os.IsNotExist(err) {
+		content := strings.ReplaceAll(linePerTestReporterJavaTemplate, "{{PROJECT_ID}}", projectID)
+		if err := os.WriteFile(linePerTestReporterJava, []byte(content), 0644); err != nil {
+			return fmt.Errorf("create LinePerTestReporter.java: %w", err)
+		}
+		fmt.Printf("Created src/%s/test/LinePerTestReporter.java\n", projectID)
+	}
+
 	// Install JUnit 5 dependencies
 	fmt.Println("\nInstalling JUnit 5 dependencies...")
 	junitDeps := []string{
 		"org.junit.jupiter:junit-jupiter:5.13.0",
-		"org.junit.platform:junit-platform-console-standalone:1.13.0",
+		"org.junit.platform:junit-platform-launcher:1.13.0",
 	}
 	for _, dep := range junitDeps {
 		cmd := exec.Command("sai", "add", dep)

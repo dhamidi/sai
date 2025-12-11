@@ -1,6 +1,8 @@
 module {{PROJECT_ID}}.test {
     requires {{PROJECT_ID}}.core;
     requires org.junit.jupiter.api;
+    requires org.junit.platform.launcher;
+    requires org.junit.platform.engine;
     
     opens {{PROJECT_ID}}.test to org.junit.platform.commons;
 }
