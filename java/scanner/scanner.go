@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ type Result struct {
 	Status    Status
 	Request   Request
 	Classes   []*java.ClassModel
+	Modules   []*java.ModuleModel
 	Error     string
 	Errors    []string
 	StartedAt time.Time
@@ -74,6 +76,12 @@ func (s *Scanner) run() {
 	}
 }
 
+type scanResult struct {
+	classes []*java.ClassModel
+	modules []*java.ModuleModel
+	errors  []string
+}
+
 func (s *Scanner) processScan(req Request) {
 	s.mu.Lock()
 	result := s.scans[req.ID]
@@ -81,33 +89,81 @@ func (s *Scanner) processScan(req Request) {
 	result.StartedAt = time.Now()
 	s.mu.Unlock()
 
-	var classes []*java.ClassModel
-	var errors []string
+	var sr scanResult
 
 	if req.Path != "" {
-		classes, errors = s.scanDirectory(req.ID, req.Path)
+		sr = s.scanDirectory(req.ID, req.Path)
 	} else if len(req.ClassFiles) > 0 {
-		classes, errors = s.scanFiles(req.ID, req.ClassFiles)
+		sr = s.scanFiles(req.ID, req.ClassFiles)
 	} else if req.ZipFile != "" {
-		classes, errors = s.scanZipFile(req.ID, req.ZipFile)
+		sr = s.scanZipFile(req.ID, req.ZipFile)
 	} else {
-		errors = append(errors, "no path, class files, or zip file provided")
+		sr.errors = append(sr.errors, "no path, class files, or zip file provided")
 	}
+
+	// Link classes to their modules based on package paths
+	linkClassesToModules(sr.classes, sr.modules)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result.EndedAt = time.Now()
-	result.Classes = classes
-	result.Errors = errors
-	if len(errors) > 0 && len(classes) == 0 {
+	result.Classes = sr.classes
+	result.Modules = sr.modules
+	result.Errors = sr.errors
+	if len(sr.errors) > 0 && len(sr.classes) == 0 {
 		result.Status = StatusFailed
-		result.Error = errors[0]
+		result.Error = sr.errors[0]
 	} else {
 		result.Status = StatusCompleted
 	}
 }
 
-func (s *Scanner) scanDirectory(id, path string) ([]*java.ClassModel, []string) {
+func linkClassesToModules(classes []*java.ClassModel, modules []*java.ModuleModel) {
+	// Build a map of exported packages to module names
+	packageToModule := make(map[string]string)
+	for _, mod := range modules {
+		for _, exp := range mod.Exports {
+			packageToModule[exp.PackageName] = mod.Name
+		}
+		// Also consider opens directives
+		for _, opens := range mod.Opens {
+			if _, ok := packageToModule[opens.PackageName]; !ok {
+				packageToModule[opens.PackageName] = mod.Name
+			}
+		}
+	}
+
+	// If we have modules with source files, link classes based on source path
+	for _, cls := range classes {
+		if cls.Module != "" {
+			continue
+		}
+
+		// Try matching by package
+		if modName, ok := packageToModule[cls.Package]; ok {
+			cls.Module = modName
+			continue
+		}
+
+		// Try matching by source path - look for module-info.java in parent directories
+		if !cls.SourceURL.IsZero() && cls.SourceURL.Scheme == "file" {
+			sourcePath := cls.SourceURL.Path
+			for _, mod := range modules {
+				if mod.SourceFile == "" {
+					continue
+				}
+				// Check if class source is in the same directory tree as module-info.java
+				moduleDir := filepath.Dir(mod.SourceFile)
+				if strings.HasPrefix(sourcePath, moduleDir) {
+					cls.Module = mod.Name
+					break
+				}
+			}
+		}
+	}
+}
+
+func (s *Scanner) scanDirectory(id, path string) scanResult {
 	var files []string
 	var errors []string
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
@@ -126,37 +182,48 @@ func (s *Scanner) scanDirectory(id, path string) ([]*java.ClassModel, []string) 
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("walk %s: %v", path, err))
 	}
-	classes, scanErrors := s.scanFiles(id, files)
-	return classes, append(errors, scanErrors...)
+	sr := s.scanFiles(id, files)
+	sr.errors = append(errors, sr.errors...)
+	return sr
 }
 
-func (s *Scanner) scanFiles(id string, files []string) ([]*java.ClassModel, []string) {
+func isModuleInfoFile(name string) bool {
+	return filepath.Base(name) == "module-info.java"
+}
+
+func (s *Scanner) scanFiles(id string, files []string) scanResult {
 	s.mu.Lock()
 	s.scans[id].Total = len(files)
 	s.mu.Unlock()
 
-	var classes []*java.ClassModel
-	var errors []string
+	var sr scanResult
 	for i, file := range files {
 		ext := filepath.Ext(file)
 		switch ext {
 		case ".class":
 			class, err := java.ClassModelFromFile(file)
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("parse %s: %v", file, err))
+				sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", file, err))
 			} else if class != nil {
-				classes = append(classes, class)
+				sr.classes = append(sr.classes, class)
 			}
 		case ".java":
 			data, err := os.ReadFile(file)
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("read %s: %v", file, err))
+				sr.errors = append(sr.errors, fmt.Sprintf("read %s: %v", file, err))
+			} else if isModuleInfoFile(file) {
+				mod, err := java.ModuleModelFromSource(data, parser.WithFile(filepath.Base(file)), parser.WithSourcePath(file))
+				if err != nil {
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", file, err))
+				} else if mod != nil {
+					sr.modules = append(sr.modules, mod)
+				}
 			} else {
 				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(file)), parser.WithSourcePath(file))
 				if err != nil {
-					errors = append(errors, fmt.Sprintf("parse %s: %v", file, err))
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", file, err))
 				} else {
-					classes = append(classes, models...)
+					sr.classes = append(sr.classes, models...)
 				}
 			}
 		}
@@ -165,13 +232,13 @@ func (s *Scanner) scanFiles(id string, files []string) ([]*java.ClassModel, []st
 		s.scans[id].Progress = i + 1
 		s.mu.Unlock()
 	}
-	return classes, errors
+	return sr
 }
 
-func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
+func (s *Scanner) scanZipFile(id, path string) scanResult {
 	r, err := zip.OpenReader(path)
 	if err != nil {
-		return nil, []string{fmt.Sprintf("open zip: %v", err)}
+		return scanResult{errors: []string{fmt.Sprintf("open zip: %v", err)}}
 	}
 	defer r.Close()
 
@@ -199,14 +266,13 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 	s.scans[id].Total = total
 	s.mu.Unlock()
 
-	var classes []*java.ClassModel
-	var errors []string
+	var sr scanResult
 	progress := 0
 
 	for _, f := range sourceFiles {
 		rc, err := f.Open()
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("open %s: %v", f.Name, err))
+			sr.errors = append(sr.errors, fmt.Sprintf("open %s: %v", f.Name, err))
 			progress++
 			s.mu.Lock()
 			s.scans[id].Progress = progress
@@ -220,21 +286,28 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 			class, err := java.ClassModelFromReader(rc)
 			rc.Close()
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("parse %s: %v", f.Name, err))
+				sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", f.Name, err))
 			} else if class != nil {
-				classes = append(classes, class)
+				sr.classes = append(sr.classes, class)
 			}
 		case ".java":
 			data, err := io.ReadAll(rc)
 			rc.Close()
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("read %s: %v", f.Name, err))
+				sr.errors = append(sr.errors, fmt.Sprintf("read %s: %v", f.Name, err))
+			} else if isModuleInfoFile(f.Name) {
+				mod, err := java.ModuleModelFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
+				if err != nil {
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", f.Name, err))
+				} else if mod != nil {
+					sr.modules = append(sr.modules, mod)
+				}
 			} else {
 				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
 				if err != nil {
-					errors = append(errors, fmt.Sprintf("parse %s: %v", f.Name, err))
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", f.Name, err))
 				} else {
-					classes = append(classes, models...)
+					sr.classes = append(sr.classes, models...)
 				}
 			}
 		}
@@ -252,12 +325,13 @@ func (s *Scanner) scanZipFile(id, path string) ([]*java.ClassModel, []string) {
 			s.scans[id].Progress = progress
 			s.mu.Unlock()
 		}
-		jarClasses, jarErrors := s.scanJarInZip(jarFile, onProgress)
-		classes = append(classes, jarClasses...)
-		errors = append(errors, jarErrors...)
+		jarSr := s.scanJarInZip(jarFile, onProgress)
+		sr.classes = append(sr.classes, jarSr.classes...)
+		sr.modules = append(sr.modules, jarSr.modules...)
+		sr.errors = append(sr.errors, jarSr.errors...)
 	}
 
-	return classes, errors
+	return sr
 }
 
 func (s *Scanner) countFilesInJar(jarFile *zip.File) int {
@@ -290,25 +364,24 @@ func (s *Scanner) countFilesInJar(jarFile *zip.File) int {
 	return count
 }
 
-func (s *Scanner) scanJarInZip(jarFile *zip.File, onProgress func()) ([]*java.ClassModel, []string) {
+func (s *Scanner) scanJarInZip(jarFile *zip.File, onProgress func()) scanResult {
 	rc, err := jarFile.Open()
 	if err != nil {
-		return nil, []string{fmt.Sprintf("open jar %s: %v", jarFile.Name, err)}
+		return scanResult{errors: []string{fmt.Sprintf("open jar %s: %v", jarFile.Name, err)}}
 	}
 	defer rc.Close()
 
 	jarData, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, []string{fmt.Sprintf("read jar %s: %v", jarFile.Name, err)}
+		return scanResult{errors: []string{fmt.Sprintf("read jar %s: %v", jarFile.Name, err)}}
 	}
 
 	jarReader, err := zip.NewReader(bytes.NewReader(jarData), int64(len(jarData)))
 	if err != nil {
-		return nil, []string{fmt.Sprintf("open jar %s as zip: %v", jarFile.Name, err)}
+		return scanResult{errors: []string{fmt.Sprintf("open jar %s as zip: %v", jarFile.Name, err)}}
 	}
 
-	var classes []*java.ClassModel
-	var errors []string
+	var sr scanResult
 	for _, f := range jarReader.File {
 		if f.FileInfo().IsDir() {
 			continue
@@ -320,40 +393,47 @@ func (s *Scanner) scanJarInZip(jarFile *zip.File, onProgress func()) ([]*java.Cl
 
 		fileRC, err := f.Open()
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("open %s in %s: %v", f.Name, jarFile.Name, err))
+			sr.errors = append(sr.errors, fmt.Sprintf("open %s in %s: %v", f.Name, jarFile.Name, err))
 			onProgress()
 			continue
 		}
 
 		switch ext {
 		case ".class":
-			fmt.Printf("[DEBUG] Parsing class %d: %s in %s\n", len(classes)+1, f.Name, jarFile.Name)
+			fmt.Printf("[DEBUG] Parsing class %d: %s in %s\n", len(sr.classes)+1, f.Name, jarFile.Name)
 			class, err := java.ClassModelFromReader(fileRC)
 			fileRC.Close()
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
+				sr.errors = append(sr.errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
 			} else if class != nil {
-				classes = append(classes, class)
+				sr.classes = append(sr.classes, class)
 			}
 		case ".java":
-			fmt.Printf("[DEBUG] Parsing java %d: %s in %s\n", len(classes)+1, f.Name, jarFile.Name)
+			fmt.Printf("[DEBUG] Parsing java %d: %s in %s\n", len(sr.classes)+1, f.Name, jarFile.Name)
 			data, err := io.ReadAll(fileRC)
 			fileRC.Close()
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("read %s in %s: %v", f.Name, jarFile.Name, err))
+				sr.errors = append(sr.errors, fmt.Sprintf("read %s in %s: %v", f.Name, jarFile.Name, err))
+			} else if isModuleInfoFile(f.Name) {
+				mod, err := java.ModuleModelFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
+				if err != nil {
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
+				} else if mod != nil {
+					sr.modules = append(sr.modules, mod)
+				}
 			} else {
 				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
 				if err != nil {
-					errors = append(errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
 				} else {
-					classes = append(classes, models...)
+					sr.classes = append(sr.classes, models...)
 				}
 			}
 		}
 		onProgress()
 	}
 
-	return classes, errors
+	return sr
 }
 
 func (s *Scanner) Submit(req Request) string {
@@ -415,6 +495,36 @@ func (s *Scanner) FindClass(name string) *java.ClassModel {
 			for _, c := range scan.Classes {
 				if c.Name == name {
 					return c
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Scanner) AllModules() []*java.ModuleModel {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var all []*java.ModuleModel
+	for _, scan := range s.scans {
+		if scan.Status == StatusCompleted {
+			all = append(all, scan.Modules...)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Name < all[j].Name
+	})
+	return all
+}
+
+func (s *Scanner) FindModule(name string) *java.ModuleModel {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, scan := range s.scans {
+		if scan.Status == StatusCompleted {
+			for _, m := range scan.Modules {
+				if m.Name == name {
+					return m
 				}
 			}
 		}

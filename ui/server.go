@@ -117,6 +117,16 @@ func NewServer() (*Server, error) {
 			}
 			return rel
 		},
+		"linkifyModule": func(knownModules map[string]bool, moduleName string) template.HTML {
+			if moduleName == "" {
+				return ""
+			}
+			escaped := template.HTMLEscapeString(moduleName)
+			if knownModules[moduleName] {
+				return template.HTML(fmt.Sprintf(`<a href="/m/%s">%s</a>`, escaped, escaped))
+			}
+			return template.HTML(escaped)
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "*.html")
@@ -137,6 +147,7 @@ func NewServer() (*Server, error) {
 	s.mux.HandleFunc("POST /scan", s.handleScan)
 	s.mux.HandleFunc("GET /scans/{id}", s.handleGetScan)
 	s.mux.HandleFunc("GET /c/{className...}", s.handleClass)
+	s.mux.HandleFunc("GET /m/{moduleName...}", s.handleModule)
 	s.mux.HandleFunc("GET /sidebar", s.handleSidebar)
 	s.mux.HandleFunc("GET /", s.handleIndex)
 
@@ -316,6 +327,7 @@ type ClassViewData struct {
 	Classes      []*java.ClassModel
 	ActiveClass  *java.ClassModel
 	KnownClasses map[string]bool
+	KnownModules map[string]bool
 	Implementers []*java.ClassModel
 	TotalMatches int
 	HasMore      bool
@@ -324,10 +336,16 @@ type ClassViewData struct {
 func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 	className := r.PathValue("className")
 	allClasses := s.scanner.AllClasses()
+	allModules := s.scanner.AllModules()
 
 	knownClasses := make(map[string]bool)
 	for _, c := range allClasses {
 		knownClasses[c.Name] = true
+	}
+
+	knownModules := make(map[string]bool)
+	for _, m := range allModules {
+		knownModules[m.Name] = true
 	}
 
 	const maxResults = 20
@@ -341,6 +359,7 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 		TotalMatches: len(allClasses),
 		HasMore:      len(allClasses) > maxResults,
 		KnownClasses: knownClasses,
+		KnownModules: knownModules,
 	}
 
 	if className != "" {
@@ -362,6 +381,56 @@ func (s *Server) handleClass(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, "class.html", data)
+}
+
+type ModuleViewData struct {
+	ActiveModule *java.ModuleModel
+	Classes      []*java.ClassModel
+	KnownClasses map[string]bool
+	KnownModules map[string]bool
+}
+
+func (s *Server) handleModule(w http.ResponseWriter, r *http.Request) {
+	moduleName := r.PathValue("moduleName")
+	if moduleName == "" {
+		http.Redirect(w, r, "/c/", http.StatusSeeOther)
+		return
+	}
+
+	module := s.scanner.FindModule(moduleName)
+	if module == nil {
+		http.Error(w, "module not found", http.StatusNotFound)
+		return
+	}
+
+	allClasses := s.scanner.AllClasses()
+	allModules := s.scanner.AllModules()
+
+	knownClasses := make(map[string]bool)
+	for _, c := range allClasses {
+		knownClasses[c.Name] = true
+	}
+
+	knownModules := make(map[string]bool)
+	for _, m := range allModules {
+		knownModules[m.Name] = true
+	}
+
+	// Filter classes belonging to this module
+	var moduleClasses []*java.ClassModel
+	for _, c := range allClasses {
+		if c.Module == moduleName {
+			moduleClasses = append(moduleClasses, c)
+		}
+	}
+
+	data := ModuleViewData{
+		ActiveModule: module,
+		Classes:      moduleClasses,
+		KnownClasses: knownClasses,
+		KnownModules: knownModules,
+	}
+	s.render(w, "module.html", data)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

@@ -91,6 +91,140 @@ func ClassModelsFromSource(source []byte, opts ...parser.Option) ([]*ClassModel,
 	return models, nil
 }
 
+func ModuleModelFromSource(source []byte, opts ...parser.Option) (*ModuleModel, error) {
+	opts = append(opts, parser.WithComments())
+	p := parser.ParseCompilationUnit(bytes.NewReader(source), opts...)
+	node := p.Finish()
+	if node == nil {
+		return nil, nil
+	}
+	comments := p.Comments()
+	jf := newJavadocFinder(comments)
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindModuleDecl {
+			model := moduleModelFromModuleDecl(child, jf)
+			if sourcePath := p.SourcePath(); sourcePath != "" {
+				model.SourceFile = sourcePath
+				model.SourceURL = FileURL(sourcePath)
+			}
+			return model, nil
+		}
+	}
+	return nil, nil
+}
+
+func moduleModelFromModuleDecl(node *parser.Node, jf *javadocFinder) *ModuleModel {
+	model := &ModuleModel{
+		Javadoc: jf.FindForNode(node),
+	}
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindIdentifier:
+			if child.Token != nil && child.Token.Literal == "open" {
+				model.IsOpen = true
+			}
+		case parser.KindQualifiedName:
+			model.Name = qualifiedNameToString(child)
+		case parser.KindAnnotation:
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, nil))
+		case parser.KindRequiresDirective:
+			model.Requires = append(model.Requires, requiresDirectiveFromNode(child))
+		case parser.KindExportsDirective:
+			model.Exports = append(model.Exports, exportsDirectiveFromNode(child))
+		case parser.KindOpensDirective:
+			model.Opens = append(model.Opens, opensDirectiveFromNode(child))
+		case parser.KindUsesDirective:
+			model.Uses = append(model.Uses, usesDirectiveFromNode(child))
+		case parser.KindProvidesDirective:
+			model.Provides = append(model.Provides, providesDirectiveFromNode(child))
+		}
+	}
+
+	return model
+}
+
+func requiresDirectiveFromNode(node *parser.Node) RequiresDirective {
+	req := RequiresDirective{}
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				switch child.Token.Literal {
+				case "transitive":
+					req.IsTransitive = true
+				case "static":
+					req.IsStatic = true
+				}
+			}
+		case parser.KindQualifiedName:
+			req.ModuleName = qualifiedNameToString(child)
+		}
+	}
+	return req
+}
+
+func exportsDirectiveFromNode(node *parser.Node) ExportsDirective {
+	exp := ExportsDirective{}
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			name := qualifiedNameToString(child)
+			if first {
+				exp.PackageName = name
+				first = false
+			} else {
+				exp.ToModules = append(exp.ToModules, name)
+			}
+		}
+	}
+	return exp
+}
+
+func opensDirectiveFromNode(node *parser.Node) OpensDirective {
+	opens := OpensDirective{}
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			name := qualifiedNameToString(child)
+			if first {
+				opens.PackageName = name
+				first = false
+			} else {
+				opens.ToModules = append(opens.ToModules, name)
+			}
+		}
+	}
+	return opens
+}
+
+func usesDirectiveFromNode(node *parser.Node) string {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			return qualifiedNameToString(child)
+		}
+	}
+	return ""
+}
+
+func providesDirectiveFromNode(node *parser.Node) ProvidesDirective {
+	prov := ProvidesDirective{}
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			name := qualifiedNameToString(child)
+			if first {
+				prov.ServiceName = name
+				first = false
+			} else {
+				prov.ImplementationNames = append(prov.ImplementationNames, name)
+			}
+		}
+	}
+	return prov
+}
+
 func classModelsFromCompilationUnit(cu *parser.Node, comments []parser.Token) []*ClassModel {
 	var models []*ClassModel
 	pkg := packageFromCompilationUnit(cu)

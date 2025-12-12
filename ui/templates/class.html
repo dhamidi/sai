@@ -48,6 +48,9 @@
                 </h2>
                 <div class="class-meta">
                     <span class="package">{{.ActiveClass.Package}}</span>
+                    {{if .ActiveClass.Module}}
+                    <span class="module">module {{linkifyModule .KnownModules .ActiveClass.Module}}</span>
+                    {{end}}
                     {{if .ActiveClass.SuperClass}}
                     <span class="extends">extends {{linkifyClass .KnownClasses .ActiveClass.SuperClass}}</span>
                     {{end}}

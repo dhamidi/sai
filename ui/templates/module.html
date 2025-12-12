@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ActiveModule.Name}} - sai</title>
+    <link rel="icon" type="image/png" href="/static/sai-logo.png">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <h1><a href="/">sai</a> <span class="tagline">Buttery smooth Java</span></h1>
+            <img src="/static/sai-logo.png" alt="sai logo" class="sidebar-logo">
+            <nav class="module-nav">
+                <a href="/c/" class="back-link">← Back to classes</a>
+            </nav>
+        </aside>
+        <main class="content">
+            <header class="module-header">
+                <h2>
+                    {{if .ActiveModule.IsOpen}}open {{end}}module
+                    <strong>{{.ActiveModule.Name}}</strong>
+                </h2>
+                {{with relativeSourcePath .ActiveModule.SourceURL}}
+                <div class="module-meta">
+                    <span class="source-file">{{.}}</span>
+                </div>
+                {{end}}
+                {{if hasJavadoc .ActiveModule.Javadoc}}
+                <div class="javadoc">{{formatJavadoc .ActiveModule.Javadoc}}</div>
+                {{end}}
+            </header>
+
+            {{with .ActiveModule.Requires}}
+            <section class="module-directives">
+                <h3>Requires</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Modifiers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="name">{{linkifyModule $.KnownModules .ModuleName}}</td>
+                            <td class="modifiers">
+                                {{if .IsTransitive}}<span class="modifier">transitive</span>{{end}}
+                                {{if .IsStatic}}<span class="modifier">static</span>{{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
+            {{with .ActiveModule.Exports}}
+            <section class="module-directives">
+                <h3>Exports</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Package</th>
+                            <th>To</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="name">{{.PackageName}}</td>
+                            <td class="to-modules">
+                                {{if .ToModules}}
+                                {{range $i, $m := .ToModules}}{{if $i}}, {{end}}{{linkifyModule $.KnownModules $m}}{{end}}
+                                {{else}}
+                                <span class="all-modules">(all)</span>
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
+            {{with .ActiveModule.Opens}}
+            <section class="module-directives">
+                <h3>Opens</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Package</th>
+                            <th>To</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="name">{{.PackageName}}</td>
+                            <td class="to-modules">
+                                {{if .ToModules}}
+                                {{range $i, $m := .ToModules}}{{if $i}}, {{end}}{{linkifyModule $.KnownModules $m}}{{end}}
+                                {{else}}
+                                <span class="all-modules">(all)</span>
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
+            {{with .ActiveModule.Uses}}
+            <section class="module-directives">
+                <h3>Uses</h3>
+                <ul class="uses-list">
+                    {{range .}}
+                    <li>{{linkifyClass $.KnownClasses .}}</li>
+                    {{end}}
+                </ul>
+            </section>
+            {{end}}
+
+            {{with .ActiveModule.Provides}}
+            <section class="module-directives">
+                <h3>Provides</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>With</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="name">{{linkifyClass $.KnownClasses .ServiceName}}</td>
+                            <td class="implementations">
+                                {{range $i, $impl := .ImplementationNames}}{{if $i}}, {{end}}{{linkifyClass $.KnownClasses $impl}}{{end}}
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
+            {{if .Classes}}
+            <section class="module-classes">
+                <h3>Classes in this module</h3>
+                <ul class="class-list-compact">
+                    {{range .Classes}}
+                    <li>
+                        <span class="class-type">{{if eq .Kind "interface"}}I{{else if eq .Kind "enum"}}E{{else if eq .Kind "annotation"}}@{{else if eq .Kind "record"}}R{{else}}C{{end}}</span>
+                        <a href="/c/{{.Name}}">{{.Name}}</a>
+                    </li>
+                    {{end}}
+                </ul>
+            </section>
+            {{end}}
+        </main>
+    </div>
+</body>
+</html>

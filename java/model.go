@@ -24,6 +24,7 @@ type ClassModel struct {
 	Name                string
 	SimpleName          string
 	Package             string
+	Module              string
 	SuperClass          string
 	Interfaces          []string
 	Visibility          Visibility
@@ -167,4 +168,39 @@ type InnerClassModel struct {
 	IsStatic   bool
 	IsFinal    bool
 	IsAbstract bool
+}
+
+type ModuleModel struct {
+	Name        string
+	IsOpen      bool
+	SourceFile  string
+	SourceURL   URLString
+	Javadoc     string
+	Annotations []AnnotationModel
+	Requires    []RequiresDirective
+	Exports     []ExportsDirective
+	Opens       []OpensDirective
+	Uses        []string
+	Provides    []ProvidesDirective
+}
+
+type RequiresDirective struct {
+	ModuleName   string
+	IsTransitive bool
+	IsStatic     bool
+}
+
+type ExportsDirective struct {
+	PackageName string
+	ToModules   []string
+}
+
+type OpensDirective struct {
+	PackageName string
+	ToModules   []string
+}
+
+type ProvidesDirective struct {
+	ServiceName         string
+	ImplementationNames []string
 }
