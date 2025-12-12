@@ -1,0 +1,178 @@
+// Java Lexical Grammar (JLS 25, Chapter 3)
+// Lexical productions (lowercase names) - no whitespace between tokens
+
+// §3.3 Unicode Escapes
+UnicodeInputCharacter = UnicodeEscape | RawInputCharacter .
+UnicodeEscape = "\\" UnicodeMarker HexDigit HexDigit HexDigit HexDigit .
+UnicodeMarker = "u" { "u" } .
+RawInputCharacter = "\u0000" … "\uffff" .
+
+// §3.4 Line Terminators
+LineTerminator = "\n" | "\r" | "\r" "\n" .
+InputCharacter = UnicodeInputCharacter .
+
+// §3.5 Input Elements and Tokens
+Input = { InputElement } [ Sub ] .
+InputElement = WhiteSpace | Comment | Token .
+Token = Identifier | Keyword | Literal | Separator | Operator .
+Sub = "\u001a" .
+
+// §3.6 White Space
+WhiteSpace = " " | "\t" | "\f" | LineTerminator .
+
+// §3.7 Comments
+Comment = TraditionalComment | EndOfLineComment .
+TraditionalComment = "/" "*" CommentTail .
+CommentTail = "*" CommentTailStar | NotStar CommentTail .
+CommentTailStar = "/" | "*" CommentTailStar | NotStarNotSlash CommentTail .
+NotStar = InputCharacter | LineTerminator .
+NotStarNotSlash = InputCharacter | LineTerminator .
+EndOfLineComment = "/" "/" { InputCharacter } .
+
+// §3.8 Identifiers
+Identifier = IdentifierChars .
+IdentifierChars = JavaLetter { JavaLetterOrDigit } .
+JavaLetter = "a" … "z" | "A" … "Z" | "_" | "$" .
+JavaLetterOrDigit = JavaLetter | "0" … "9" .
+TypeIdentifier = Identifier .
+UnqualifiedMethodIdentifier = Identifier .
+
+// §3.9 Keywords
+Keyword = ReservedKeyword | ContextualKeyword .
+ReservedKeyword =
+    "abstract" | "continue" | "for" | "new" | "switch" |
+    "assert" | "default" | "if" | "package" | "synchronized" |
+    "boolean" | "do" | "goto" | "private" | "this" |
+    "break" | "double" | "implements" | "protected" | "throw" |
+    "byte" | "else" | "import" | "public" | "throws" |
+    "case" | "enum" | "instanceof" | "return" | "transient" |
+    "catch" | "extends" | "int" | "short" | "try" |
+    "char" | "final" | "interface" | "static" | "void" |
+    "class" | "finally" | "long" | "strictfp" | "volatile" |
+    "const" | "float" | "native" | "super" | "while" |
+    "_" .
+ContextualKeyword =
+    "exports" | "opens" | "requires" | "uses" |
+    "module" | "permits" | "sealed" | "var" |
+    "non-sealed" | "provides" | "to" | "when" |
+    "open" | "record" | "transitive" | "with" |
+    "yield" .
+
+// §3.10 Literals
+Literal =
+    IntegerLiteral |
+    FloatingPointLiteral |
+    BooleanLiteral |
+    CharacterLiteral |
+    StringLiteral |
+    TextBlock |
+    NullLiteral .
+
+// §3.10.1 Integer Literals
+IntegerLiteral =
+    DecimalIntegerLiteral |
+    HexIntegerLiteral |
+    OctalIntegerLiteral |
+    BinaryIntegerLiteral .
+DecimalIntegerLiteral = DecimalNumeral [ IntegerTypeSuffix ] .
+HexIntegerLiteral = HexNumeral [ IntegerTypeSuffix ] .
+OctalIntegerLiteral = OctalNumeral [ IntegerTypeSuffix ] .
+BinaryIntegerLiteral = BinaryNumeral [ IntegerTypeSuffix ] .
+IntegerTypeSuffix = "l" | "L" .
+
+DecimalNumeral = "0" | NonZeroDigit [ Digits ] | NonZeroDigit Underscores Digits .
+NonZeroDigit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" .
+Digits = Digit | Digit [ DigitsAndUnderscores ] Digit .
+Digit = "0" | NonZeroDigit .
+DigitsAndUnderscores = DigitOrUnderscore { DigitOrUnderscore } .
+DigitOrUnderscore = Digit | "_" .
+Underscores = "_" { "_" } .
+
+HexNumeral = "0" "x" HexDigits | "0" "X" HexDigits .
+HexDigits = HexDigit | HexDigit [ HexDigitsAndUnderscores ] HexDigit .
+HexDigit =
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" |
+    "a" | "b" | "c" | "d" | "e" | "f" |
+    "A" | "B" | "C" | "D" | "E" | "F" .
+HexDigitsAndUnderscores = HexDigitOrUnderscore { HexDigitOrUnderscore } .
+HexDigitOrUnderscore = HexDigit | "_" .
+
+OctalNumeral = "0" OctalDigits | "0" Underscores OctalDigits .
+OctalDigits = OctalDigit | OctalDigit [ OctalDigitsAndUnderscores ] OctalDigit .
+OctalDigit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" .
+OctalDigitsAndUnderscores = OctalDigitOrUnderscore { OctalDigitOrUnderscore } .
+OctalDigitOrUnderscore = OctalDigit | "_" .
+
+BinaryNumeral = "0" "b" BinaryDigits | "0" "B" BinaryDigits .
+BinaryDigits = BinaryDigit | BinaryDigit [ BinaryDigitsAndUnderscores ] BinaryDigit .
+BinaryDigit = "0" | "1" .
+BinaryDigitsAndUnderscores = BinaryDigitOrUnderscore { BinaryDigitOrUnderscore } .
+BinaryDigitOrUnderscore = BinaryDigit | "_" .
+
+// §3.10.2 Floating-Point Literals
+FloatingPointLiteral = DecimalFloatingPointLiteral | HexadecimalFloatingPointLiteral .
+DecimalFloatingPointLiteral =
+    Digits "." [ Digits ] [ ExponentPart ] [ FloatTypeSuffix ] |
+    "." Digits [ ExponentPart ] [ FloatTypeSuffix ] |
+    Digits ExponentPart [ FloatTypeSuffix ] |
+    Digits [ ExponentPart ] FloatTypeSuffix .
+ExponentPart = ExponentIndicator SignedInteger .
+ExponentIndicator = "e" | "E" .
+SignedInteger = [ Sign ] Digits .
+Sign = "+" | "-" .
+FloatTypeSuffix = "f" | "F" | "d" | "D" .
+
+HexadecimalFloatingPointLiteral = HexSignificand BinaryExponent [ FloatTypeSuffix ] .
+HexSignificand = HexNumeral [ "." ] | "0" "x" [ HexDigits ] "." HexDigits | "0" "X" [ HexDigits ] "." HexDigits .
+BinaryExponent = BinaryExponentIndicator SignedInteger .
+BinaryExponentIndicator = "p" | "P" .
+
+// §3.10.3 Boolean Literals
+BooleanLiteral = "true" | "false" .
+
+// §3.10.4 Character Literals
+CharacterLiteral = "'" SingleCharacter "'" | "'" EscapeSequence "'" .
+SingleCharacter = InputCharacter .
+
+// §3.10.5 String Literals
+StringLiteral = "\"" { StringCharacter } "\"" .
+StringCharacter = InputCharacter | EscapeSequence .
+
+// §3.10.6 Text Blocks
+TextBlock = "\"" "\"" "\"" { TextBlockWhiteSpace } LineTerminator { TextBlockCharacter } "\"" "\"" "\"" .
+TextBlockWhiteSpace = WhiteSpace .
+TextBlockCharacter = InputCharacter | EscapeSequence | LineTerminator .
+
+// §3.10.7 Escape Sequences
+EscapeSequence =
+    "\\" "b" |
+    "\\" "s" |
+    "\\" "t" |
+    "\\" "n" |
+    "\\" "f" |
+    "\\" "r" |
+    "\\" LineTerminator |
+    "\\" "\"" |
+    "\\" "'" |
+    "\\" "\\" |
+    OctalEscape .
+OctalEscape =
+    "\\" OctalDigit |
+    "\\" OctalDigit OctalDigit |
+    "\\" ZeroToThree OctalDigit OctalDigit .
+ZeroToThree = "0" | "1" | "2" | "3" .
+
+// §3.10.8 The Null Literal
+NullLiteral = "null" .
+
+// §3.11 Separators
+Separator =
+    "(" | ")" | "{" | "}" | "[" | "]" |
+    ";" | "," | "." | "..." | "@" | "::" .
+
+// §3.12 Operators
+Operator =
+    "=" | ">" | "<" | "!" | "~" | "?" | ":" | "->" |
+    "==" | ">=" | "<=" | "!=" | "&&" | "||" | "++" | "--" |
+    "+" | "-" | "*" | "/" | "&" | "|" | "^" | "%" | "<<" | ">>" | ">>>" |
+    "+=" | "-=" | "*=" | "/=" | "&=" | "|=" | "^=" | "%=" | "<<=" | ">>=" | ">>>=" .
