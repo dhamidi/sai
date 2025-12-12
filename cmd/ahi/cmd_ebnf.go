@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 
+	"github.com/dhamidi/sai/ebnflex"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/ebnf"
 )
@@ -18,6 +21,7 @@ func newEbnfCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(newEbnfCheckCmd())
+	cmd.AddCommand(newEbnfLexCmd())
 
 	return cmd
 }
@@ -69,4 +73,45 @@ func printErrors(err error) {
 	} else {
 		fmt.Println(err)
 	}
+}
+
+func newEbnfLexCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "lex <grammar>",
+		Short:         "Tokenize input based on an EBNF grammar",
+		Long:          "Reads input from stdin and emits tokens based on the grammar, including source positions.",
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			grammarFile := args[0]
+
+			grammar, err := ebnflex.LoadGrammar(grammarFile)
+			if err != nil {
+				return err
+			}
+
+			input, err := io.ReadAll(bufio.NewReader(os.Stdin))
+			if err != nil {
+				return fmt.Errorf("read input: %w", err)
+			}
+
+			lexer := ebnflex.NewLexer(grammar, input, "<stdin>")
+			for {
+				tok, err := lexer.NextToken()
+				if err == io.EOF {
+					fmt.Println(tok)
+					break
+				}
+				if err != nil {
+					return err
+				}
+				fmt.Println(tok)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
 }
