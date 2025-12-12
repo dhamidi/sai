@@ -4,11 +4,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/dhamidi/sai/ebnf/grammar"
 	"github.com/dhamidi/sai/ebnf/lex"
 )
+
+var debugEarley = os.Getenv("DEBUG_EARLEY") != ""
+
+// Tracer receives events during Earley parsing for debugging.
+type Tracer interface {
+	OnPredict(pos int, item *Item, production string)
+	OnScan(pos int, item *Item, token lex.Token, matched bool)
+	OnComplete(pos int, completed *Item)
+	OnItemAdd(pos int, item *Item, reason string)
+}
 
 // EarleyParser implements Earley parsing for EBNF grammars.
 // It can handle ambiguous grammars by producing a parse forest (SPPF).
@@ -16,6 +27,7 @@ type EarleyParser struct {
 	grammar   grammar.Grammar
 	tokens    []lex.Token
 	skipKinds map[string]bool
+	tracer    Tracer
 
 	// Internal state
 	chart    []ItemSet
@@ -53,13 +65,53 @@ func newItemSet(pos int) *ItemSet {
 }
 
 func (s *ItemSet) Add(item *Item) bool {
-	key := fmt.Sprintf("%s:%d:%d", item.Name, item.Dot, item.Origin)
+	key := fmt.Sprintf("%s:%d:%d:%s", item.Name, item.Dot, item.Origin, exprKey(item.Expr))
 	if s.itemSet[key] {
 		return false
 	}
 	s.itemSet[key] = true
 	s.items = append(s.items, item)
 	return true
+}
+
+func exprKey(expr grammar.Expression) string {
+	switch e := expr.(type) {
+	case grammar.Sequence:
+		if len(e) == 0 {
+			return "seq[]"
+		}
+		parts := make([]string, len(e))
+		for i, sub := range e {
+			parts[i] = exprKey(sub)
+		}
+		return "seq[" + strings.Join(parts, ",") + "]"
+	case grammar.Alternative:
+		return "alt"
+	case *grammar.Name:
+		return "name:" + e.String
+	case *grammar.Token:
+		return "tok:" + e.String
+	case *grammar.Repetition:
+		return "rep:" + exprKey(e.Body)
+	case *grammar.Option:
+		return "opt:" + exprKey(e.Body)
+	case *grammar.Group:
+		return "grp:" + exprKey(e.Body)
+	case *grammar.Range:
+		return "range"
+	default:
+		return fmt.Sprintf("%T", expr)
+	}
+}
+
+// Items returns all items in the set.
+func (s *ItemSet) Items() []*Item {
+	return s.items
+}
+
+// Position returns the chart position of this item set.
+func (s *ItemSet) Position() int {
+	return s.position
 }
 
 // SPPFNode represents a node in the Shared Packed Parse Forest.
@@ -97,6 +149,21 @@ func (p *EarleyParser) SetSkipKinds(kinds ...string) {
 	}
 }
 
+// SetTracer sets a tracer to receive parsing events.
+func (p *EarleyParser) SetTracer(t Tracer) {
+	p.tracer = t
+}
+
+// Chart returns the Earley chart after parsing.
+func (p *EarleyParser) Chart() []ItemSet {
+	return p.chart
+}
+
+// FilteredTokens returns the tokens after filtering trivia.
+func (p *EarleyParser) FilteredTokens() []lex.Token {
+	return p.filtered
+}
+
 // Parse parses starting from the given production and returns a parse forest.
 func (p *EarleyParser) Parse(startProduction string) (*SPPFNode, error) {
 	prod := p.grammar.Get(startProduction)
@@ -104,10 +171,13 @@ func (p *EarleyParser) Parse(startProduction string) (*SPPFNode, error) {
 		return nil, fmt.Errorf("production %q not found in grammar", startProduction)
 	}
 
-	// Filter trivia tokens
+	// Filter trivia tokens (and exclude EOF - parsing succeeds when all non-EOF tokens are consumed)
 	p.filtered = make([]lex.Token, 0, len(p.tokens))
 	for _, tok := range p.tokens {
-		if tok.Kind == "EOF" || !p.skipKinds[tok.Kind] {
+		if tok.Kind == "EOF" {
+			continue // Don't include EOF in tokens to parse
+		}
+		if !p.skipKinds[tok.Kind] {
 			p.filtered = append(p.filtered, tok)
 		}
 	}
@@ -250,16 +320,19 @@ func (p *EarleyParser) predict(pos int, item *Item, next grammar.Expression) {
 		// Add items for the named production
 		prod := p.grammar.Get(e.String)
 		if prod != nil && prod.Expr != nil {
+			if p.tracer != nil {
+				p.tracer.OnPredict(pos, item, e.String)
+			}
 			p.addPredictedItems(pos, e.String, prod.Expr)
 		}
 
 	case *grammar.Group:
-		// Inline the group
-		p.addPredictedItems(pos, item.Name, e.Body)
+		// Inline the group - recursively predict if it contains a non-terminal
+		p.predictOrAdd(pos, item, e.Body)
 
 	case *grammar.Option:
 		// Option: try matching the body, or skip (epsilon)
-		p.addPredictedItems(pos, item.Name, e.Body)
+		p.predictOrAdd(pos, item, e.Body)
 		// Also add item with dot advanced (epsilon case)
 		p.chart[pos].Add(&Item{
 			Name:   item.Name,
@@ -270,7 +343,22 @@ func (p *EarleyParser) predict(pos int, item *Item, next grammar.Expression) {
 
 	case *grammar.Repetition:
 		// Repetition: try matching the body, or skip (epsilon for zero matches)
-		p.addPredictedItems(pos, item.Name, e.Body)
+		// Create a synthetic item to match the repetition body
+		bodySeq, ok := e.Body.(grammar.Sequence)
+		if !ok {
+			bodySeq = grammar.Sequence{e.Body}
+		}
+		// Create helper item for matching the repetition body
+		// When this completes, we'll advance the original item but allow more repetitions
+		repName := fmt.Sprintf("$rep[%s@%d]", item.Name, item.Dot)
+		p.chart[pos].Add(&Item{
+			Name:   repName,
+			Expr:   bodySeq,
+			Dot:    0,
+			Origin: pos,
+		})
+		// Predict non-terminals in the body
+		p.predictOrAdd(pos, item, e.Body)
 		// Also add item with dot advanced (epsilon case)
 		p.chart[pos].Add(&Item{
 			Name:   item.Name,
@@ -281,13 +369,62 @@ func (p *EarleyParser) predict(pos int, item *Item, next grammar.Expression) {
 
 	case grammar.Alternative:
 		// Add items for each alternative
+		// We need to create actual items for each alternative so the scanner can match them
 		for _, alt := range e {
 			p.addPredictedItems(pos, item.Name, alt)
 		}
 	}
 }
 
+// predictOrAdd handles the body of Option/Repetition/Group/Alternative.
+// If the body is a non-terminal, it expands it.
+// For terminals and sequences, the caller is responsible for handling them.
+func (p *EarleyParser) predictOrAdd(pos int, item *Item, body grammar.Expression) {
+	switch b := body.(type) {
+	case *grammar.Name:
+		// Non-terminal: expand the production
+		prod := p.grammar.Get(b.String)
+		if prod != nil && prod.Expr != nil {
+			p.addPredictedItems(pos, b.String, prod.Expr)
+		}
+	case *grammar.Group:
+		p.predictOrAdd(pos, item, b.Body)
+	case *grammar.Option:
+		p.predictOrAdd(pos, item, b.Body)
+		// Epsilon case handled by caller
+	case *grammar.Repetition:
+		p.predictOrAdd(pos, item, b.Body)
+		// Epsilon case handled by caller
+	case grammar.Alternative:
+		for _, alt := range b {
+			p.predictOrAdd(pos, item, alt)
+		}
+	case grammar.Sequence:
+		// For sequences that are the body of a repetition/option/group,
+		// we need to predict any non-terminals in the sequence.
+		// The sequence itself will be matched by the scanner.
+		if len(b) > 0 {
+			first := b[0]
+			p.predictOrAdd(pos, item, first)
+		}
+	default:
+		// Terminal - nothing to predict, scanner will handle it
+	}
+}
+
 func (p *EarleyParser) addPredictedItems(pos int, context string, expr grammar.Expression) {
+	if debugEarley && context == "packageDeclaration" && pos == 2 {
+		fmt.Fprintf(os.Stderr, "addPredictedItems: context=%s, pos=%d, expr=%T\n", context, pos, expr)
+		// Print caller info
+		for i := 1; i < 10; i++ {
+			pc, file, line, ok := runtime.Caller(i)
+			if !ok {
+				break
+			}
+			fn := runtime.FuncForPC(pc)
+			fmt.Fprintf(os.Stderr, "  caller %d: %s:%d %s\n", i, file, line, fn.Name())
+		}
+	}
 	switch e := expr.(type) {
 	case grammar.Sequence:
 		p.chart[pos].Add(&Item{
@@ -297,8 +434,25 @@ func (p *EarleyParser) addPredictedItems(pos int, context string, expr grammar.E
 			Origin: pos,
 		})
 	case grammar.Alternative:
+		// For each alternative, create a separate item
+		// This allows proper completion when the alternative's body completes
 		for _, alt := range e {
 			p.addPredictedItems(pos, context, alt)
+		}
+	case *grammar.Name:
+		// For a single Name reference, create an item that will complete when the named production completes
+		// This is important for alternatives like: compilationUnit = A | B | C
+		// We need an item [compilationUnit -> • A, 0] that completes when A completes
+		p.chart[pos].Add(&Item{
+			Name:   context,
+			Expr:   grammar.Sequence{e},
+			Dot:    0,
+			Origin: pos,
+		})
+		// Also predict the named production's items
+		prod := p.grammar.Get(e.String)
+		if prod != nil && prod.Expr != nil {
+			p.addPredictedItems(pos, e.String, prod.Expr)
 		}
 	default:
 		// Wrap single expression in implicit sequence
@@ -318,11 +472,18 @@ func (p *EarleyParser) scan(pos int, item *Item, next grammar.Expression) {
 	}
 	tok := p.filtered[pos]
 
+	if debugEarley && item.Name == "packageDeclaration" && pos == 0 {
+		fmt.Fprintf(os.Stderr, "SCAN: [%s] pos=%d, next=%T, tok=%s %q\n", item.Name, pos, next, tok.Kind, tok.Literal)
+	}
+
 	matched := false
 	switch e := next.(type) {
 	case *grammar.Token:
 		// Match literal token
 		literal := strings.Trim(e.String, "\"")
+		if debugEarley && item.Name == "packageDeclaration" && pos == 0 {
+			fmt.Fprintf(os.Stderr, "  Token match: literal=%q, tok.Literal=%q, match=%v\n", literal, tok.Literal, tok.Literal == literal)
+		}
 		if tok.Literal == literal {
 			matched = true
 		}
@@ -349,34 +510,114 @@ func (p *EarleyParser) scan(pos int, item *Item, next grammar.Expression) {
 		}
 	}
 
+	if p.tracer != nil {
+		p.tracer.OnScan(pos, item, tok, matched)
+	}
+
 	if matched {
 		// Add item to next chart position with dot advanced
-		p.chart[pos+1].Add(&Item{
+		if debugEarley && item.Name == "packageDeclaration" {
+			fmt.Fprintf(os.Stderr, "SCAN matched [%s] at pos=%d, advancing dot from %d to %d, origin=%d\n", item.Name, pos, item.Dot, item.Dot+1, item.Origin)
+		}
+		newItem := &Item{
 			Name:   item.Name,
 			Expr:   item.Expr,
 			Dot:    item.Dot + 1,
 			Origin: item.Origin,
-		})
+		}
+		if p.chart[pos+1].Add(newItem) && p.tracer != nil {
+			p.tracer.OnItemAdd(pos+1, newItem, "scan")
+		}
 	}
 }
 
 // complete handles completion of an item.
 func (p *EarleyParser) complete(pos int, completed *Item) {
+	if p.tracer != nil {
+		p.tracer.OnComplete(pos, completed)
+	}
+
+	// Handle synthetic repetition items specially
+	if strings.HasPrefix(completed.Name, "$rep[") {
+		// Extract the parent item info from the name: $rep[itemName@dot]
+		// Find the original item that created this repetition and allow more matches
+		p.completeRepetition(pos, completed)
+		return
+	}
+
 	// Find items at the origin that were waiting for this production
 	origin := completed.Origin
+	if debugEarley && (completed.Name == "packageDeclaration" || completed.Name == "ordinaryCompilationUnit" || completed.Name == "compilationUnit") {
+		fmt.Fprintf(os.Stderr, "COMPLETE: [%s] at pos=%d, origin=%d\n", completed.Name, pos, origin)
+		fmt.Fprintf(os.Stderr, "  Checking %d items at origin\n", len(p.chart[origin].items))
+	}
 	for _, item := range p.chart[origin].items {
 		if p.isComplete(item) {
 			continue
 		}
 		next := p.nextSymbol(item)
+		if debugEarley && (completed.Name == "packageDeclaration" || completed.Name == "ordinaryCompilationUnit" || completed.Name == "compilationUnit") {
+			fmt.Fprintf(os.Stderr, "  Item [%s] dot=%d, next=%T\n", item.Name, item.Dot, next)
+		}
 		if p.matchesCompleted(next, completed) {
+			if debugEarley && (completed.Name == "packageDeclaration" || completed.Name == "ordinaryCompilationUnit" || completed.Name == "compilationUnit") {
+				fmt.Fprintf(os.Stderr, "    MATCHED! Advancing [%s]\n", item.Name)
+			}
 			// Advance the waiting item
+			newItem := &Item{
+				Name:   item.Name,
+				Expr:   item.Expr,
+				Dot:    item.Dot + 1,
+				Origin: item.Origin,
+			}
+			if p.chart[pos].Add(newItem) && p.tracer != nil {
+				p.tracer.OnItemAdd(pos, newItem, "complete")
+			}
+		}
+	}
+}
+
+// completeRepetition handles completion of a synthetic repetition item.
+func (p *EarleyParser) completeRepetition(pos int, completed *Item) {
+	origin := completed.Origin
+	
+	// Find items at the origin that have a Repetition at their current dot position
+	for _, item := range p.chart[origin].items {
+		if p.isComplete(item) {
+			continue
+		}
+		next := p.nextSymbol(item)
+		if rep, ok := next.(*grammar.Repetition); ok {
+			// The repetition body matched once
+			// Add item with dot advanced past the repetition
 			p.chart[pos].Add(&Item{
 				Name:   item.Name,
 				Expr:   item.Expr,
 				Dot:    item.Dot + 1,
 				Origin: item.Origin,
 			})
+			// Also add another repetition item to allow more matches
+			bodySeq, ok := rep.Body.(grammar.Sequence)
+			if !ok {
+				bodySeq = grammar.Sequence{rep.Body}
+			}
+			repName := fmt.Sprintf("$rep[%s@%d]", item.Name, item.Dot)
+			p.chart[pos].Add(&Item{
+				Name:   repName,
+				Expr:   bodySeq,
+				Dot:    0,
+				Origin: pos,
+			})
+			// IMPORTANT: Also add a copy of the original item at this position
+			// so future repetition completions can find it
+			p.chart[pos].Add(&Item{
+				Name:   item.Name,
+				Expr:   item.Expr,
+				Dot:    item.Dot, // Keep the same dot (pointing at Repetition)
+				Origin: item.Origin,
+			})
+			// Predict non-terminals in the body for the new position
+			p.predictOrAdd(pos, item, rep.Body)
 		}
 	}
 }
@@ -393,6 +634,20 @@ func (p *EarleyParser) matchesCompleted(sym grammar.Expression, completed *Item)
 		return p.matchesCompleted(e.Body, completed)
 	case *grammar.Repetition:
 		return p.matchesCompleted(e.Body, completed)
+	case grammar.Alternative:
+		// Check if the completed item matches any alternative
+		for _, alt := range e {
+			if p.matchesCompleted(alt, completed) {
+				return true
+			}
+		}
+		return false
+	case grammar.Sequence:
+		// A sequence matches if its first element matches
+		if len(e) > 0 {
+			return p.matchesCompleted(e[0], completed)
+		}
+		return false
 	}
 	return false
 }
