@@ -164,7 +164,9 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	tmpl.ExecuteTemplate(w, name, data)
+	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
+		http.Error(w, "template execution error: "+err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
@@ -399,5 +401,5 @@ func (s *Server) handleSidebar(w http.ResponseWriter, r *http.Request) {
 		TotalMatches:    totalMatches,
 		HasMore:         totalMatches > maxResults,
 	}
-	s.render(w, "_sidebar.html", data)
+	s.render(w, "sidebar.html", data)
 }
