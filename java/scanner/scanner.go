@@ -477,7 +477,12 @@ func (s *Scanner) AllClasses() []*java.ClassModel {
 	var all []*java.ClassModel
 	for _, scan := range s.scans {
 		if scan.Status == StatusCompleted {
-			all = append(all, scan.Classes...)
+			for _, c := range scan.Classes {
+				if c.Kind == java.ClassKindModule {
+					continue
+				}
+				all = append(all, c)
+			}
 		}
 	}
 	java.ResolveInnerClassReferences(all)

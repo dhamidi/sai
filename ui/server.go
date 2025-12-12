@@ -123,7 +123,7 @@ func NewServer() (*Server, error) {
 			}
 			escaped := template.HTMLEscapeString(moduleName)
 			if knownModules[moduleName] {
-				return template.HTML(fmt.Sprintf(`<a href="/m/%s">%s</a>`, escaped, escaped))
+				return template.HTML(fmt.Sprintf(`<a href="/m/%s" data-turbo-frame="_top">%s</a>`, escaped, escaped))
 			}
 			return template.HTML(escaped)
 		},
