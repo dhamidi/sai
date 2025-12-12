@@ -6,10 +6,12 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"strings"
 
-	"github.com/dhamidi/sai/ebnflex"
+	"github.com/dhamidi/sai/ebnf/grammar"
+	"github.com/dhamidi/sai/ebnf/lex"
+	"github.com/dhamidi/sai/ebnf/parse"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/ebnf"
 )
 
 func newEbnfCmd() *cobra.Command {
@@ -22,6 +24,7 @@ func newEbnfCmd() *cobra.Command {
 
 	cmd.AddCommand(newEbnfCheckCmd())
 	cmd.AddCommand(newEbnfLexCmd())
+	cmd.AddCommand(newEbnfParseCmd())
 
 	return cmd
 }
@@ -44,13 +47,13 @@ func newEbnfCheckCmd() *cobra.Command {
 			}
 			defer f.Close()
 
-			grammar, err := ebnf.Parse(filename, f)
+			g, err := grammar.Parse(filename, f)
 			if err != nil {
 				printErrors(err)
 				return err
 			}
 
-			if err := ebnf.Verify(grammar, startProduction); err != nil {
+			if err := grammar.Verify(g, startProduction); err != nil {
 				printErrors(err)
 				return err
 			}
@@ -86,7 +89,7 @@ func newEbnfLexCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			grammarFile := args[0]
 
-			grammar, err := ebnflex.LoadGrammar(grammarFile)
+			g, err := lex.LoadGrammar(grammarFile)
 			if err != nil {
 				return err
 			}
@@ -96,7 +99,7 @@ func newEbnfLexCmd() *cobra.Command {
 				return fmt.Errorf("read input: %w", err)
 			}
 
-			lexer := ebnflex.NewLexer(grammar, input, "<stdin>")
+			lexer := lex.NewLexer(g, input, "<stdin>")
 			for {
 				tok, err := lexer.NextToken()
 				if err == io.EOF {
@@ -114,4 +117,104 @@ func newEbnfLexCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+func newEbnfParseCmd() *cobra.Command {
+	var startProduction string
+	var lexerGrammarFile string
+
+	cmd := &cobra.Command{
+		Use:           "parse <parser-grammar>",
+		Short:         "Parse input based on EBNF grammars",
+		Long:          "Reads input from stdin, tokenizes with lexer grammar, then parses with parser grammar.\nOutputs a concrete syntax tree.",
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			parserGrammarFile := args[0]
+
+			// Load parser grammar
+			parserGrammar, err := parse.LoadGrammar(parserGrammarFile)
+			if err != nil {
+				return fmt.Errorf("load parser grammar: %w", err)
+			}
+
+			// Load lexer grammar (defaults to parser grammar if not specified)
+			var lexerGrammar grammar.Grammar
+			if lexerGrammarFile != "" {
+				lexerGrammar, err = lex.LoadGrammar(lexerGrammarFile)
+				if err != nil {
+					return fmt.Errorf("load lexer grammar: %w", err)
+				}
+			} else {
+				lexerGrammar = parserGrammar
+			}
+
+			// Read input
+			input, err := io.ReadAll(bufio.NewReader(os.Stdin))
+			if err != nil {
+				return fmt.Errorf("read input: %w", err)
+			}
+
+			// Tokenize
+			lexer := lex.NewLexer(lexerGrammar, input, "<stdin>")
+			tokens, err := lexer.Tokenize()
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("tokenize: %w", err)
+			}
+
+			// Parse
+			parser := parse.NewParser(parserGrammar, tokens)
+			node, err := parser.Parse(startProduction)
+			if err != nil {
+				return fmt.Errorf("parse: %w", err)
+			}
+
+			if node == nil {
+				fmt.Println("Parse returned nil (no match)")
+				fmt.Println("Tokens:")
+				for _, t := range tokens {
+					fmt.Printf("  %s\n", t)
+				}
+				return nil
+			}
+
+			// Print CST
+			printCST(node, 0)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&startProduction, "start", "CompilationUnit", "start production for parsing")
+	cmd.Flags().StringVar(&lexerGrammarFile, "lexer", "", "lexer grammar file (defaults to parser grammar)")
+
+	return cmd
+}
+
+func printCST(node *parse.Node, indent int) {
+	if node == nil {
+		return
+	}
+
+	// Skip empty non-terminal nodes (from zero-match repetitions/options)
+	if !node.IsTerminal() && !node.IsError() && len(node.Children) == 0 {
+		return
+	}
+
+	prefix := strings.Repeat("  ", indent)
+
+	if node.IsError() {
+		fmt.Printf("%sERROR: %s [%s]\n", prefix, node.Error, node.Span.Start)
+		return
+	}
+
+	if node.IsTerminal() {
+		fmt.Printf("%s%s %q [%s]\n", prefix, node.Kind, node.Token.Literal, node.Span.Start)
+		return
+	}
+
+	fmt.Printf("%s%s [%s-%s]\n", prefix, node.Kind, node.Span.Start, node.Span.End)
+	for _, child := range node.Children {
+		printCST(child, indent+1)
+	}
 }

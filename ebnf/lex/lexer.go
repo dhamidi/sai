@@ -1,5 +1,5 @@
 // Package ebnflex provides lexical scanning based on EBNF grammars.
-package ebnflex
+package lex
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/exp/ebnf"
+	"github.com/dhamidi/sai/ebnf/grammar"
 )
 
 // Position represents a location in source code.
@@ -44,7 +44,7 @@ type memoKey struct {
 
 // Lexer tokenizes input based on an EBNF grammar.
 type Lexer struct {
-	grammar  ebnf.Grammar
+	grammar  grammar.Grammar
 	input    []byte
 	filename string
 	pos      int
@@ -55,7 +55,7 @@ type Lexer struct {
 }
 
 // NewLexer creates a lexer for the given grammar and input.
-func NewLexer(grammar ebnf.Grammar, input []byte, filename string) *Lexer {
+func NewLexer(grammar grammar.Grammar, input []byte, filename string) *Lexer {
 	return &Lexer{
 		grammar:  grammar,
 		input:    input,
@@ -69,19 +69,19 @@ func NewLexer(grammar ebnf.Grammar, input []byte, filename string) *Lexer {
 }
 
 // LoadGrammar loads an EBNF grammar from a file.
-func LoadGrammar(filename string) (ebnf.Grammar, error) {
+func LoadGrammar(filename string) (grammar.Grammar, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, fmt.Errorf("open grammar: %w", err)
+		return grammar.Grammar{}, fmt.Errorf("open grammar: %w", err)
 	}
 	defer f.Close()
 
-	grammar, err := ebnf.Parse(filename, f)
+	g, err := grammar.Parse(filename, f)
 	if err != nil {
-		return nil, fmt.Errorf("parse grammar: %w", err)
+		return grammar.Grammar{}, fmt.Errorf("parse grammar: %w", err)
 	}
 
-	return grammar, nil
+	return g, nil
 }
 
 // Position returns the current position in the input.
@@ -118,7 +118,8 @@ func (l *Lexer) advance() byte {
 
 // NextToken returns the next token from the input.
 // It tries each production in the grammar marked as a token (uppercase first letter)
-// and returns the longest match.
+// and returns the longest match. When multiple productions match the same length,
+// the production defined first in the grammar wins (priority by definition order).
 func (l *Lexer) NextToken() (Token, error) {
 	if l.pos >= len(l.input) {
 		return Token{Kind: "EOF", Position: l.Position()}, io.EOF
@@ -133,10 +134,13 @@ func (l *Lexer) NextToken() (Token, error) {
 	var bestMatch string
 	var bestKind string
 	var bestLen int
+	var bestPriority int = -1
 
 	// Try each production that looks like a token (starts with uppercase)
-	for name, prod := range l.grammar {
-		if prod.Expr == nil {
+	// in definition order to establish priority
+	for priority, name := range l.grammar.Order() {
+		prod := l.grammar.Get(name)
+		if prod == nil || prod.Expr == nil {
 			continue
 		}
 		if len(name) == 0 || name[0] < 'A' || name[0] > 'Z' {
@@ -145,10 +149,12 @@ func (l *Lexer) NextToken() (Token, error) {
 
 		l.visiting = make(map[memoKey]bool)
 		matchLen := l.tryMatch(prod.Expr, startOffset, name)
-		if matchLen > bestLen {
+		// Prefer longer matches; on tie, prefer earlier definition (lower priority number)
+		if matchLen > bestLen || (matchLen == bestLen && matchLen > 0 && (bestPriority == -1 || priority < bestPriority)) {
 			bestLen = matchLen
 			bestKind = name
 			bestMatch = string(l.input[startOffset : startOffset+matchLen])
+			bestPriority = priority
 		}
 	}
 
@@ -176,15 +182,15 @@ func (l *Lexer) NextToken() (Token, error) {
 
 // tryMatch attempts to match an expression at the given offset.
 // Returns the length of the match, or 0 if no match.
-func (l *Lexer) tryMatch(expr ebnf.Expression, offset int, context string) int {
+func (l *Lexer) tryMatch(expr grammar.Expression, offset int, context string) int {
 	switch e := expr.(type) {
-	case *ebnf.Token:
+	case *grammar.Token:
 		return l.tryMatchToken(e.String, offset)
 
-	case *ebnf.Range:
+	case *grammar.Range:
 		return l.tryMatchRange(e.Begin.String, e.End.String, offset)
 
-	case ebnf.Sequence:
+	case grammar.Sequence:
 		total := 0
 		pos := offset
 		for _, item := range e {
@@ -197,7 +203,7 @@ func (l *Lexer) tryMatch(expr ebnf.Expression, offset int, context string) int {
 		}
 		return total
 
-	case ebnf.Alternative:
+	case grammar.Alternative:
 		best := 0
 		for _, alt := range e {
 			n := l.tryMatch(alt, offset, context)
@@ -207,7 +213,7 @@ func (l *Lexer) tryMatch(expr ebnf.Expression, offset int, context string) int {
 		}
 		return best
 
-	case *ebnf.Repetition:
+	case *grammar.Repetition:
 		total := 0
 		pos := offset
 		for {
@@ -220,15 +226,15 @@ func (l *Lexer) tryMatch(expr ebnf.Expression, offset int, context string) int {
 		}
 		return total
 
-	case *ebnf.Option:
+	case *grammar.Option:
 		n := l.tryMatch(e.Body, offset, context)
 		// Option always succeeds (returns 0 if body doesn't match)
 		return n
 
-	case *ebnf.Group:
+	case *grammar.Group:
 		return l.tryMatch(e.Body, offset, context)
 
-	case *ebnf.Name:
+	case *grammar.Name:
 		return l.tryMatchName(e.String, offset)
 
 	default:
@@ -254,8 +260,8 @@ func (l *Lexer) tryMatchName(name string, offset int) int {
 		return 0
 	}
 
-	prod, ok := l.grammar[name]
-	if !ok || prod.Expr == nil {
+	prod := l.grammar.Get(name)
+	if prod == nil || prod.Expr == nil {
 		l.memo[key] = -1
 		return 0
 	}
