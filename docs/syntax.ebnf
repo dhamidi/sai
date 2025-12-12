@@ -1,10 +1,80 @@
 // Java Syntactic Grammar (JLS 25, Chapter 19)
-// Syntactic productions (uppercase names) - whitespace allowed between tokens
+// Syntactic productions - whitespace allowed between tokens
 
 // Productions from §3 (Lexical Structure)
+// Lexical tokens - terminals for the syntactic grammar
+IdentifierChars = JavaLetter { JavaLetterOrDigit } .
+JavaLetter = "a" … "z" | "A" … "Z" | "_" | "$" .
+JavaLetterOrDigit = JavaLetter | "0" … "9" .
+
 Identifier = IdentifierChars .
 TypeIdentifier = Identifier .
 UnqualifiedMethodIdentifier = Identifier .
+
+IntegerLiteral = DecimalIntegerLiteral | HexIntegerLiteral | OctalIntegerLiteral | BinaryIntegerLiteral .
+DecimalIntegerLiteral = DecimalNumeral [ IntegerTypeSuffix ] .
+HexIntegerLiteral = HexNumeral [ IntegerTypeSuffix ] .
+OctalIntegerLiteral = OctalNumeral [ IntegerTypeSuffix ] .
+BinaryIntegerLiteral = BinaryNumeral [ IntegerTypeSuffix ] .
+IntegerTypeSuffix = "l" | "L" .
+DecimalNumeral = "0" | NonZeroDigit [ Digits ] | NonZeroDigit Underscores Digits .
+NonZeroDigit = "1" … "9" .
+Digits = Digit | Digit [ DigitsAndUnderscores ] Digit .
+Digit = "0" | NonZeroDigit .
+DigitsAndUnderscores = DigitOrUnderscore { DigitOrUnderscore } .
+DigitOrUnderscore = Digit | "_" .
+Underscores = "_" { "_" } .
+HexNumeral = "0" ( "x" | "X" ) HexDigits .
+HexDigits = HexDigit | HexDigit [ HexDigitsAndUnderscores ] HexDigit .
+HexDigit = "0" … "9" | "a" … "f" | "A" … "F" .
+HexDigitsAndUnderscores = HexDigitOrUnderscore { HexDigitOrUnderscore } .
+HexDigitOrUnderscore = HexDigit | "_" .
+OctalNumeral = "0" ( OctalDigits | Underscores OctalDigits ) .
+OctalDigits = OctalDigit | OctalDigit [ OctalDigitsAndUnderscores ] OctalDigit .
+OctalDigit = "0" … "7" .
+OctalDigitsAndUnderscores = OctalDigitOrUnderscore { OctalDigitOrUnderscore } .
+OctalDigitOrUnderscore = OctalDigit | "_" .
+BinaryNumeral = "0" ( "b" | "B" ) BinaryDigits .
+BinaryDigits = BinaryDigit | BinaryDigit [ BinaryDigitsAndUnderscores ] BinaryDigit .
+BinaryDigit = "0" | "1" .
+BinaryDigitsAndUnderscores = BinaryDigitOrUnderscore { BinaryDigitOrUnderscore } .
+BinaryDigitOrUnderscore = BinaryDigit | "_" .
+
+FloatingPointLiteral = DecimalFloatingPointLiteral | HexadecimalFloatingPointLiteral .
+DecimalFloatingPointLiteral =
+    Digits "." [ Digits ] [ ExponentPart ] [ FloatTypeSuffix ] |
+    "." Digits [ ExponentPart ] [ FloatTypeSuffix ] |
+    Digits ExponentPart [ FloatTypeSuffix ] |
+    Digits [ ExponentPart ] FloatTypeSuffix .
+ExponentPart = ( "e" | "E" ) [ Sign ] Digits .
+Sign = "+" | "-" .
+FloatTypeSuffix = "f" | "F" | "d" | "D" .
+HexadecimalFloatingPointLiteral = HexSignificand BinaryExponent [ FloatTypeSuffix ] .
+HexSignificand =
+    HexNumeral [ "." ] |
+    "0" ( "x" | "X" ) [ HexDigits ] "." HexDigits .
+BinaryExponent = ( "p" | "P" ) [ Sign ] Digits .
+
+BooleanLiteral = "true" | "false" .
+
+CharacterLiteral = "'" ( SingleCharacter | EscapeSequence ) "'" .
+SingleCharacter = InputCharacter .
+InputCharacter = UnicodeInputCharacter .
+UnicodeInputCharacter = RawInputCharacter | UnicodeEscape .
+RawInputCharacter = "a" … "z" | "A" … "Z" | "0" … "9" | " " | "!" | "#" … "&" | "(" … "[" | "]" … "~" .
+UnicodeEscape = "\\" "u" { "u" } HexDigit HexDigit HexDigit HexDigit .
+EscapeSequence = "\\" ( "b" | "s" | "t" | "n" | "f" | "r" | "\"" | "'" | "\\" | OctalEscape ) .
+OctalEscape = OctalDigit | OctalDigit OctalDigit | ZeroToThree OctalDigit OctalDigit .
+ZeroToThree = "0" … "3" .
+
+StringLiteral = "\"" { StringCharacter } "\"" .
+StringCharacter = InputCharacter | EscapeSequence .
+
+TextBlock = "\"" "\"" "\"" { LineTerminator | TextBlockCharacter } "\"" "\"" "\"" .
+TextBlockCharacter = InputCharacter | EscapeSequence .
+LineTerminator = "\n" | "\r" [ "\n" ] .
+
+NullLiteral = "null" .
 
 Literal =
     IntegerLiteral |
@@ -16,7 +86,6 @@ Literal =
     NullLiteral .
 
 // Productions from §4 (Types, Values, and Variables)
-Type = PrimitiveType | ReferenceType .
 
 PrimitiveType =
     { Annotation } NumericType |

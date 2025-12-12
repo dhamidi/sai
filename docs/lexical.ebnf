@@ -34,8 +34,6 @@ Identifier = IdentifierChars .
 IdentifierChars = JavaLetter { JavaLetterOrDigit } .
 JavaLetter = "a" … "z" | "A" … "Z" | "_" | "$" .
 JavaLetterOrDigit = JavaLetter | "0" … "9" .
-TypeIdentifier = Identifier .
-UnqualifiedMethodIdentifier = Identifier .
 
 // §3.9 Keywords
 Keyword = ReservedKeyword | ContextualKeyword .
