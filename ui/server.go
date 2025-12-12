@@ -144,6 +144,13 @@ func NewServer() (*Server, error) {
 		s.scanner.Submit(scanner.Request{ZipFile: javaSrc})
 	}
 
+	for _, dir := range []string{"lib", "src"} {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			id := s.scanner.Submit(scanner.Request{Path: dir})
+			fmt.Printf("Scanning %s (scan id: %s)\n", dir, id)
+		}
+	}
+
 	return s, nil
 }
 
