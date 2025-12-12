@@ -144,11 +144,31 @@ func NewServer() (*Server, error) {
 		s.scanner.Submit(scanner.Request{ZipFile: javaSrc})
 	}
 
-	for _, dir := range []string{"lib", "src"} {
-		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			id := s.scanner.Submit(scanner.Request{Path: dir})
-			fmt.Printf("Scanning %s (scan id: %s)\n", dir, id)
+	if info, err := os.Stat("lib"); err == nil && info.IsDir() {
+		entries, err := os.ReadDir("lib")
+		if err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				ext := filepath.Ext(name)
+				path := filepath.Join("lib", name)
+				switch ext {
+				case ".jar":
+					id := s.scanner.Submit(scanner.Request{ZipFile: path})
+					fmt.Printf("Scanning %s (scan id: %s)\n", path, id)
+				case ".class", ".java":
+					id := s.scanner.Submit(scanner.Request{ClassFiles: []string{path}})
+					fmt.Printf("Scanning %s (scan id: %s)\n", path, id)
+				}
+			}
 		}
+	}
+
+	if info, err := os.Stat("src"); err == nil && info.IsDir() {
+		id := s.scanner.Submit(scanner.Request{Path: "src"})
+		fmt.Printf("Scanning src (scan id: %s)\n", id)
 	}
 
 	return s, nil
