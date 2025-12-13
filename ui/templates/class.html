@@ -24,7 +24,7 @@
             <turbo-frame id="class-list" src="/sidebar" data-turbo-action="replace">
                 <nav id="class-nav" class="class-list">
                     {{range .Classes}}
-                    <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}" data-turbo-frame="class-content">
+                    <a href="/c/{{.Name}}" class="class-item{{if $.ActiveClass}}{{if eq $.ActiveClass.Name .Name}} active{{end}}{{end}}" data-turbo-frame="class-content" data-turbo-action="advance">
                         <span class="class-type">{{if eq .Kind "interface"}}I{{else if eq .Kind "enum"}}E{{else if eq .Kind "annotation"}}@{{else if eq .Kind "record"}}R{{else}}C{{end}}</span>
                         {{if .Package}}<span class="class-package" title="{{.Package}}">{{.Package}}</span>{{end}}
                         <span class="class-name" title="{{.Name}}">{{.SimpleName}}</span>
