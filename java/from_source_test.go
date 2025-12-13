@@ -1,6 +1,7 @@
 package java
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -189,6 +190,64 @@ public class Example {
 		}
 		if method.Javadoc != "" {
 			t.Errorf("Expected noJavadoc method to have no Javadoc (block comment without ** is not Javadoc), got: %q", method.Javadoc)
+		}
+	})
+}
+
+func TestPackageInfoModelFromSource(t *testing.T) {
+	source := []byte(`/**
+ * This is the package documentation.
+ * It describes what the package does.
+ * @since 1.0
+ */
+@Deprecated
+@SuppressWarnings("unchecked")
+package com.example.mypackage;
+`)
+
+	pkg, err := PackageInfoModelFromSource(source)
+	if err != nil {
+		t.Fatalf("Failed to parse source: %v", err)
+	}
+
+	if pkg == nil {
+		t.Fatal("Expected package info model, got nil")
+	}
+
+	t.Run("package name", func(t *testing.T) {
+		if pkg.Name != "com.example.mypackage" {
+			t.Errorf("Expected package name %q, got %q", "com.example.mypackage", pkg.Name)
+		}
+	})
+
+	t.Run("package javadoc", func(t *testing.T) {
+		if pkg.Javadoc == "" {
+			t.Error("Expected package javadoc, got empty string")
+		}
+		if !strings.Contains(pkg.Javadoc, "package documentation") {
+			t.Errorf("Expected javadoc to contain 'package documentation', got %q", pkg.Javadoc)
+		}
+	})
+
+	t.Run("package annotations", func(t *testing.T) {
+		if len(pkg.Annotations) != 2 {
+			t.Fatalf("Expected 2 annotations, got %d", len(pkg.Annotations))
+		}
+
+		var deprecated, suppressWarnings bool
+		for _, ann := range pkg.Annotations {
+			if ann.Type == "Deprecated" {
+				deprecated = true
+			}
+			if ann.Type == "SuppressWarnings" {
+				suppressWarnings = true
+			}
+		}
+		if !deprecated {
+			t.Error("Expected @Deprecated annotation")
+		}
+		if !suppressWarnings {
+			t.Error("Expected @SuppressWarnings annotation")
 		}
 	})
 }

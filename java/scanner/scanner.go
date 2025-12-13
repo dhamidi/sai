@@ -39,6 +39,7 @@ type Result struct {
 	Request   Request
 	Classes   []*java.ClassModel
 	Modules   []*java.ModuleModel
+	Packages  []*java.PackageInfoModel
 	Error     string
 	Errors    []string
 	StartedAt time.Time
@@ -77,9 +78,10 @@ func (s *Scanner) run() {
 }
 
 type scanResult struct {
-	classes []*java.ClassModel
-	modules []*java.ModuleModel
-	errors  []string
+	classes  []*java.ClassModel
+	modules  []*java.ModuleModel
+	packages []*java.PackageInfoModel
+	errors   []string
 }
 
 func (s *Scanner) processScan(req Request) {
@@ -109,6 +111,7 @@ func (s *Scanner) processScan(req Request) {
 	result.EndedAt = time.Now()
 	result.Classes = sr.classes
 	result.Modules = sr.modules
+	result.Packages = sr.packages
 	result.Errors = sr.errors
 	if len(sr.errors) > 0 && len(sr.classes) == 0 {
 		result.Status = StatusFailed
@@ -191,6 +194,10 @@ func isModuleInfoFile(name string) bool {
 	return filepath.Base(name) == "module-info.java"
 }
 
+func isPackageInfoFile(name string) bool {
+	return filepath.Base(name) == "package-info.java"
+}
+
 func (s *Scanner) scanFiles(id string, files []string) scanResult {
 	s.mu.Lock()
 	s.scans[id].Total = len(files)
@@ -217,6 +224,13 @@ func (s *Scanner) scanFiles(id string, files []string) scanResult {
 					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", file, err))
 				} else if mod != nil {
 					sr.modules = append(sr.modules, mod)
+				}
+			} else if isPackageInfoFile(file) {
+				pkg, err := java.PackageInfoModelFromSource(data, parser.WithFile(filepath.Base(file)), parser.WithSourcePath(file))
+				if err != nil {
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", file, err))
+				} else if pkg != nil {
+					sr.packages = append(sr.packages, pkg)
 				}
 			} else {
 				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(file)), parser.WithSourcePath(file))
@@ -301,6 +315,13 @@ func (s *Scanner) scanZipFile(id, path string) scanResult {
 					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", f.Name, err))
 				} else if mod != nil {
 					sr.modules = append(sr.modules, mod)
+				}
+			} else if isPackageInfoFile(f.Name) {
+				pkg, err := java.PackageInfoModelFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
+				if err != nil {
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s: %v", f.Name, err))
+				} else if pkg != nil {
+					sr.packages = append(sr.packages, pkg)
 				}
 			} else {
 				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
@@ -421,6 +442,13 @@ func (s *Scanner) scanJarInZip(jarFile *zip.File, onProgress func()) scanResult 
 				} else if mod != nil {
 					sr.modules = append(sr.modules, mod)
 				}
+			} else if isPackageInfoFile(f.Name) {
+				pkg, err := java.PackageInfoModelFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
+				if err != nil {
+					sr.errors = append(sr.errors, fmt.Sprintf("parse %s in %s: %v", f.Name, jarFile.Name, err))
+				} else if pkg != nil {
+					sr.packages = append(sr.packages, pkg)
+				}
 			} else {
 				models, err := java.ClassModelsFromSource(data, parser.WithFile(filepath.Base(f.Name)), parser.WithSourcePath(f.Name))
 				if err != nil {
@@ -530,6 +558,36 @@ func (s *Scanner) FindModule(name string) *java.ModuleModel {
 			for _, m := range scan.Modules {
 				if m.Name == name {
 					return m
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Scanner) AllPackages() []*java.PackageInfoModel {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var all []*java.PackageInfoModel
+	for _, scan := range s.scans {
+		if scan.Status == StatusCompleted {
+			all = append(all, scan.Packages...)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Name < all[j].Name
+	})
+	return all
+}
+
+func (s *Scanner) FindPackage(name string) *java.PackageInfoModel {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, scan := range s.scans {
+		if scan.Status == StatusCompleted {
+			for _, p := range scan.Packages {
+				if p.Name == name {
+					return p
 				}
 			}
 		}

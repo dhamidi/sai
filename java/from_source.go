@@ -114,6 +114,46 @@ func ModuleModelFromSource(source []byte, opts ...parser.Option) (*ModuleModel, 
 	return nil, nil
 }
 
+func PackageInfoModelFromSource(source []byte, opts ...parser.Option) (*PackageInfoModel, error) {
+	opts = append(opts, parser.WithComments())
+	p := parser.ParseCompilationUnit(bytes.NewReader(source), opts...)
+	node := p.Finish()
+	if node == nil {
+		return nil, nil
+	}
+	comments := p.Comments()
+	jf := newJavadocFinder(comments)
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindPackageDecl {
+			model := packageInfoModelFromPackageDecl(child, jf)
+			if sourcePath := p.SourcePath(); sourcePath != "" {
+				model.SourceFile = sourcePath
+				model.SourceURL = FileURL(sourcePath)
+			}
+			return model, nil
+		}
+	}
+	return nil, nil
+}
+
+func packageInfoModelFromPackageDecl(node *parser.Node, jf *javadocFinder) *PackageInfoModel {
+	model := &PackageInfoModel{
+		Javadoc: jf.FindForNode(node),
+	}
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindQualifiedName:
+			model.Name = qualifiedNameToString(child)
+		case parser.KindAnnotation:
+			model.Annotations = append(model.Annotations, annotationModelFromNode(child, nil))
+		}
+	}
+
+	return model
+}
+
 func moduleModelFromModuleDecl(node *parser.Node, jf *javadocFinder) *ModuleModel {
 	model := &ModuleModel{
 		Javadoc: jf.FindForNode(node),

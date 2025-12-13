@@ -204,3 +204,11 @@ type ProvidesDirective struct {
 	ServiceName         string
 	ImplementationNames []string
 }
+
+type PackageInfoModel struct {
+	Name        string
+	SourceFile  string
+	SourceURL   URLString
+	Javadoc     string
+	Annotations []AnnotationModel
+}
