@@ -205,6 +205,13 @@ func (e *LineModelEncoder) MarshalText() ([]byte, error) {
 		)
 	}
 
+	for _, rc := range m.RecordComponents {
+		fmt.Fprintf(&sb, "component\t%s\t%s\n",
+			rc.Name,
+			typeModelStr(rc.Type),
+		)
+	}
+
 	return []byte(sb.String()), nil
 }
 

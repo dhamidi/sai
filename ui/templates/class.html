@@ -132,6 +132,28 @@
             </section>
             {{end}}
 
+            {{with .ActiveClass.RecordComponents}}
+            <section class="record-components">
+                <h3>Record Components</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .}}
+                        <tr>
+                            <td class="type">{{linkifyType $.KnownClasses .Type}}</td>
+                            <td class="name">{{.Name}}</td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </section>
+            {{end}}
+
             {{with constructors .ActiveClass}}
             <section class="constructors">
                 <h3>Constructors</h3>

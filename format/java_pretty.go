@@ -477,6 +477,18 @@ func (p *JavaPrettyPrinter) printExtendsImplements(node *parser.Node) {
 			p.printType(t)
 		}
 	}
+
+	permitsClause := node.FirstChildOfKind(parser.KindPermitsClause)
+	if permitsClause != nil {
+		p.write(" permits ")
+		types := permitsClause.ChildrenOfKind(parser.KindType)
+		for i, t := range types {
+			if i > 0 {
+				p.write(", ")
+			}
+			p.printType(t)
+		}
+	}
 }
 
 func (p *JavaPrettyPrinter) printType(node *parser.Node) {
@@ -1391,29 +1403,111 @@ func (p *JavaPrettyPrinter) printSwitchCase(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printSwitchLabel(node *parser.Node) {
-	isDefault := true
+	var caseExprs []*parser.Node
+	var guard *parser.Node
+	var hasArrow bool
+	var isDefault bool
+
 	for _, child := range node.Children {
-		if child.Kind != parser.KindIdentifier || child.Token == nil || child.Token.Literal != "default" {
-			isDefault = false
-			break
+		switch child.Kind {
+		case parser.KindGuard:
+			guard = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				switch child.Token.Kind {
+				case parser.TokenArrow:
+					hasArrow = true
+				case parser.TokenDefault:
+					isDefault = true
+				default:
+					caseExprs = append(caseExprs, child)
+				}
+			} else {
+				caseExprs = append(caseExprs, child)
+			}
+		default:
+			caseExprs = append(caseExprs, child)
 		}
 	}
 
-	if isDefault || len(node.Children) == 0 {
-		p.write("default:\n")
+	if len(caseExprs) == 0 {
+		p.write("default")
+	} else if isDefault {
+		p.write("case ")
+		for i, expr := range caseExprs {
+			if i > 0 {
+				p.write(", ")
+			}
+			p.printCaseExpr(expr)
+		}
+		p.write(", default")
 	} else {
 		p.write("case ")
-		first := true
-		for _, child := range node.Children {
+		for i, expr := range caseExprs {
+			if i > 0 {
+				p.write(", ")
+			}
+			p.printCaseExpr(expr)
+		}
+	}
+
+	if guard != nil {
+		p.write(" when ")
+		if len(guard.Children) > 0 {
+			p.printExpr(guard.Children[0])
+		}
+	}
+
+	if hasArrow {
+		p.write(" ->")
+	} else {
+		p.write(":")
+	}
+	p.write("\n")
+	p.atLineStart = true
+}
+
+func (p *JavaPrettyPrinter) printCaseExpr(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindTypePattern:
+		p.printTypePattern(node)
+	case parser.KindRecordPattern:
+		p.printRecordPattern(node)
+	default:
+		p.printExpr(node)
+	}
+}
+
+func (p *JavaPrettyPrinter) printTypePattern(node *parser.Node) {
+	typeNode := node.FirstChildOfKind(parser.KindType)
+	if typeNode != nil {
+		p.printType(typeNode)
+	}
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			p.write(" ")
+			p.write(child.Token.Literal)
+		}
+	}
+}
+
+func (p *JavaPrettyPrinter) printRecordPattern(node *parser.Node) {
+	typeNode := node.FirstChildOfKind(parser.KindType)
+	if typeNode != nil {
+		p.printType(typeNode)
+	}
+	p.write("(")
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindTypePattern || child.Kind == parser.KindRecordPattern {
 			if !first {
 				p.write(", ")
 			}
-			p.printExpr(child)
+			p.printCaseExpr(child)
 			first = false
 		}
-		p.write(":\n")
 	}
-	p.atLineStart = true
+	p.write(")")
 }
 
 func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
