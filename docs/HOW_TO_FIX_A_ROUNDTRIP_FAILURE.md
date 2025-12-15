@@ -30,6 +30,7 @@ The test in `format/roundtrip_test.go`:
 4. Compares node counts between original and formatted ASTs
 
 A failure means either:
+
 - The formatted output doesn't parse (syntax error introduced)
 - The formatted output parses but has different AST structure (nodes dropped/added)
 
@@ -58,11 +59,57 @@ go test ./format -v -run 'TestRoundTrip_Testcases' -filter=SomePattern
 ### 2. Analyze the Failure
 
 The test output shows:
+
 - **Parse errors**: The formatted output is syntactically invalid
 - **Node count mismatches**: Lists which node kinds differ and by how much
 - **Formatted output**: The actual problematic output (truncated)
 
 For parse errors, look at the formatted output around the error line. The issue is usually obvious once you see the malformed output.
+
+You can use `sai parse <file>` to dump the syntax tree (made-up example):
+
+```
+❯ sai parse testcases/ADT.java
+CompilationUnit [1:1-9:2]
+  ClassDecl [1:8-9:2]
+    Modifiers [1:1-1:7]
+      Identifier [1:1-1:7] public
+    Identifier [1:14-1:17] ADT
+    Block [1:18-9:2]
+      InterfaceDecl [2:17-8:4]
+        Modifiers [2:3-2:16]
+          Identifier [2:3-2:9] public
+          Identifier [2:10-2:16] sealed
+        Identifier [2:27-2:34] Message
+        PermitsClause [3:5-4:25]
+          Type [3:13-3:25]
+            QualifiedName [3:13-3:25]
+              Identifier [3:13-3:20] Message
+              Identifier [3:21-3:25] Ping
+          Type [4:13-4:25]
+            QualifiedName [4:13-4:25]
+              Identifier [4:13-4:20] Message
+              Identifier [4:21-4:25] Pong
+        Block [5:11-8:4]
+          RecordDecl [6:7-6:42]
+            Modifiers [6:7-5:12]
+            Identifier [6:14-6:18] Ping
+            Parameters [6:18-6:20]
+            ImplementsClause [6:21-6:39]
+              Type [6:32-6:39]
+                QualifiedName [6:32-6:39]
+                  Identifier [6:32-6:39] Message
+            Block [6:40-6:42]
+          RecordDecl [7:7-7:42]
+            Modifiers [7:7-6:42]
+            Identifier [7:14-7:18] Pong
+            Parameters [7:18-7:20]
+            ImplementsClause [7:21-7:39]
+              Type [7:32-7:39]
+                QualifiedName [7:32-7:39]
+                  Identifier [7:32-7:39] Message
+            Block [7:40-7:42]
+```
 
 ### 3. Find the Root Cause
 
@@ -74,6 +121,7 @@ head -N /path/to/testcases/file.java | tail -M
 ```
 
 Common causes:
+
 - **Missing case in formatter**: A node kind isn't handled in `printNode()` or related functions
 - **Incorrect AST structure assumption**: The parser creates a different tree than expected
 - **Comment handling**: Comments stored separately need explicit emission
@@ -88,11 +136,13 @@ grep -n "KindSomething" java/parser/parser.go
 ### 4. Decide: Model Change or Formatter-Only Fix?
 
 **Add to ClassModel if**:
+
 - The construct represents a semantic concept (fields, methods, initializers, etc.)
 - It should be preserved when round-tripping through the model
 - Other tools might need to query/manipulate it
 
 **Formatter-only fix if**:
+
 - It's purely syntactic (operator precedence, parentheses)
 - It's a special case of existing handling
 
@@ -267,6 +317,7 @@ When working on roundtrip test failures:
 3. **Don't try to fix all failures at once** - There may be many failing tests; fix them incrementally
 
 This approach ensures:
+
 - Each fix is isolated and easy to review
 - You can track progress clearly
 - Regressions are easier to identify

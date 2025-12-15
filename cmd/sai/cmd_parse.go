@@ -36,7 +36,7 @@ func newParseCmd() *cobra.Command {
 				switch outputFormat {
 				case "json":
 					encoder = format.NewJSONEncoder(os.Stdout)
-				case "java":
+				case "tree":
 					encoder = format.NewJavaEncoder(os.Stdout)
 				default:
 					return fmt.Errorf("unknown format: %s", outputFormat)
@@ -71,7 +71,7 @@ func newParseCmd() *cobra.Command {
 						return fmt.Errorf("encode json: %w", err)
 					}
 					fmt.Println()
-				case "java":
+				case "tree":
 					if p.IncludesPositions() {
 						fmt.Println(node.StringWithPositions())
 					} else {
@@ -88,7 +88,7 @@ func newParseCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&outputFormat, "format", "f", "json", "output format (json, java)")
+	cmd.Flags().StringVarP(&outputFormat, "format", "f", "tree", "output format (tree, json)")
 	cmd.Flags().BoolVar(&includeComments, "comments", true, "include comments in output for .java files")
 	cmd.Flags().BoolVar(&includePositions, "positions", true, "include token positions in output for .java files")
 
