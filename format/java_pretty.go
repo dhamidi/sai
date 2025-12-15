@@ -2315,7 +2315,7 @@ func (p *JavaPrettyPrinter) printMethodRef(node *parser.Node) {
 			}
 			p.write(child.Token.Literal)
 			first = false
-		} else if child.Kind == parser.KindType {
+		} else if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			p.printType(child)
 			first = false
 		} else {
