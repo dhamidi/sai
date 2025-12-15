@@ -1870,12 +1870,19 @@ func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
 		p.printParameter(param)
 	} else {
 		// Catch parameter structure from parser:
-		// - KindModifiers (optional)
+		// - KindModifiers (optional, e.g., "final")
 		// - KindType (wrapper containing one or more types for multi-catch)
 		//   - KindType (first exception type)
 		//   - KindType (second exception type, if multi-catch)
 		//   - ...
 		// - KindIdentifier (variable name) or KindUnnamedVariable (_)
+
+		// Print modifiers first (e.g., "final")
+		modifiers := node.FirstChildOfKind(parser.KindModifiers)
+		if modifiers != nil {
+			p.printModifiersInline(modifiers)
+		}
+
 		var name string
 		var isUnnamed bool
 		typeWrapper := node.FirstChildOfKind(parser.KindType)
