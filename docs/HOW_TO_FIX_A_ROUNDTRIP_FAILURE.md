@@ -185,11 +185,13 @@ Run the original failing test:
 go test ./format -v -run 'TestRoundTrip_Testcases/OriginalFailingTest'
 ```
 
-Run all roundtrip tests to check for regressions:
+Run all roundtrip tests to check for regressions (always use `-failfast`):
 
 ```bash
-go test ./format -v -run 'TestRoundTrip_Testcases'
+go test ./format -v -run 'TestRoundTrip_Testcases' -failfast
 ```
+
+**Important**: Always use `-failfast` when running the full test suite. This prevents wasting time on subsequent failures when there are multiple issues.
 
 ### 11. Commit
 
@@ -255,3 +257,17 @@ func (p *JavaPrettyPrinter) isStaticInitializer(node *parser.Node) bool {
 | `java/parser/parser.go` | Parser (to understand AST structure) |
 | `java/parser/node.go` | Node kind definitions |
 | `testcases/` | Test Java files |
+
+## Important: Fix One Issue at a Time
+
+When working on roundtrip test failures:
+
+1. **Only fix the current failing test** - Run with `-failfast` and fix only the first failure
+2. **Commit after each fix** - Make a separate commit for each issue you fix
+3. **Don't try to fix all failures at once** - There may be many failing tests; fix them incrementally
+
+This approach ensures:
+- Each fix is isolated and easy to review
+- You can track progress clearly
+- Regressions are easier to identify
+- The work can be paused and resumed at any point

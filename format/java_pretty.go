@@ -708,7 +708,11 @@ func (p *JavaPrettyPrinter) isEnumConstant(node *parser.Node) bool {
 	if node.Kind != parser.KindFieldDecl {
 		return false
 	}
-	return node.FirstChildOfKind(parser.KindType) == nil
+	// Enum constants don't have a type - they're just identifiers with optional arguments.
+	// Regular fields have either KindType or KindArrayType for array types.
+	hasType := node.FirstChildOfKind(parser.KindType) != nil ||
+		node.FirstChildOfKind(parser.KindArrayType) != nil
+	return !hasType
 }
 
 func (p *JavaPrettyPrinter) printEnumConstant(node *parser.Node) {
@@ -1061,10 +1065,14 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	// Print declarators: each is an identifier optionally followed by an initializer
-	// Structure after type: identifier [initializer], identifier [initializer], ...
+	// Print declarators: each is an identifier optionally followed by an initializer.
+	// The AST flattens everything, so we need to use source positions to distinguish
+	// between variable names and initializers when the initializer is also an Identifier.
+	// Between a variable name and its initializer there's '=' in the source.
+	// Between two variable names (when there's no initializer) there's ',' in the source.
 	first := true
 	i := 0
+	var prevChild *parser.Node
 	for i < len(node.Children) {
 		child := node.Children[i]
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
@@ -1072,33 +1080,65 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 			continue
 		}
 
-		// This should be an identifier (variable name)
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
+		// Check if this child is an initializer for the previous variable by looking
+		// for '=' in the source between them.
+		isInitializer := false
+		if prevChild != nil {
+			isInitializer = p.hasAssignBetween(prevChild, child)
+		}
+
+		if isInitializer {
+			p.write(" = ")
+			p.printExpr(child)
+		} else {
+			// This is a new variable name
 			if !first {
 				p.write(", ")
 			}
 			first = false
-			p.write(child.Token.Literal)
-			i++
-
-			// Check if next child is an initializer (not an identifier and not modifiers/type)
-			if i < len(node.Children) {
-				next := node.Children[i]
-				if next.Kind != parser.KindIdentifier && next.Kind != parser.KindModifiers &&
-					next.Kind != parser.KindType && next.Kind != parser.KindArrayType {
-					p.write(" = ")
-					p.printExpr(next)
-					i++
-				}
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(child.Token.Literal)
+			} else {
+				p.printExpr(child)
 			}
-		} else {
-			// Unexpected child, skip
-			i++
 		}
+		prevChild = child
+		i++
 	}
 
 	p.write(";\n")
 	p.atLineStart = true
+}
+
+// hasAssignBetween checks if there's an '=' token in the source between two nodes.
+// This is used to distinguish variable names from initializers in local var declarations.
+func (p *JavaPrettyPrinter) hasAssignBetween(prev, next *parser.Node) bool {
+	if p.source == nil {
+		return false
+	}
+	startOffset := prev.Span.End.Offset
+	endOffset := next.Span.Start.Offset
+	if startOffset < 0 || endOffset < 0 || startOffset >= endOffset {
+		return false
+	}
+	if endOffset > len(p.source) {
+		endOffset = len(p.source)
+	}
+	between := p.source[startOffset:endOffset]
+	// Look for '=' that isn't part of '==' or '!=' or '<=' etc.
+	for i := 0; i < len(between); i++ {
+		if between[i] == '=' {
+			// Check it's not == or part of another operator
+			if i > 0 && (between[i-1] == '=' || between[i-1] == '!' || between[i-1] == '<' || between[i-1] == '>') {
+				continue
+			}
+			if i+1 < len(between) && between[i+1] == '=' {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func (p *JavaPrettyPrinter) printExprStmt(node *parser.Node) {
@@ -1343,9 +1383,10 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 		p.write(" ")
 	}
 
-	// Print declarators: each is an identifier optionally followed by an initializer
+	// Print declarators using same logic as printLocalVarDecl
 	first := true
 	i := 0
+	var prevChild *parser.Node
 	for i < len(node.Children) {
 		child := node.Children[i]
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
@@ -1353,29 +1394,29 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 			continue
 		}
 
-		// This should be an identifier (variable name)
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
+		// Check if this child is an initializer for the previous variable
+		isInitializer := false
+		if prevChild != nil {
+			isInitializer = p.hasAssignBetween(prevChild, child)
+		}
+
+		if isInitializer {
+			p.write(" = ")
+			p.printExpr(child)
+		} else {
+			// This is a new variable name
 			if !first {
 				p.write(", ")
 			}
 			first = false
-			p.write(child.Token.Literal)
-			i++
-
-			// Check if next child is an initializer (not an identifier and not modifiers/type)
-			if i < len(node.Children) {
-				next := node.Children[i]
-				if next.Kind != parser.KindIdentifier && next.Kind != parser.KindModifiers &&
-					next.Kind != parser.KindType && next.Kind != parser.KindArrayType {
-					p.write(" = ")
-					p.printExpr(next)
-					i++
-				}
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(child.Token.Literal)
+			} else {
+				p.printExpr(child)
 			}
-		} else {
-			// Unexpected child, skip
-			i++
 		}
+		prevChild = child
+		i++
 	}
 }
 
@@ -1415,11 +1456,14 @@ func (p *JavaPrettyPrinter) printEnhancedForStmt(node *parser.Node) {
 					iterable = child
 				}
 			}
-		case parser.KindBlock:
-			body = child
 		default:
-			if paramType != nil && foundName && iterable == nil {
-				iterable = child
+			// The body can be a Block or any other statement type (e.g., single-statement body)
+			if paramType != nil && foundName {
+				if iterable == nil {
+					iterable = child
+				} else {
+					body = child
+				}
 			}
 		}
 	}
@@ -1436,7 +1480,7 @@ func (p *JavaPrettyPrinter) printEnhancedForStmt(node *parser.Node) {
 	p.write(") ")
 
 	if body != nil {
-		p.printBlock(body)
+		p.printBranchBody(body)
 	}
 }
 
@@ -1633,10 +1677,13 @@ func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
 	p.writeIndent()
 	p.write("try ")
 
-	// Collect try-with-resources declarations
+	// Collect try-with-resources: can be LocalVarDecl or just Identifier/FieldAccess
+	// Java 9+ allows effectively final variables as resources
 	var resources []*parser.Node
 	for _, child := range node.Children {
-		if child.Kind == parser.KindLocalVarDecl {
+		if child.Kind == parser.KindLocalVarDecl ||
+			child.Kind == parser.KindIdentifier ||
+			child.Kind == parser.KindFieldAccess {
 			resources = append(resources, child)
 		}
 	}
@@ -1647,7 +1694,13 @@ func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
 			if i > 0 {
 				p.write("; ")
 			}
-			p.printLocalVarDeclInline(res)
+			if res.Kind == parser.KindLocalVarDecl {
+				p.printLocalVarDeclInline(res)
+			} else if res.Kind == parser.KindIdentifier && res.Token != nil {
+				p.write(res.Token.Literal)
+			} else {
+				p.printExpr(res)
+			}
 		}
 		p.write(") ")
 	}
@@ -1680,12 +1733,15 @@ func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
 		//   - KindType (first exception type)
 		//   - KindType (second exception type, if multi-catch)
 		//   - ...
-		// - KindIdentifier (variable name)
+		// - KindIdentifier (variable name) or KindUnnamedVariable (_)
 		var name string
+		var isUnnamed bool
 		typeWrapper := node.FirstChildOfKind(parser.KindType)
 		for _, child := range node.Children {
 			if child.Kind == parser.KindIdentifier && child.Token != nil {
 				name = child.Token.Literal
+			} else if child.Kind == parser.KindUnnamedVariable {
+				isUnnamed = true
 			}
 		}
 
@@ -1709,6 +1765,8 @@ func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
 		if name != "" {
 			p.write(" ")
 			p.write(name)
+		} else if isUnnamed {
+			p.write(" _")
 		}
 	}
 
