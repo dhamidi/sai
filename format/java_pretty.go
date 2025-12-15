@@ -69,9 +69,42 @@ func (p *JavaPrettyPrinter) printNode(node *parser.Node) {
 	case parser.KindConstructorDecl:
 		p.printConstructorDecl(node)
 	case parser.KindBlock:
-		p.printBlock(node)
+		if p.isStaticInitializer(node) {
+			p.printStaticInitializer(node)
+		} else {
+			p.printBlock(node)
+		}
 	default:
 		p.printGenericNode(node)
+	}
+}
+
+// isStaticInitializer checks if a KindBlock represents a static initializer
+// (has structure: KindIdentifier("static") + KindBlock)
+func (p *JavaPrettyPrinter) isStaticInitializer(node *parser.Node) bool {
+	if node.Kind != parser.KindBlock {
+		return false
+	}
+	hasStatic := false
+	hasBlock := false
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "static" {
+			hasStatic = true
+		} else if child.Kind == parser.KindBlock {
+			hasBlock = true
+		}
+	}
+	return hasStatic && hasBlock
+}
+
+func (p *JavaPrettyPrinter) printStaticInitializer(node *parser.Node) {
+	p.writeIndent()
+	p.write("static ")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindBlock {
+			p.printBlock(child)
+			return
+		}
 	}
 }
 
@@ -934,6 +967,9 @@ func (p *JavaPrettyPrinter) printBlock(node *parser.Node) {
 		p.emitCommentsBeforeLine(child.Span.Start.Line)
 		p.printStatement(child)
 	}
+
+	// Emit any comments inside the block before the closing brace
+	p.emitCommentsBeforeLine(node.Span.End.Line)
 
 	p.indent--
 	p.writeIndent()

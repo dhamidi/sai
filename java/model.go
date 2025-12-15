@@ -52,6 +52,13 @@ type ClassModel struct {
 	Fields              []FieldModel
 	Methods             []MethodModel
 	TypeParameters      []TypeParameterModel
+	Initializers        []InitializerModel
+}
+
+// InitializerModel represents a static or instance initializer block
+type InitializerModel struct {
+	IsStatic bool
+	Body     string // The block body as source code (including braces)
 }
 
 type EnumConstantModel struct {

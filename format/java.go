@@ -402,10 +402,27 @@ func (e *JavaModelEncoder) MarshalText() ([]byte, error) {
 	sb.WriteString(" {\n")
 
 	e.writeFields(&sb)
+	e.writeInitializers(&sb)
 	e.writeMethods(&sb)
 
 	sb.WriteString("}\n")
 	return []byte(sb.String()), nil
+}
+
+func (e *JavaModelEncoder) writeInitializers(sb *strings.Builder) {
+	for _, init := range e.model.Initializers {
+		if init.IsStatic {
+			sb.WriteString("    static ")
+		} else {
+			sb.WriteString("    ")
+		}
+		if init.Body != "" {
+			sb.WriteString(init.Body)
+		} else {
+			sb.WriteString("{ }")
+		}
+		sb.WriteString("\n\n")
+	}
 }
 
 func (e *JavaModelEncoder) writeClassDeclaration(sb *strings.Builder) {

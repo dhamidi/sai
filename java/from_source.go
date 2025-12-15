@@ -516,8 +516,46 @@ func extractClassBodyMembers(block *parser.Node, model *ClassModel, resolver *ty
 				IsFinal:    inner.IsFinal,
 				IsAbstract: inner.IsAbstract,
 			})
+		case parser.KindBlock:
+			if init := initializerFromBlock(child); init != nil {
+				model.Initializers = append(model.Initializers, *init)
+			}
 		}
 	}
+}
+
+// initializerFromBlock extracts an initializer model from a block node.
+// Returns nil if the block is not an initializer.
+// Static initializers have structure: KindBlock -> [KindIdentifier("static"), KindBlock]
+// Instance initializers are just: KindBlock -> [statements...]
+func initializerFromBlock(node *parser.Node) *InitializerModel {
+	if node.Kind != parser.KindBlock {
+		return nil
+	}
+
+	// Check if this is a static initializer (has "static" identifier followed by block)
+	var isStatic bool
+	var bodyBlock *parser.Node
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "static" {
+			isStatic = true
+		} else if child.Kind == parser.KindBlock {
+			bodyBlock = child
+		}
+	}
+
+	// If we have a static identifier and a body block, it's a static initializer
+	if isStatic && bodyBlock != nil {
+		return &InitializerModel{
+			IsStatic: true,
+			Body:     "", // Body extraction would require source access
+		}
+	}
+
+	// Otherwise this is just a regular block, not an initializer at class body level
+	// Instance initializers would be bare blocks in the class body
+	return nil
 }
 
 // collectAndRegisterInnerClasses recursively finds and registers all inner classes
