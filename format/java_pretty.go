@@ -1782,6 +1782,9 @@ func (p *JavaPrettyPrinter) printCaseExpr(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printTypePattern(node *parser.Node) {
 	typeNode := node.FirstChildOfKind(parser.KindType)
+	if typeNode == nil {
+		typeNode = node.FirstChildOfKind(parser.KindArrayType)
+	}
 	if typeNode != nil {
 		p.printType(typeNode)
 	}
