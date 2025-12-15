@@ -668,7 +668,7 @@ func (p *JavaPrettyPrinter) printWildcard(node *parser.Node) {
 				p.write(" ")
 			}
 		}
-		if child.Kind == parser.KindType {
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			p.printType(child)
 		}
 	}
