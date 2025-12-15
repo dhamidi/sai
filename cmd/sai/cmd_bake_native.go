@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/dhamidi/sai/project"
 	"github.com/spf13/cobra"
@@ -129,8 +130,18 @@ func runBakeNative(mainClass, output string, verbose, installMise bool, extraArg
 
 	fmt.Println("Building native image (this may take several minutes)...")
 
+	// Build list of all modules to include (except test)
+	var moduleNames []string
+	for _, mod := range proj.ModulesInOrder() {
+		if mod.Name == "test" {
+			continue
+		}
+		moduleNames = append(moduleNames, mod.FullName())
+	}
+
 	args := []string{
 		"--module-path", mlibDir,
+		"--add-modules", strings.Join(moduleNames, ","),
 		"--module", mainMod.FullName() + "/" + mainClass,
 		"-o", output,
 		"--no-fallback",
