@@ -1074,7 +1074,11 @@ func (p *JavaPrettyPrinter) printFieldDecl(node *parser.Node) {
 
 		if isInitializer {
 			p.write(" = ")
-			p.printExpr(child)
+			if p.shouldFormatAsChain(child) {
+				p.printMethodChain(child, p.indent)
+			} else {
+				p.printExpr(child)
+			}
 			prevWasName = false
 		} else {
 			// This is a new variable name
@@ -1474,7 +1478,11 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 
 		if isInitializer {
 			p.write(" = ")
-			p.printExpr(child)
+			if p.shouldFormatAsChain(child) {
+				p.printMethodChain(child, p.indent)
+			} else {
+				p.printExpr(child)
+			}
 			prevWasName = false
 		} else {
 			// This is a new variable name
@@ -1533,7 +1541,11 @@ func (p *JavaPrettyPrinter) hasAssignBetween(prev, next *parser.Node) bool {
 func (p *JavaPrettyPrinter) printExprStmt(node *parser.Node) {
 	p.writeIndent()
 	for _, child := range node.Children {
-		p.printExpr(child)
+		if p.shouldFormatAsChain(child) {
+			p.printMethodChain(child, p.indent)
+		} else {
+			p.printExpr(child)
+		}
 	}
 	p.write(";\n")
 	p.atLineStart = true
@@ -1802,7 +1814,11 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 
 		if isInitializer {
 			p.write(" = ")
-			p.printExpr(child)
+			if p.shouldFormatAsChain(child) {
+				p.printMethodChain(child, p.indent)
+			} else {
+				p.printExpr(child)
+			}
 		} else {
 			// This is a new variable name
 			if !first {
@@ -2575,6 +2591,326 @@ func (p *JavaPrettyPrinter) printArguments(node *parser.Node) {
 		p.printExpr(child)
 		first = false
 	}
+}
+
+// chainElement represents one element in a method chain
+type chainElement struct {
+	methodName string       // The method name (empty for base identifier)
+	args       *parser.Node // Arguments node (nil for field access or base)
+	typeArgs   *parser.Node // Type arguments for generic method calls
+	isBase     bool         // True if this is the base (e.g., "obj" in obj.foo().bar())
+	baseNode   *parser.Node // The base node if isBase is true
+}
+
+// collectMethodChain collects all elements of a method chain from an expression.
+// Returns elements in order from base to final call, and the count of actual method calls.
+func (p *JavaPrettyPrinter) collectMethodChain(node *parser.Node) ([]chainElement, int) {
+	var elements []chainElement
+	callCount := 0
+	p.collectChainElements(node, &elements, &callCount)
+	// Reverse to get base-to-end order
+	for i, j := 0, len(elements)-1; i < j; i, j = i+1, j-1 {
+		elements[i], elements[j] = elements[j], elements[i]
+	}
+	return elements, callCount
+}
+
+func (p *JavaPrettyPrinter) collectChainElements(node *parser.Node, elements *[]chainElement, callCount *int) {
+	switch node.Kind {
+	case parser.KindCallExpr:
+		// CallExpr has children: [target, Parameters]
+		if len(node.Children) < 2 {
+			return
+		}
+		target := node.Children[0]
+		args := node.Children[1]
+
+		// If target is a FieldAccess, we need to get the method name from it
+		if target.Kind == parser.KindFieldAccess {
+			// FieldAccess for method call: [..., methodName] or [..., TypeArgs, methodName]
+			var methodName string
+			var typeArgs *parser.Node
+			children := target.Children
+			if len(children) > 0 {
+				lastChild := children[len(children)-1]
+				if lastChild.Kind == parser.KindIdentifier && lastChild.Token != nil {
+					methodName = lastChild.Token.Literal
+				}
+				// Check for type arguments (generic method call)
+				if len(children) >= 2 {
+					secondLast := children[len(children)-2]
+					if secondLast.Kind == parser.KindTypeArguments {
+						typeArgs = secondLast
+					}
+				}
+			}
+
+			*elements = append(*elements, chainElement{
+				methodName: methodName,
+				args:       args,
+				typeArgs:   typeArgs,
+			})
+			*callCount++
+
+			// Continue collecting from the rest of the field access chain
+			// We need to find what precedes the method name
+			if len(children) > 1 {
+				// Find the receiver (everything before typeArgs and methodName)
+				endIdx := len(children) - 1
+				if typeArgs != nil {
+					endIdx--
+				}
+				if endIdx > 0 {
+					// Build or traverse the receiver
+					if endIdx == 1 {
+						// Single receiver
+						p.collectChainElements(children[0], elements, callCount)
+					} else {
+						// Multiple parts - create a synthetic receiver traversal
+						for i := endIdx - 1; i >= 0; i-- {
+							child := children[i]
+							if child.Kind == parser.KindCallExpr {
+								p.collectChainElements(child, elements, callCount)
+								break
+							} else if child.Kind == parser.KindIdentifier {
+								// This is a field access or base identifier
+								if i == 0 {
+									// This is the base
+									*elements = append(*elements, chainElement{
+										isBase:   true,
+										baseNode: child,
+									})
+								}
+								// Otherwise it's part of a qualified name, handled below
+							} else {
+								// Other expression types (This, Super, etc.)
+								p.collectChainElements(child, elements, callCount)
+								break
+							}
+						}
+						// If we have a chain of identifiers (qualified name), add as base
+						if endIdx > 0 && children[0].Kind == parser.KindIdentifier {
+							// Check if all are identifiers (qualified name)
+							allIdent := true
+							for i := 0; i < endIdx; i++ {
+								if children[i].Kind != parser.KindIdentifier {
+									allIdent = false
+									break
+								}
+							}
+							if allIdent {
+								// Reconstruct the qualified name
+								var name string
+								for i := 0; i < endIdx; i++ {
+									if children[i].Kind == parser.KindIdentifier && children[i].Token != nil {
+										if i > 0 {
+											name += "."
+										}
+										name += children[i].Token.Literal
+									}
+								}
+								*elements = append(*elements, chainElement{
+									isBase:     true,
+									methodName: name,
+								})
+							}
+						}
+					}
+				}
+			}
+		} else if target.Kind == parser.KindIdentifier {
+			// Direct call: foo() - this is a base element (no receiver)
+			*elements = append(*elements, chainElement{
+				isBase:   true,
+				baseNode: node, // Store the whole CallExpr as the base
+			})
+			*callCount++
+		} else {
+			// Other target (e.g., new Foo(), parenthesized expression)
+			*elements = append(*elements, chainElement{
+				args: args,
+			})
+			*callCount++
+			p.collectChainElements(target, elements, callCount)
+		}
+
+	case parser.KindFieldAccess:
+		// Pure field access (not a method call)
+		children := node.Children
+		if len(children) > 0 {
+			lastChild := children[len(children)-1]
+			if lastChild.Kind == parser.KindIdentifier && lastChild.Token != nil {
+				*elements = append(*elements, chainElement{
+					methodName: lastChild.Token.Literal,
+				})
+			} else if lastChild.Kind == parser.KindThis {
+				// Handle qualified this: Outer.this
+				*elements = append(*elements, chainElement{
+					methodName: "this",
+				})
+			}
+			// Continue with the receiver
+			if len(children) > 1 {
+				p.collectChainElements(children[0], elements, callCount)
+			} else if len(children) == 1 {
+				*elements = append(*elements, chainElement{
+					isBase:   true,
+					baseNode: children[0],
+				})
+			}
+		}
+
+	case parser.KindIdentifier:
+		*elements = append(*elements, chainElement{
+			isBase:   true,
+			baseNode: node,
+		})
+
+	case parser.KindThis:
+		*elements = append(*elements, chainElement{
+			isBase:     true,
+			methodName: "this",
+		})
+
+	case parser.KindSuper:
+		*elements = append(*elements, chainElement{
+			isBase:     true,
+			methodName: "super",
+		})
+
+	case parser.KindNewExpr:
+		*elements = append(*elements, chainElement{
+			isBase:   true,
+			baseNode: node,
+		})
+
+	default:
+		*elements = append(*elements, chainElement{
+			isBase:   true,
+			baseNode: node,
+		})
+	}
+}
+
+// isBuilderBeginMethod returns true if the method name indicates the start of a nested builder block
+func isBuilderBeginMethod(name string) bool {
+	switch name {
+	case "object", "array", "begin", "group", "block", "nest", "start":
+		return true
+	}
+	return false
+}
+
+// isBuilderEndMethod returns true if the method name indicates the end of a nested builder block
+func isBuilderEndMethod(name string) bool {
+	switch name {
+	case "end", "done", "close", "finish", "complete":
+		return true
+	}
+	return false
+}
+
+// isChainStarterMethod returns true if the method name is a "starter" that should stay on the same line as the base
+func isChainStarterMethod(name string) bool {
+	switch name {
+	case "stream", "parallelStream", "string", "builder", "of", "from", "create", "newBuilder":
+		return true
+	}
+	return false
+}
+
+// printMethodChain prints a method chain with proper formatting
+func (p *JavaPrettyPrinter) printMethodChain(node *parser.Node, baseIndent int) {
+	elements, _ := p.collectMethodChain(node)
+	if len(elements) == 0 {
+		p.printExpr(node)
+		return
+	}
+
+	// Determine if first method should stay on same line as base
+	// This happens when:
+	// 1. First method is a "starter" method (stream, string, builder, etc.)
+	// 2. First method is a "begin" method (object, array, etc.)
+	firstMethodOnSameLine := false
+	if len(elements) > 1 && !elements[1].isBase {
+		firstMethodOnSameLine = isChainStarterMethod(elements[1].methodName) || isBuilderBeginMethod(elements[1].methodName)
+	}
+
+	// Calculate indentation levels for begin/end methods
+	indentLevels := make([]int, len(elements))
+	currentLevel := 0
+	startIdx := 1
+	if firstMethodOnSameLine {
+		startIdx = 2
+		// Check if first method is a begin method
+		if len(elements) > 1 && isBuilderBeginMethod(elements[1].methodName) {
+			currentLevel = 1
+		}
+	}
+	for i := startIdx; i < len(elements); i++ {
+		elem := elements[i]
+		if isBuilderEndMethod(elem.methodName) {
+			currentLevel--
+			if currentLevel < 0 {
+				currentLevel = 0
+			}
+		}
+		indentLevels[i] = currentLevel
+		if isBuilderBeginMethod(elem.methodName) {
+			currentLevel++
+		}
+	}
+
+	// Print the chain
+	firstMethodPrinted := false
+	for i, elem := range elements {
+		if elem.isBase {
+			if elem.baseNode != nil {
+				p.printExpr(elem.baseNode)
+			} else if elem.methodName != "" {
+				p.write(elem.methodName)
+			}
+		} else if !firstMethodPrinted && firstMethodOnSameLine {
+			// First method call stays on the same line as base
+			p.write(".")
+			if elem.typeArgs != nil {
+				p.printTypeArguments(elem.typeArgs)
+			}
+			p.write(elem.methodName)
+			if elem.args != nil {
+				p.write("(")
+				p.printArguments(elem.args)
+				p.write(")")
+			}
+			firstMethodPrinted = true
+		} else {
+			// Method calls go on new lines
+			p.write("\n")
+			p.atLineStart = true
+			// Base indentation + 1 for chain + additional for nested builders
+			chainIndent := baseIndent + 1 + indentLevels[i]
+			for j := 0; j < chainIndent; j++ {
+				p.write(p.indentStr)
+			}
+			p.write(".")
+			if elem.typeArgs != nil {
+				p.printTypeArguments(elem.typeArgs)
+			}
+			p.write(elem.methodName)
+			if elem.args != nil {
+				p.write("(")
+				p.printArguments(elem.args)
+				p.write(")")
+			}
+			firstMethodPrinted = true
+		}
+	}
+}
+
+// shouldFormatAsChain returns true if the expression should be formatted as a multi-line method chain
+func (p *JavaPrettyPrinter) shouldFormatAsChain(node *parser.Node) bool {
+	_, callCount := p.collectMethodChain(node)
+	return callCount > 2
 }
 
 func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {

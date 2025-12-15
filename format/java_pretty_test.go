@@ -1162,6 +1162,149 @@ func TestPrintTryCatchFinallyOnOneLine(t *testing.T) {
 	}
 }
 
+func TestPrintMethodChainFormatting(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "short chain stays on one line",
+			input: `class X {
+    void foo() {
+        obj.method().call();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        obj.method().call();
+    }
+}
+`,
+		},
+		{
+			name: "long chain splits to separate lines",
+			input: `class X {
+    void foo() {
+        builder.first().second().third().fourth();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        builder
+            .first()
+            .second()
+            .third()
+            .fourth();
+    }
+}
+`,
+		},
+		{
+			name: "nanojson style with begin/end indentation",
+			input: `class X {
+    void foo() {
+        String json = JsonWriter.string().object().array("a").value(1).value(2).end().value("b", false).end().done();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        String json = JsonWriter.string()
+            .object()
+                .array("a")
+                    .value(1)
+                    .value(2)
+                .end()
+                .value("b", false)
+            .end()
+            .done();
+    }
+}
+`,
+		},
+		{
+			name: "nested object and array builders",
+			input: `class X {
+    void foo() {
+        String json = JsonWriter.string().object().value("name", "test").array("items").value(1).value(2).value(3).end().object("nested").value("key", "value").end().end().done();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        String json = JsonWriter.string()
+            .object()
+                .value("name", "test")
+                .array("items")
+                    .value(1)
+                    .value(2)
+                    .value(3)
+                .end()
+                .object("nested")
+                    .value("key", "value")
+                .end()
+            .end()
+            .done();
+    }
+}
+`,
+		},
+		{
+			name: "stream builder pattern",
+			input: `class X {
+    void foo() {
+        list.stream().filter(x -> x > 0).map(x -> x * 2).collect(Collectors.toList());
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        list.stream()
+            .filter(x -> x > 0)
+            .map(x -> x * 2)
+            .collect(Collectors.toList());
+    }
+}
+`,
+		},
+		{
+			name: "assignment with long chain",
+			input: `class X {
+    void foo() {
+        Result result = builder.configure().withOption("a").withOption("b").withOption("c").build();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        Result result = builder
+            .configure()
+            .withOption("a")
+            .withOption("b")
+            .withOption("c")
+            .build();
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("method chain formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
 func TestPrintModuleInfo(t *testing.T) {
 	tests := []struct {
 		name     string
