@@ -195,6 +195,7 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
 		http.Error(w, "template execution error: "+err.Error(), http.StatusInternalServerError)
 	}

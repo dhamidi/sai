@@ -4,13 +4,17 @@
 (function() {
     'use strict';
 
+    let debounceTimer;
+
     function init() {
         const searchInput = document.getElementById('class-search');
         const searchForm = document.getElementById('search-form');
 
         if (!searchInput || !searchForm) return;
 
-        let debounceTimer;
+        // Avoid adding duplicate listeners
+        if (searchInput.dataset.initialized) return;
+        searchInput.dataset.initialized = 'true';
 
         searchInput.addEventListener('input', () => {
             clearTimeout(debounceTimer);
@@ -20,9 +24,13 @@
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
+    // Run init immediately if DOM is ready (covers deferred script case)
+    if (document.readyState !== 'loading') {
         init();
+    } else {
+        document.addEventListener('DOMContentLoaded', init);
     }
+
+    // Also run after Turbo navigations
+    document.addEventListener('turbo:load', init);
 })();
