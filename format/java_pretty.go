@@ -577,7 +577,7 @@ func (p *JavaPrettyPrinter) printTypeArguments(node *parser.Node) {
 	p.write("<")
 	first := true
 	for _, child := range node.Children {
-		if child.Kind == parser.KindTypeArgument || child.Kind == parser.KindType || child.Kind == parser.KindWildcard {
+		if child.Kind == parser.KindTypeArgument || child.Kind == parser.KindType || child.Kind == parser.KindArrayType || child.Kind == parser.KindWildcard {
 			if !first {
 				p.write(", ")
 			}
@@ -593,6 +593,10 @@ func (p *JavaPrettyPrinter) printTypeArgument(node *parser.Node) {
 		p.printType(node)
 		return
 	}
+	if node.Kind == parser.KindArrayType {
+		p.printArrayType(node)
+		return
+	}
 	if node.Kind == parser.KindWildcard {
 		p.printWildcard(node)
 		return
@@ -602,6 +606,8 @@ func (p *JavaPrettyPrinter) printTypeArgument(node *parser.Node) {
 		switch child.Kind {
 		case parser.KindType:
 			p.printType(child)
+		case parser.KindArrayType:
+			p.printArrayType(child)
 		case parser.KindWildcard:
 			p.printWildcard(child)
 		}
