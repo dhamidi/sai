@@ -1733,9 +1733,15 @@ func (p *JavaPrettyPrinter) printSwitchCase(node *parser.Node) {
 
 	p.indent++
 	for _, child := range node.Children {
-		if child.Kind != parser.KindSwitchLabel {
-			p.printStatement(child)
+		if child.Kind == parser.KindSwitchLabel {
+			continue
 		}
+		// Skip comment nodes - they're handled by emitCommentsBeforeLine
+		if child.Kind == parser.KindLineComment || child.Kind == parser.KindComment {
+			continue
+		}
+		p.emitCommentsBeforeLine(child.Span.Start.Line)
+		p.printStatement(child)
 	}
 	p.indent--
 }
