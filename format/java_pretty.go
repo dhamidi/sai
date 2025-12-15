@@ -1585,6 +1585,7 @@ func (p *JavaPrettyPrinter) printEnhancedForStmt(node *parser.Node) {
 	p.writeIndent()
 	p.write("for (")
 
+	var modifiers *parser.Node
 	var paramType *parser.Node
 	var name string
 	var iterable *parser.Node
@@ -1594,7 +1595,7 @@ func (p *JavaPrettyPrinter) printEnhancedForStmt(node *parser.Node) {
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindModifiers:
-			continue
+			modifiers = child
 		case parser.KindType, parser.KindArrayType:
 			paramType = child
 		case parser.KindIdentifier:
@@ -1618,6 +1619,10 @@ func (p *JavaPrettyPrinter) printEnhancedForStmt(node *parser.Node) {
 		}
 	}
 
+	// Print modifiers (e.g., "final") before type
+	if modifiers != nil {
+		p.printModifiersInline(modifiers)
+	}
 	if paramType != nil {
 		p.printType(paramType)
 		p.write(" ")
