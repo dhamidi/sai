@@ -903,6 +903,13 @@ func (p *JavaPrettyPrinter) printParameters(node *parser.Node) {
 			}
 			p.printParameter(child)
 			first = false
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+			// Lambda parameters can be simple identifiers without types
+			if !first {
+				p.write(", ")
+			}
+			p.write(child.Token.Literal)
+			first = false
 		}
 	}
 	p.write(")")
@@ -2007,8 +2014,26 @@ func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
 
 	if body != nil {
 		p.write(" ")
-		p.printBlock(body)
+		p.printAnonymousClassBody(body)
 	}
+}
+
+func (p *JavaPrettyPrinter) printAnonymousClassBody(node *parser.Node) {
+	p.write("{\n")
+	p.atLineStart = true
+	p.indent++
+
+	for _, child := range node.Children {
+		p.emitCommentsBeforeLine(child.Span.Start.Line)
+		p.printClassBodyMember(child)
+	}
+
+	// Emit any comments inside the block before the closing brace
+	p.emitCommentsBeforeLine(node.Span.End.Line)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}")
 }
 
 func (p *JavaPrettyPrinter) printNewArrayExpr(node *parser.Node) {
