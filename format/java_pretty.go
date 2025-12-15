@@ -1048,8 +1048,12 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 		case parser.KindType, parser.KindArrayType:
 			varType = child
 		case parser.KindIdentifier:
-			if child.Token != nil {
+			// Only take the first identifier as the variable name
+			// Subsequent identifiers are part of the initializer
+			if name == "" && child.Token != nil {
 				name = child.Token.Literal
+			} else if varType != nil && name != "" {
+				initializer = child
 			}
 		default:
 			if varType != nil && name != "" {
@@ -1228,8 +1232,12 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 		case parser.KindType, parser.KindArrayType:
 			varType = child
 		case parser.KindIdentifier:
-			if child.Token != nil {
+			// Only take the first identifier as the variable name
+			// Subsequent identifiers are part of the initializer
+			if name == "" && child.Token != nil {
 				name = child.Token.Literal
+			} else if varType != nil && name != "" {
+				initializer = child
 			}
 		default:
 			if varType != nil && name != "" {
@@ -1271,8 +1279,12 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 		case parser.KindType, parser.KindArrayType:
 			varType = child
 		case parser.KindIdentifier:
-			if child.Token != nil {
+			// Only take the first identifier as the variable name
+			// Subsequent identifiers are part of the initializer
+			if name == "" && child.Token != nil {
 				name = child.Token.Literal
+			} else if varType != nil && name != "" {
+				initializer = child
 			}
 		case parser.KindModifiers:
 			// Already handled above
@@ -2061,10 +2073,31 @@ func (p *JavaPrettyPrinter) printInstanceofExpr(node *parser.Node) {
 	if len(children) >= 2 {
 		p.printExpr(children[0])
 		p.write(" instanceof ")
-		if children[1].Kind == parser.KindType || children[1].Kind == parser.KindArrayType {
-			p.printType(children[1])
-		} else {
-			p.printExpr(children[1])
+
+		// Parse remaining children: [final?] type [patternVar?]
+		idx := 1
+
+		// Check for optional 'final' modifier
+		if idx < len(children) && children[idx].Kind == parser.KindIdentifier &&
+			children[idx].Token != nil && children[idx].Token.Literal == "final" {
+			p.write("final ")
+			idx++
+		}
+
+		// Print the type
+		if idx < len(children) {
+			if children[idx].Kind == parser.KindType || children[idx].Kind == parser.KindArrayType {
+				p.printType(children[idx])
+			} else {
+				p.printExpr(children[idx])
+			}
+			idx++
+		}
+
+		// Check for optional pattern variable (Java 16+ pattern matching)
+		if idx < len(children) && children[idx].Kind == parser.KindIdentifier {
+			p.write(" ")
+			p.write(children[idx].Token.Literal)
 		}
 	}
 }

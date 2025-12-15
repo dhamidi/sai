@@ -219,8 +219,8 @@ func compareNodeCounts(original, formatted map[parser.NodeKind]int) []NodeCountD
 		origCount := original[kind]
 		fmtCount := formatted[kind]
 		if origCount != fmtCount {
-			// Skip comment nodes - formatting may legitimately change comment structure
-			if kind == parser.KindComment || kind == parser.KindLineComment {
+			// Skip empty statements - the formatter intentionally drops standalone semicolons
+			if kind == parser.KindEmptyStmt {
 				continue
 			}
 			diffs = append(diffs, NodeCountDiff{
