@@ -398,8 +398,8 @@ func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
 			p.write(")")
 			hasValue = true
 			break
-		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral || child.Kind == parser.KindFieldAccess || child.Kind == parser.KindIdentifier {
-			// Single value annotation like @SuppressWarnings({"unchecked"}), @Value("x"), @Retention(RetentionPolicy.SOURCE), or @Retention(SOURCE)
+		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral || child.Kind == parser.KindFieldAccess || child.Kind == parser.KindIdentifier || child.Kind == parser.KindBinaryExpr {
+			// Single value annotation like @SuppressWarnings({"unchecked"}), @Value("x"), @Retention(RetentionPolicy.SOURCE), @Retention(SOURCE), or @Name(Type.PREFIX + "Suffix")
 			p.write("(")
 			p.printAnnotationValue(child)
 			p.write(")")
@@ -928,6 +928,7 @@ func (p *JavaPrettyPrinter) printMethodDecl(node *parser.Node) {
 	var throwsList *parser.Node
 	var body *parser.Node
 	var defaultValue *parser.Node // For annotation methods
+	seenParams := false
 
 	for _, child := range node.Children {
 		switch child.Kind {
@@ -935,10 +936,17 @@ func (p *JavaPrettyPrinter) printMethodDecl(node *parser.Node) {
 			returnType = child
 		case parser.KindIdentifier:
 			if child.Token != nil {
-				name = child.Token.Literal
+				if !seenParams {
+					// Before parameters, this is the method name
+					name = child.Token.Literal
+				} else {
+					// After parameters, this is a default value (e.g., constant reference)
+					defaultValue = child
+				}
 			}
 		case parser.KindParameters:
 			params = child
+			seenParams = true
 		case parser.KindThrowsList:
 			throwsList = child
 		case parser.KindBlock:
@@ -1681,16 +1689,21 @@ func (p *JavaPrettyPrinter) printDoStmt(node *parser.Node) {
 	var body *parser.Node
 	var condition *parser.Node
 
-	for i, child := range node.Children {
-		if child.Kind == parser.KindBlock {
-			body = child
-		} else if i == len(node.Children)-1 {
-			condition = child
-		}
+	// The last child is always the condition, everything before is the body
+	if len(node.Children) >= 2 {
+		body = node.Children[0]
+		condition = node.Children[len(node.Children)-1]
+	} else if len(node.Children) == 1 {
+		condition = node.Children[0]
 	}
 
 	if body != nil {
-		p.printBlock(body)
+		if body.Kind == parser.KindBlock {
+			p.printBlock(body)
+		} else {
+			// Single statement body (no braces)
+			p.printStatement(body)
+		}
 	}
 
 	p.writeIndent()
@@ -2079,6 +2092,10 @@ func (p *JavaPrettyPrinter) printExplicitConstructorInvocation(node *parser.Node
 				p.write(child.Token.Literal)
 				p.write(".")
 			}
+		case parser.KindParenExpr, parser.KindFieldAccess:
+			// Qualifier can be a parenthesized expression: (expr).super(...)
+			p.printExpr(child)
+			p.write(".")
 		case parser.KindThis:
 			p.write("this")
 		case parser.KindSuper:
@@ -2256,7 +2273,7 @@ func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
 		// Qualified instance creation: first child is an expression, second is the class identifier
 		isQualified := false
 		switch first.Kind {
-		case parser.KindIdentifier, parser.KindFieldAccess, parser.KindThis, parser.KindCallExpr, parser.KindParenExpr:
+		case parser.KindIdentifier, parser.KindFieldAccess, parser.KindThis, parser.KindCallExpr, parser.KindParenExpr, parser.KindNewExpr:
 			// If the second child is also an Identifier, this is a qualified creation
 			if second.Kind == parser.KindIdentifier {
 				isQualified = true
