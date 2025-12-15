@@ -356,6 +356,8 @@ func (p *JavaPrettyPrinter) printModifiers(node *parser.Node) {
 		}
 		if child.Kind == parser.KindAnnotation {
 			p.printAnnotation(child)
+			// Emit any trailing line comment on the same line as the annotation
+			p.emitTrailingLineComment(child.Span.End.Line)
 			p.write("\n")
 			p.atLineStart = true
 			p.writeIndent()
@@ -726,7 +728,18 @@ func (p *JavaPrettyPrinter) printClassBodyMembers(block *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printClassBodyMember(child *parser.Node) {
-	p.emitCommentsBeforeLine(child.Span.Start.Line)
+	// Find lines that have annotations - we'll skip line comments on those lines
+	// so they can be emitted as trailing comments after the annotation
+	annotationLines := make(map[int]bool)
+	modifiers := child.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		for _, mod := range modifiers.Children {
+			if mod.Kind == parser.KindAnnotation {
+				annotationLines[mod.Span.End.Line] = true
+			}
+		}
+	}
+	p.emitCommentsBeforeLineSkippingAnnotationLines(child.Span.Start.Line, annotationLines)
 	p.printNode(child)
 }
 
@@ -2570,9 +2583,17 @@ func (p *JavaPrettyPrinter) printGenericNode(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) emitCommentsBeforeLine(line int) {
+	p.emitCommentsBeforeLineSkippingAnnotationLines(line, nil)
+}
+
+func (p *JavaPrettyPrinter) emitCommentsBeforeLineSkippingAnnotationLines(line int, skipLineCommentLines map[int]bool) {
 	for p.commentIndex < len(p.comments) {
 		comment := p.comments[p.commentIndex]
 		if comment.Span.Start.Line >= line {
+			break
+		}
+		// Skip line comments on annotation lines - they'll be emitted as trailing comments
+		if comment.Kind == parser.TokenLineComment && skipLineCommentLines[comment.Span.Start.Line] {
 			break
 		}
 		if comment.Span.Start.Line > p.lastLine+1 {
@@ -2597,6 +2618,22 @@ func (p *JavaPrettyPrinter) emitRemainingComments() {
 		p.write(comment.Literal)
 		p.write("\n")
 		p.atLineStart = true
+		p.lastLine = comment.Span.End.Line
+		p.commentIndex++
+	}
+}
+
+// emitTrailingLineComment emits a line comment on the given line if one exists.
+// This is used to emit trailing comments that appear at the end of a line after code.
+func (p *JavaPrettyPrinter) emitTrailingLineComment(line int) {
+	if p.commentIndex >= len(p.comments) {
+		return
+	}
+	comment := p.comments[p.commentIndex]
+	// Only emit if it's a line comment on the exact same line
+	if comment.Kind == parser.TokenLineComment && comment.Span.Start.Line == line {
+		p.write(" ")
+		p.write(comment.Literal)
 		p.lastLine = comment.Span.End.Line
 		p.commentIndex++
 	}
