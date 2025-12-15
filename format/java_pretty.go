@@ -1147,6 +1147,29 @@ func (p *JavaPrettyPrinter) printBlock(node *parser.Node) {
 	p.atLineStart = true
 }
 
+// printBlockInline prints a block without a trailing newline, for use in try/catch/finally chains
+func (p *JavaPrettyPrinter) printBlockInline(node *parser.Node) {
+	p.write("{\n")
+	p.atLineStart = true
+	p.indent++
+
+	for _, child := range node.Children {
+		// Skip comment nodes - they're handled by emitCommentsBeforeLine
+		if child.Kind == parser.KindLineComment || child.Kind == parser.KindComment {
+			continue
+		}
+		p.emitCommentsBeforeLine(child.Span.Start.Line)
+		p.printStatement(child)
+	}
+
+	// Emit any comments inside the block before the closing brace
+	p.emitCommentsBeforeLine(node.Span.End.Line)
+
+	p.indent--
+	p.writeIndent()
+	p.write("}")
+}
+
 func (p *JavaPrettyPrinter) printStatement(node *parser.Node) {
 	switch node.Kind {
 	case parser.KindBlock:
@@ -1901,20 +1924,39 @@ func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
 		p.write(") ")
 	}
 
-	block := node.FirstChildOfKind(parser.KindBlock)
-	if block != nil {
-		p.printBlock(block)
-	}
-
+	// Collect catch and finally clauses
+	var catchClauses []*parser.Node
+	var finallyClause *parser.Node
 	for _, child := range node.Children {
 		if child.Kind == parser.KindCatchClause {
-			p.emitCommentsBeforeLine(child.Span.Start.Line)
-			p.printCatchClause(child)
+			catchClauses = append(catchClauses, child)
 		} else if child.Kind == parser.KindFinallyClause {
-			p.emitCommentsBeforeLine(child.Span.Start.Line)
-			p.printFinallyClause(child)
+			finallyClause = child
 		}
 	}
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		// Print try block inline (without trailing newline) so we can append catch/finally
+		p.printBlockInline(block)
+	}
+
+	// Print catch clauses on same line as closing brace
+	for _, catchClause := range catchClauses {
+		p.emitCommentsBeforeLine(catchClause.Span.Start.Line)
+		p.write(" ")
+		p.printCatchClauseInline(catchClause)
+	}
+
+	// Print finally clause on same line as closing brace
+	if finallyClause != nil {
+		p.emitCommentsBeforeLine(finallyClause.Span.Start.Line)
+		p.write(" ")
+		p.printFinallyClauseInline(finallyClause)
+	}
+
+	p.write("\n")
+	p.atLineStart = true
 }
 
 func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
@@ -1990,6 +2032,82 @@ func (p *JavaPrettyPrinter) printFinallyClause(node *parser.Node) {
 	block := node.FirstChildOfKind(parser.KindBlock)
 	if block != nil {
 		p.printBlock(block)
+	}
+}
+
+// printCatchClauseInline prints a catch clause without leading indent and with inline block
+func (p *JavaPrettyPrinter) printCatchClauseInline(node *parser.Node) {
+	p.write("catch (")
+
+	param := node.FirstChildOfKind(parser.KindParameter)
+	if param != nil {
+		p.printParameter(param)
+	} else {
+		// Catch parameter structure from parser:
+		// - KindModifiers (optional, e.g., "final")
+		// - KindType (wrapper containing one or more types for multi-catch)
+		//   - KindType (first exception type)
+		//   - KindType (second exception type, if multi-catch)
+		//   - ...
+		// - KindIdentifier (variable name) or KindUnnamedVariable (_)
+
+		// Print modifiers first (e.g., "final")
+		modifiers := node.FirstChildOfKind(parser.KindModifiers)
+		if modifiers != nil {
+			p.printModifiersInline(modifiers)
+		}
+
+		var name string
+		var isUnnamed bool
+		typeWrapper := node.FirstChildOfKind(parser.KindType)
+		for _, child := range node.Children {
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				name = child.Token.Literal
+			} else if child.Kind == parser.KindUnnamedVariable {
+				isUnnamed = true
+			}
+		}
+
+		if typeWrapper != nil {
+			// Check for nested Type children (multi-catch case)
+			nestedTypes := typeWrapper.ChildrenOfKind(parser.KindType)
+			if len(nestedTypes) > 0 {
+				// Multi-catch: print each type separated by |
+				for i, t := range nestedTypes {
+					if i > 0 {
+						p.write(" | ")
+					}
+					p.printType(t)
+				}
+			} else {
+				// Single type catch
+				p.printType(typeWrapper)
+			}
+		}
+
+		if name != "" {
+			p.write(" ")
+			p.write(name)
+		} else if isUnnamed {
+			p.write(" _")
+		}
+	}
+
+	p.write(") ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlockInline(block)
+	}
+}
+
+// printFinallyClauseInline prints a finally clause without leading indent and with inline block
+func (p *JavaPrettyPrinter) printFinallyClauseInline(node *parser.Node) {
+	p.write("finally ")
+
+	block := node.FirstChildOfKind(parser.KindBlock)
+	if block != nil {
+		p.printBlockInline(block)
 	}
 }
 

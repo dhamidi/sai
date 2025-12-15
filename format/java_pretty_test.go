@@ -1093,3 +1093,71 @@ func TestPrintElseIfOnOneLine(t *testing.T) {
 		t.Errorf("else if not on one line:\ngot:\n%s\nwant:\n%s", output, expected)
 	}
 }
+
+func TestPrintTryCatchOnOneLine(t *testing.T) {
+	input := `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            handleError(e);
+        }
+    }
+}`
+	expected := `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            handleError(e);
+        }
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("try/catch not on one line:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+func TestPrintTryCatchFinallyOnOneLine(t *testing.T) {
+	input := `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException e) {
+            handleIO(e);
+        } catch (Exception e) {
+            handleError(e);
+        } finally {
+            cleanup();
+        }
+    }
+}`
+	expected := `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException e) {
+            handleIO(e);
+        } catch (Exception e) {
+            handleError(e);
+        } finally {
+            cleanup();
+        }
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("try/catch/finally not on one line:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
