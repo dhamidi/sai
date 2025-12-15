@@ -1106,6 +1106,10 @@ func (p *JavaPrettyPrinter) printBlock(node *parser.Node) {
 	p.indent++
 
 	for _, child := range node.Children {
+		// Skip comment nodes - they're handled by emitCommentsBeforeLine
+		if child.Kind == parser.KindLineComment || child.Kind == parser.KindComment {
+			continue
+		}
 		p.emitCommentsBeforeLine(child.Span.Start.Line)
 		p.printStatement(child)
 	}
