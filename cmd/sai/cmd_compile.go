@@ -56,7 +56,7 @@ func runCompile(verbose bool) error {
 		return fmt.Errorf("glob core java files: %w", err)
 	}
 
-	coreArgs := []string{"-p", "lib", "-d", coreOutDir, coreModuleInfo}
+	coreArgs := []string{"--enable-preview", "--source", "25", "-p", "lib", "-d", coreOutDir, coreModuleInfo}
 	for _, f := range coreJavaFiles {
 		if f != coreModuleInfo {
 			coreArgs = append(coreArgs, f)
@@ -82,7 +82,7 @@ func runCompile(verbose bool) error {
 		return fmt.Errorf("glob main java files: %w", err)
 	}
 
-	mainArgs := []string{"-p", "lib:out", "-d", mainOutDir, mainModuleInfo}
+	mainArgs := []string{"--enable-preview", "--source", "25", "-p", "lib:out", "-d", mainOutDir, mainModuleInfo}
 	for _, f := range mainJavaFiles {
 		if f != mainModuleInfo {
 			mainArgs = append(mainArgs, f)

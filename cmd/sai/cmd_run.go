@@ -37,6 +37,7 @@ func runRun(programArgs []string, verbose bool) error {
 	}
 
 	javaArgs := []string{
+		"--enable-preview",
 		"-p", "lib:out",
 		"-m", fmt.Sprintf("%s.main/%s.main.Cli", projectID, projectID),
 	}
