@@ -371,8 +371,8 @@ func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
 			p.write(")")
 			hasValue = true
 			break
-		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral {
-			// Single value annotation like @SuppressWarnings({"unchecked"}) or @Value("x")
+		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral || child.Kind == parser.KindFieldAccess {
+			// Single value annotation like @SuppressWarnings({"unchecked"}), @Value("x"), or @Retention(RetentionPolicy.SOURCE)
 			p.write("(")
 			p.printAnnotationValue(child)
 			p.write(")")
