@@ -140,6 +140,7 @@ func runBakeNative(mainClass, output string, verbose, installMise bool, extraArg
 	}
 
 	args := []string{
+		"--enable-preview",
 		"--module-path", mlibDir,
 		"--add-modules", strings.Join(moduleNames, ","),
 		"--module", mainMod.FullName() + "/" + mainClass,
