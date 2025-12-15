@@ -1231,7 +1231,7 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 	first := true
 	i := 0
 	var prevChild *parser.Node
-	prevWasName := false // Track if previous child was a variable name (Identifier)
+	prevWasName := false // Track if previous child was a variable name (Identifier or UnnamedVariable)
 	for i < len(node.Children) {
 		child := node.Children[i]
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
@@ -1259,10 +1259,12 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 			first = false
 			if child.Kind == parser.KindIdentifier && child.Token != nil {
 				p.write(child.Token.Literal)
+			} else if child.Kind == parser.KindUnnamedVariable {
+				p.write("_")
 			} else {
 				p.printExpr(child)
 			}
-			prevWasName = (child.Kind == parser.KindIdentifier)
+			prevWasName = (child.Kind == parser.KindIdentifier || child.Kind == parser.KindUnnamedVariable)
 		}
 		prevChild = child
 		i++
@@ -1539,12 +1541,7 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 	modifiers := node.FirstChildOfKind(parser.KindModifiers)
 	if modifiers != nil {
-		for _, child := range modifiers.Children {
-			if child.Kind == parser.KindIdentifier && child.Token != nil {
-				p.write(child.Token.Literal)
-				p.write(" ")
-			}
-		}
+		p.printModifiersInline(modifiers)
 	}
 
 	// Find the type
@@ -1589,6 +1586,8 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 			first = false
 			if child.Kind == parser.KindIdentifier && child.Token != nil {
 				p.write(child.Token.Literal)
+			} else if child.Kind == parser.KindUnnamedVariable {
+				p.write("_")
 			} else {
 				p.printExpr(child)
 			}
@@ -1909,8 +1908,10 @@ func (p *JavaPrettyPrinter) printTryStmt(node *parser.Node) {
 
 	for _, child := range node.Children {
 		if child.Kind == parser.KindCatchClause {
+			p.emitCommentsBeforeLine(child.Span.Start.Line)
 			p.printCatchClause(child)
 		} else if child.Kind == parser.KindFinallyClause {
+			p.emitCommentsBeforeLine(child.Span.Start.Line)
 			p.printFinallyClause(child)
 		}
 	}
@@ -2162,6 +2163,8 @@ func (p *JavaPrettyPrinter) printExpr(node *parser.Node) {
 		p.printClassLiteral(node)
 	case parser.KindSwitchExpr:
 		p.printSwitchExpr(node)
+	case parser.KindUnnamedVariable:
+		p.write("_")
 	default:
 		p.printGenericExpr(node)
 	}
@@ -2522,9 +2525,32 @@ func (p *JavaPrettyPrinter) printParenExpr(node *parser.Node) {
 func (p *JavaPrettyPrinter) printLambdaExpr(node *parser.Node) {
 	params := node.FirstChildOfKind(parser.KindParameters)
 	var paramIdentifier *parser.Node
+	var paramsNode *parser.Node
 
 	if params != nil {
-		p.printParameters(params)
+		// Check if this is a single inferred-type parameter (no Parameter children, just Identifier)
+		// In that case, we print without parentheses: x -> body
+		hasParameterChildren := false
+		var singleIdentifier *parser.Node
+		identifierCount := 0
+		for _, child := range params.Children {
+			if child.Kind == parser.KindParameter {
+				hasParameterChildren = true
+				break
+			} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+				singleIdentifier = child
+				identifierCount++
+			}
+		}
+
+		if !hasParameterChildren && identifierCount == 1 && singleIdentifier != nil {
+			// Single inferred-type parameter: print without parentheses
+			p.write(singleIdentifier.Token.Literal)
+			paramsNode = params
+		} else {
+			// Regular parameters with types or multiple params: use parentheses
+			p.printParameters(params)
+		}
 	} else {
 		// Single parameter without parentheses: x -> body
 		for _, child := range node.Children {
@@ -2544,6 +2570,9 @@ func (p *JavaPrettyPrinter) printLambdaExpr(node *parser.Node) {
 			continue
 		}
 		if child == paramIdentifier {
+			continue
+		}
+		if child == paramsNode {
 			continue
 		}
 		// This is the body
