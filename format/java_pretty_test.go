@@ -1534,3 +1534,74 @@ func TestPrintLongPermitsClause(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintEnumInlineComments(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "enum with inline comments on each element",
+			input: `enum Color {
+    RED,    // Primary color
+    GREEN,  // Primary color
+    BLUE    // Primary color
+}`,
+			expected: `enum Color {
+    RED, // Primary color
+    GREEN, // Primary color
+    BLUE // Primary color
+}
+`,
+		},
+		{
+			name: "enum with inline comment on some elements",
+			input: `enum Status {
+    PENDING,   // Waiting for processing
+    ACTIVE,
+    COMPLETED  // Successfully finished
+}`,
+			expected: `enum Status {
+    PENDING, // Waiting for processing
+    ACTIVE,
+    COMPLETED // Successfully finished
+}
+`,
+		},
+		{
+			name: "enum with inline comments and methods",
+			input: `enum Priority {
+    LOW,     // Lowest priority
+    MEDIUM,  // Default priority
+    HIGH;    // Highest priority
+
+    public boolean isUrgent() {
+        return this == HIGH;
+    }
+}`,
+			expected: `enum Priority {
+    LOW, // Lowest priority
+    MEDIUM, // Default priority
+    HIGH; // Highest priority
+
+    public boolean isUrgent() {
+        return this == HIGH;
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("enum inline comment formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}

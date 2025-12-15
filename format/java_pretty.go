@@ -988,10 +988,16 @@ func (p *JavaPrettyPrinter) printEnumBody(node *parser.Node) {
 		p.writeIndent()
 		p.printEnumConstant(c)
 		if i < len(constants)-1 {
-			p.write(",\n")
+			p.write(",")
+			p.emitTrailingLineComment(c.Span.End.Line)
+			p.write("\n")
 		} else if len(members) > 0 {
-			p.write(";\n\n")
+			p.write(";")
+			p.emitTrailingLineComment(c.Span.End.Line)
+			// Only one newline here - printMethodDecl/printFieldDecl adds leading newline
+			p.write("\n")
 		} else {
+			p.emitTrailingLineComment(c.Span.End.Line)
 			p.write("\n")
 		}
 		p.atLineStart = true
