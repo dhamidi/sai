@@ -986,6 +986,22 @@ func (p *JavaPrettyPrinter) printConstructorDecl(node *parser.Node) {
 		p.printModifiers(modifiers)
 	}
 
+	typeParams := node.FirstChildOfKind(parser.KindTypeParameters)
+	if typeParams != nil {
+		p.write("<")
+		first := true
+		for _, child := range typeParams.Children {
+			if child.Kind == parser.KindTypeParameter {
+				if !first {
+					p.write(", ")
+				}
+				p.printTypeParameter(child)
+				first = false
+			}
+		}
+		p.write("> ")
+	}
+
 	var name string
 	var params *parser.Node
 	var throwsList *parser.Node
