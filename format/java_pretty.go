@@ -931,13 +931,14 @@ func (p *JavaPrettyPrinter) printParameter(node *parser.Node) {
 			paramType = child
 		case parser.KindIdentifier:
 			if child.Token != nil {
-				name = child.Token.Literal
+				// Varargs ellipsis is stored as an Identifier child with TokenEllipsis
+				if child.Token.Kind == parser.TokenEllipsis {
+					isVarargs = true
+				} else {
+					name = child.Token.Literal
+				}
 			}
 		}
-	}
-
-	if node.Token != nil && node.Token.Literal == "..." {
-		isVarargs = true
 	}
 
 	if paramType != nil {
@@ -1673,22 +1674,38 @@ func (p *JavaPrettyPrinter) printCatchClause(node *parser.Node) {
 	if param != nil {
 		p.printParameter(param)
 	} else {
-		// Catch parameter is inlined as Type and Identifier children
-		var types []*parser.Node
+		// Catch parameter structure from parser:
+		// - KindModifiers (optional)
+		// - KindType (wrapper containing one or more types for multi-catch)
+		//   - KindType (first exception type)
+		//   - KindType (second exception type, if multi-catch)
+		//   - ...
+		// - KindIdentifier (variable name)
 		var name string
+		typeWrapper := node.FirstChildOfKind(parser.KindType)
 		for _, child := range node.Children {
-			if child.Kind == parser.KindType {
-				types = append(types, child)
-			} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
 				name = child.Token.Literal
 			}
 		}
-		for i, t := range types {
-			if i > 0 {
-				p.write(" | ")
+
+		if typeWrapper != nil {
+			// Check for nested Type children (multi-catch case)
+			nestedTypes := typeWrapper.ChildrenOfKind(parser.KindType)
+			if len(nestedTypes) > 0 {
+				// Multi-catch: print each type separated by |
+				for i, t := range nestedTypes {
+					if i > 0 {
+						p.write(" | ")
+					}
+					p.printType(t)
+				}
+			} else {
+				// Single type catch
+				p.printType(typeWrapper)
 			}
-			p.printType(t)
 		}
+
 		if name != "" {
 			p.write(" ")
 			p.write(name)
