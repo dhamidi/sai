@@ -58,7 +58,7 @@ Java identifier. Use -p to override.
 This command:
   - Ensures a git repository exists
   - Creates the modular source structure: src/<project-id>/{core,main,test}/
-  - Creates .gitignore with out/ and mlib/
+  - Creates .gitignore with out/, mlib/, and dist/
   - Creates AGENTS.md with sai workflow instructions
   - Creates CLAUDE.md as a symlink to AGENTS.md
   - Installs JUnit 5 dependencies for testing
