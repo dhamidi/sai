@@ -2149,8 +2149,7 @@ func (p *JavaPrettyPrinter) printArguments(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
-	p.write("new ")
-
+	var outer *parser.Node
 	var classType *parser.Node
 	var typeArgs *parser.Node
 	var args *parser.Node
@@ -2158,7 +2157,32 @@ func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
 
 	var className string
 
+	// Check for qualified class instance creation (outer.new Inner(...))
+	// This is detected when the first child is an expression (Identifier, FieldAccess, etc.)
+	// followed by another Identifier for the inner class name
+	if len(node.Children) >= 2 {
+		first := node.Children[0]
+		second := node.Children[1]
+
+		// Qualified instance creation: first child is an expression, second is the class identifier
+		isQualified := false
+		switch first.Kind {
+		case parser.KindIdentifier, parser.KindFieldAccess, parser.KindThis, parser.KindCallExpr:
+			// If the second child is also an Identifier, this is a qualified creation
+			if second.Kind == parser.KindIdentifier {
+				isQualified = true
+			}
+		}
+
+		if isQualified {
+			outer = first
+		}
+	}
+
 	for _, child := range node.Children {
+		if child == outer {
+			continue // Skip outer, we'll print it specially
+		}
 		switch child.Kind {
 		case parser.KindType, parser.KindParameterizedType:
 			classType = child
@@ -2176,6 +2200,14 @@ func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
 			}
 		}
 	}
+
+	// Print outer reference for qualified class instance creation
+	if outer != nil {
+		p.printExpr(outer)
+		p.write(".")
+	}
+
+	p.write("new ")
 
 	if className != "" {
 		p.write(className)
