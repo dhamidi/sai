@@ -676,10 +676,15 @@ func (p *JavaPrettyPrinter) printWildcard(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printArrayType(node *parser.Node) {
 	for _, child := range node.Children {
-		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType || child.Kind == parser.KindIdentifier || child.Kind == parser.KindQualifiedName {
+		switch child.Kind {
+		case parser.KindType, parser.KindArrayType, parser.KindIdentifier, parser.KindQualifiedName:
 			p.printType(child)
-			break
+		case parser.KindFieldAccess:
+			p.printFieldAccess(child)
+		default:
+			continue
 		}
+		break
 	}
 	p.write("[]")
 }
