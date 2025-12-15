@@ -780,6 +780,14 @@ func (p *JavaPrettyPrinter) printEnumConstant(node *parser.Node) {
 			p.write("(")
 			p.printArguments(child)
 			p.write(")")
+		} else if child.Kind == parser.KindBlock {
+			// Enum constant with body (anonymous class-like)
+			p.write(" {\n")
+			p.indent++
+			p.printClassBodyMembers(child)
+			p.indent--
+			p.writeIndent()
+			p.write("}")
 		}
 	}
 }
