@@ -388,8 +388,6 @@ func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
 	for _, child := range node.Children {
 		if child.Kind == parser.KindQualifiedName {
 			p.printQualifiedName(child)
-		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
-			p.write(child.Token.Literal)
 		} else if child.Kind == parser.KindAnnotationElement {
 			if !hasValue {
 				p.write("(")
@@ -398,8 +396,8 @@ func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
 			p.write(")")
 			hasValue = true
 			break
-		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral || child.Kind == parser.KindFieldAccess {
-			// Single value annotation like @SuppressWarnings({"unchecked"}), @Value("x"), or @Retention(RetentionPolicy.SOURCE)
+		} else if child.Kind == parser.KindArrayInit || child.Kind == parser.KindLiteral || child.Kind == parser.KindFieldAccess || child.Kind == parser.KindIdentifier {
+			// Single value annotation like @SuppressWarnings({"unchecked"}), @Value("x"), @Retention(RetentionPolicy.SOURCE), or @Retention(SOURCE)
 			p.write("(")
 			p.printAnnotationValue(child)
 			p.write(")")
