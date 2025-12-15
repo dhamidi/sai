@@ -38,13 +38,10 @@ func runCompile(verbose bool) error {
 		return err
 	}
 
-	// Compile modules in order: core first, then main
-	// TODO: implement proper dependency resolution from module-info.java
-	compileOrder := []string{"core", "main"}
-
-	for _, moduleName := range compileOrder {
-		mod := proj.Module(moduleName)
-		if mod == nil {
+	// Compile modules in dependency order
+	for _, mod := range proj.ModulesInOrder() {
+		// Skip test module during normal compilation
+		if mod.Name == "test" {
 			continue
 		}
 

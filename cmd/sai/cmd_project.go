@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dhamidi/sai/project"
 	"github.com/spf13/cobra"
@@ -11,7 +12,7 @@ func newProjectCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "project",
 		Short: "Show project structure",
-		Long:  `Display the detected project structure including all modules.`,
+		Long:  `Display the detected project structure including all modules and their dependencies.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runProject()
 		},
@@ -35,8 +36,16 @@ func runProject() error {
 
 	for _, mod := range proj.Modules {
 		fmt.Printf("  %s\n", mod.FullName())
-		fmt.Printf("    src: %s\n", mod.SrcDir)
-		fmt.Printf("    out: %s\n", mod.OutDir)
+		fmt.Printf("    src:  %s\n", mod.SrcDir)
+		fmt.Printf("    out:  %s\n", mod.OutDir)
+
+		if len(mod.Dependencies) > 0 {
+			deps := make([]string, len(mod.Dependencies))
+			for i, d := range mod.Dependencies {
+				deps[i] = proj.ID + "." + d
+			}
+			fmt.Printf("    deps: %s\n", strings.Join(deps, ", "))
+		}
 
 		files, err := mod.JavaFiles(false)
 		if err != nil {
@@ -44,6 +53,11 @@ func runProject() error {
 		} else {
 			fmt.Printf("    files: %d java files\n", len(files)+1) // +1 for module-info.java
 		}
+	}
+
+	fmt.Printf("\nCompilation order:\n")
+	for i, mod := range proj.ModulesInOrder() {
+		fmt.Printf("  %d. %s\n", i+1, mod.FullName())
 	}
 
 	return nil

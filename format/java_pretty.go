@@ -563,6 +563,8 @@ func (p *JavaPrettyPrinter) printType(node *parser.Node) {
 	// Track if we've seen type arguments - if so, subsequent type names need a dot separator
 	// e.g., Outer<String>.Inner -> Outer, <String>, .Inner
 	sawTypeArgs := false
+	// Track if we've seen a KindType child (for intersection types in casts)
+	sawType := false
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindIdentifier:
@@ -578,11 +580,21 @@ func (p *JavaPrettyPrinter) printType(node *parser.Node) {
 			}
 			p.printQualifiedName(child)
 		case parser.KindParameterizedType:
+			// Intersection types in casts: (Type1 & Type2)
+			if sawType {
+				p.write(" & ")
+			}
 			p.printParameterizedType(child)
+			sawType = true
 		case parser.KindArrayType:
 			p.printArrayType(child)
 		case parser.KindType:
+			// Intersection types in casts: (Type1 & Type2)
+			if sawType {
+				p.write(" & ")
+			}
 			p.printType(child)
+			sawType = true
 		case parser.KindTypeArguments:
 			p.printTypeArguments(child)
 			sawTypeArgs = true

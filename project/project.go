@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/dhamidi/sai/java/parser"
 )
 
 // Project represents a Java project with multiple modules.
@@ -20,11 +22,12 @@ type Project struct {
 
 // Module represents a single Java module within a project.
 type Module struct {
-	Name       string
-	SrcDir     string
-	OutDir     string
-	ModuleInfo string
-	Project    *Project
+	Name         string
+	SrcDir       string
+	OutDir       string
+	ModuleInfo   string
+	Project      *Project
+	Dependencies []string // module names this module requires
 }
 
 // Load scans the current directory for a Java project structure.
@@ -71,6 +74,16 @@ func LoadFrom(rootDir string) (*Project, error) {
 			m.OutDir = filepath.Join(proj.OutDir, proj.ID+"."+m.Name)
 		}
 
+		// Parse dependencies from module-info.java files
+		for _, m := range proj.Modules {
+			deps, err := parseModuleDependencies(m.ModuleInfo, proj.ID)
+			if err != nil {
+				// Non-fatal: continue without dependencies
+				continue
+			}
+			m.Dependencies = deps
+		}
+
 		return proj, nil
 	}
 
@@ -106,6 +119,78 @@ func scanModules(projectDir string) ([]*Module, error) {
 	return modules, nil
 }
 
+// parseModuleDependencies parses a module-info.java file and extracts
+// the names of required modules that belong to this project.
+func parseModuleDependencies(moduleInfoPath string, projectID string) ([]string, error) {
+	f, err := os.Open(moduleInfoPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	p := parser.ParseCompilationUnit(f)
+	root := p.Finish()
+	if root == nil {
+		return nil, fmt.Errorf("failed to parse %s", moduleInfoPath)
+	}
+
+	var deps []string
+	prefix := projectID + "."
+
+	// Find module declaration
+	moduleDecl := root.FirstChildOfKind(parser.KindModuleDecl)
+	if moduleDecl == nil {
+		return nil, fmt.Errorf("no module declaration in %s", moduleInfoPath)
+	}
+
+	// Find all requires directives
+	for _, child := range moduleDecl.Children {
+		if child.Kind != parser.KindRequiresDirective {
+			continue
+		}
+
+		// Get the qualified name (last child that is a QualifiedName)
+		var qualName *parser.Node
+		for _, c := range child.Children {
+			if c.Kind == parser.KindQualifiedName {
+				qualName = c
+			}
+		}
+		if qualName == nil {
+			continue
+		}
+
+		// Build the module name from the qualified name parts
+		moduleName := qualifiedNameToString(qualName)
+
+		// Only include dependencies on modules within this project
+		if strings.HasPrefix(moduleName, prefix) {
+			// Extract the short module name (e.g., "myproject.core" -> "core")
+			shortName := strings.TrimPrefix(moduleName, prefix)
+			deps = append(deps, shortName)
+		}
+	}
+
+	return deps, nil
+}
+
+// qualifiedNameToString converts a QualifiedName node to a string.
+func qualifiedNameToString(node *parser.Node) string {
+	if node.Kind == parser.KindIdentifier {
+		return node.TokenLiteral()
+	}
+
+	var parts []string
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier {
+			parts = append(parts, child.TokenLiteral())
+		} else if child.Kind == parser.KindQualifiedName {
+			parts = append(parts, qualifiedNameToString(child))
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
 // Module returns the module with the given name, or nil if not found.
 func (p *Project) Module(name string) *Module {
 	for _, m := range p.Modules {
@@ -114,6 +199,71 @@ func (p *Project) Module(name string) *Module {
 		}
 	}
 	return nil
+}
+
+// ModulesInOrder returns modules sorted in dependency order (dependencies first).
+// Modules with no dependencies come first, then modules that depend only on
+// already-listed modules.
+func (p *Project) ModulesInOrder() []*Module {
+	// Build a set of module names in this project
+	moduleSet := make(map[string]bool)
+	for _, m := range p.Modules {
+		moduleSet[m.Name] = true
+	}
+
+	// Topological sort using Kahn's algorithm
+	inDegree := make(map[string]int)
+	for _, m := range p.Modules {
+		inDegree[m.Name] = 0
+	}
+
+	// Count in-degrees (only for project-internal dependencies)
+	for _, m := range p.Modules {
+		for _, dep := range m.Dependencies {
+			if moduleSet[dep] {
+				inDegree[m.Name]++
+			}
+		}
+	}
+
+	// Start with modules that have no dependencies
+	var queue []string
+	for _, m := range p.Modules {
+		if inDegree[m.Name] == 0 {
+			queue = append(queue, m.Name)
+		}
+	}
+
+	var result []*Module
+	for len(queue) > 0 {
+		// Pop first element
+		name := queue[0]
+		queue = queue[1:]
+
+		mod := p.Module(name)
+		if mod != nil {
+			result = append(result, mod)
+		}
+
+		// Reduce in-degree of modules that depend on this one
+		for _, m := range p.Modules {
+			for _, dep := range m.Dependencies {
+				if dep == name {
+					inDegree[m.Name]--
+					if inDegree[m.Name] == 0 {
+						queue = append(queue, m.Name)
+					}
+				}
+			}
+		}
+	}
+
+	// If we didn't get all modules, there's a cycle - return original order
+	if len(result) != len(p.Modules) {
+		return p.Modules
+	}
+
+	return result
 }
 
 // ModulePath returns the module path for java/javac commands.
