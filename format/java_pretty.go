@@ -2172,7 +2172,7 @@ func (p *JavaPrettyPrinter) printNewExpr(node *parser.Node) {
 		// Qualified instance creation: first child is an expression, second is the class identifier
 		isQualified := false
 		switch first.Kind {
-		case parser.KindIdentifier, parser.KindFieldAccess, parser.KindThis, parser.KindCallExpr:
+		case parser.KindIdentifier, parser.KindFieldAccess, parser.KindThis, parser.KindCallExpr, parser.KindParenExpr:
 			// If the second child is also an Identifier, this is a qualified creation
 			if second.Kind == parser.KindIdentifier {
 				isQualified = true
