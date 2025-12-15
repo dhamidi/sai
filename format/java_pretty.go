@@ -1452,30 +1452,47 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 	}
 
 	// Print declarators: pattern is varName [= initializer], varName [= initializer], ...
-	// The AST structure is: [Type] [name1] [init1] [name2] [init2] ...
-	// After Type, odd-indexed children are variable names, even-indexed are initializers
+	// The AST structure can be: [Type] [name1] [init1] [name2] [init2] ...
+	// OR: [Type] [name1] [name2] [init2] ... (when some vars have no initializer)
+	// Key insight: variable names are always KindIdentifier, initializers can be other expressions
+	// Two consecutive identifiers means the first is a var without initializer
 	first := true
-	expectingVarName := true
-	for _, child := range node.Children {
+	sawVarName := false
+	for i, child := range node.Children {
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			continue
 		}
 
-		if expectingVarName {
-			// This should be a variable name (identifier)
-			if child.Kind == parser.KindIdentifier && child.Token != nil {
-				if !first {
-					p.write(", ")
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			// This is a variable name
+			// If we saw a var name before and didn't see an initializer, the previous var had no initializer
+			if sawVarName {
+				// Previous variable had no initializer, this is a new variable
+				p.write(", ")
+			} else if !first {
+				p.write(", ")
+			}
+			first = false
+			p.write(child.Token.Literal)
+			sawVarName = true
+
+			// Check if next child is also an identifier (meaning this var has no initializer)
+			// or if this is the last child (also no initializer)
+			hasInitializer := false
+			if i+1 < len(node.Children) {
+				next := node.Children[i+1]
+				if next.Kind != parser.KindIdentifier {
+					hasInitializer = true
 				}
-				first = false
-				p.write(child.Token.Literal)
-				expectingVarName = false // next child will be initializer or variable name
+			}
+			if !hasInitializer {
+				sawVarName = true // still expecting to see an initializer or next var
 			}
 		} else {
-			// This is an initializer
+			// This is an initializer expression
 			p.write(" = ")
 			p.printExpr(child)
-			expectingVarName = true // next will be another variable name
+			sawVarName = false
 		}
 	}
 }
