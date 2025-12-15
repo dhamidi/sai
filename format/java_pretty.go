@@ -52,6 +52,18 @@ func (p *JavaPrettyPrinter) printNode(node *parser.Node) {
 		p.printPackageDecl(node)
 	case parser.KindImportDecl:
 		p.printImportDecl(node)
+	case parser.KindModuleDecl:
+		p.printModuleDecl(node)
+	case parser.KindRequiresDirective:
+		p.printRequiresDirective(node)
+	case parser.KindExportsDirective:
+		p.printExportsDirective(node)
+	case parser.KindOpensDirective:
+		p.printOpensDirective(node)
+	case parser.KindUsesDirective:
+		p.printUsesDirective(node)
+	case parser.KindProvidesDirective:
+		p.printProvidesDirective(node)
 	case parser.KindClassDecl:
 		p.printClassDecl(node)
 	case parser.KindInterfaceDecl:
@@ -180,6 +192,196 @@ func (p *JavaPrettyPrinter) qualifiedNameString(node *parser.Node) string {
 		result += part
 	}
 	return result
+}
+
+func (p *JavaPrettyPrinter) printModuleDecl(node *parser.Node) {
+	// Print annotations first
+	for _, child := range node.Children {
+		if child.Kind == parser.KindAnnotation {
+			p.writeIndent()
+			p.printAnnotation(child)
+			p.write("\n")
+			p.atLineStart = true
+		}
+	}
+
+	p.writeIndent()
+
+	// Check for "open" modifier
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "open" {
+			p.write("open ")
+			break
+		}
+	}
+
+	p.write("module ")
+
+	// Print module name
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+			break
+		}
+	}
+
+	p.write(" {\n")
+	p.atLineStart = true
+	p.indent++
+
+	// Print directives
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindRequiresDirective,
+			parser.KindExportsDirective,
+			parser.KindOpensDirective,
+			parser.KindUsesDirective,
+			parser.KindProvidesDirective:
+			p.printNode(child)
+		}
+	}
+
+	p.indent--
+	p.writeIndent()
+	p.write("}\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printRequiresDirective(node *parser.Node) {
+	p.writeIndent()
+	p.write("requires ")
+
+	// Print modifiers (transitive, static)
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			literal := child.Token.Literal
+			if literal == "transitive" || literal == "static" {
+				p.write(literal + " ")
+			}
+		}
+	}
+
+	// Print module name
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+			break
+		}
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printExportsDirective(node *parser.Node) {
+	p.writeIndent()
+	p.write("exports ")
+
+	// Collect qualified names - first is package, rest are "to" targets
+	var names []*parser.Node
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			names = append(names, child)
+		}
+	}
+
+	if len(names) > 0 {
+		p.printQualifiedName(names[0])
+	}
+
+	if len(names) > 1 {
+		p.write(" to ")
+		for i := 1; i < len(names); i++ {
+			if i > 1 {
+				p.write(", ")
+			}
+			p.printQualifiedName(names[i])
+		}
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printOpensDirective(node *parser.Node) {
+	p.writeIndent()
+	p.write("opens ")
+
+	// Collect qualified names - first is package, rest are "to" targets
+	var names []*parser.Node
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			names = append(names, child)
+		}
+	}
+
+	if len(names) > 0 {
+		p.printQualifiedName(names[0])
+	}
+
+	if len(names) > 1 {
+		p.write(" to ")
+		for i := 1; i < len(names); i++ {
+			if i > 1 {
+				p.write(", ")
+			}
+			p.printQualifiedName(names[i])
+		}
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printUsesDirective(node *parser.Node) {
+	p.writeIndent()
+	p.write("uses ")
+
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+			break
+		}
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
+}
+
+func (p *JavaPrettyPrinter) printProvidesDirective(node *parser.Node) {
+	p.writeIndent()
+	p.write("provides ")
+
+	// Collect qualified names - first is service, rest are implementations
+	var names []*parser.Node
+	for _, child := range node.Children {
+		if child.Kind == parser.KindQualifiedName {
+			names = append(names, child)
+		}
+	}
+
+	if len(names) > 0 {
+		p.printQualifiedName(names[0])
+	}
+
+	if len(names) > 1 {
+		p.write(" with ")
+		for i := 1; i < len(names); i++ {
+			if i > 1 {
+				p.write(", ")
+			}
+			p.printQualifiedName(names[i])
+		}
+	}
+
+	p.write(";\n")
+	p.atLineStart = true
+	p.lastLine = node.Span.End.Line
 }
 
 func (p *JavaPrettyPrinter) printClassDecl(node *parser.Node) {
@@ -2863,7 +3065,14 @@ func (p *JavaPrettyPrinter) isStatementKind(kind parser.NodeKind) bool {
 }
 
 func PrettyPrintJava(source []byte) ([]byte, error) {
+	return PrettyPrintJavaFile(source, "")
+}
+
+func PrettyPrintJavaFile(source []byte, filename string) ([]byte, error) {
 	opts := []parser.Option{parser.WithComments()}
+	if filename != "" {
+		opts = append(opts, parser.WithFile(filename))
+	}
 	pr := parser.ParseCompilationUnit(bytes.NewReader(source), opts...)
 	node := pr.Finish()
 	if node == nil {

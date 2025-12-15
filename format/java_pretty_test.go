@@ -1161,3 +1161,140 @@ func TestPrintTryCatchFinallyOnOneLine(t *testing.T) {
 		t.Errorf("try/catch/finally not on one line:\ngot:\n%s\nwant:\n%s", output, expected)
 	}
 }
+
+func TestPrintModuleInfo(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple module",
+			input:    "module com.example {}",
+			expected: "module com.example {\n}\n",
+		},
+		{
+			name:     "open module",
+			input:    "open module com.example {}",
+			expected: "open module com.example {\n}\n",
+		},
+		{
+			name:  "module with requires",
+			input: "module com.example {\n  requires java.base;\n}",
+			expected: `module com.example {
+    requires java.base;
+}
+`,
+		},
+		{
+			name:  "module with requires transitive",
+			input: "module com.example {\n  requires transitive java.logging;\n}",
+			expected: `module com.example {
+    requires transitive java.logging;
+}
+`,
+		},
+		{
+			name:  "module with requires static",
+			input: "module com.example {\n  requires static java.compiler;\n}",
+			expected: `module com.example {
+    requires static java.compiler;
+}
+`,
+		},
+		{
+			name:  "module with exports",
+			input: "module com.example {\n  exports com.example.api;\n}",
+			expected: `module com.example {
+    exports com.example.api;
+}
+`,
+		},
+		{
+			name:  "module with exports to",
+			input: "module com.example {\n  exports com.example.internal to com.example.test;\n}",
+			expected: `module com.example {
+    exports com.example.internal to com.example.test;
+}
+`,
+		},
+		{
+			name:  "module with opens",
+			input: "module com.example {\n  opens com.example.internal;\n}",
+			expected: `module com.example {
+    opens com.example.internal;
+}
+`,
+		},
+		{
+			name:  "module with opens to multiple",
+			input: "module com.example {\n  opens com.example.internal to com.example.test, com.example.other;\n}",
+			expected: `module com.example {
+    opens com.example.internal to com.example.test, com.example.other;
+}
+`,
+		},
+		{
+			name:  "module with uses",
+			input: "module com.example {\n  uses com.example.spi.Service;\n}",
+			expected: `module com.example {
+    uses com.example.spi.Service;
+}
+`,
+		},
+		{
+			name:  "module with provides",
+			input: "module com.example {\n  provides com.example.spi.Service with com.example.impl.ServiceImpl;\n}",
+			expected: `module com.example {
+    provides com.example.spi.Service with com.example.impl.ServiceImpl;
+}
+`,
+		},
+		{
+			name:  "module with provides multiple impls",
+			input: "module com.example {\n  provides com.example.spi.Service with com.example.impl.Impl1, com.example.impl.Impl2;\n}",
+			expected: `module com.example {
+    provides com.example.spi.Service with com.example.impl.Impl1, com.example.impl.Impl2;
+}
+`,
+		},
+		{
+			name: "complete module",
+			input: `module com.example.app {
+  requires java.base;
+  requires transitive java.logging;
+  requires static java.compiler;
+  exports com.example.api;
+  exports com.example.internal to com.example.test;
+  opens com.example.model;
+  opens com.example.internal to com.example.reflection;
+  uses com.example.spi.Service;
+  provides com.example.spi.Service with com.example.impl.ServiceImpl;
+}`,
+			expected: `module com.example.app {
+    requires java.base;
+    requires transitive java.logging;
+    requires static java.compiler;
+    exports com.example.api;
+    exports com.example.internal to com.example.test;
+    opens com.example.model;
+    opens com.example.internal to com.example.reflection;
+    uses com.example.spi.Service;
+    provides com.example.spi.Service with com.example.impl.ServiceImpl;
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJavaFile([]byte(tt.input), "module-info.java")
+			if err != nil {
+				t.Fatalf("PrettyPrintJavaFile error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("module formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
