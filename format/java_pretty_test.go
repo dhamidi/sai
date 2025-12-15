@@ -957,7 +957,7 @@ func TestPrintAnnotationArrays(t *testing.T) {
 		{
 			name:     "annotation with value key",
 			input:    `@SuppressWarnings(value = {"unchecked"})`,
-			expected: `@SuppressWarnings({"unchecked"})`, // "value = " is optional in Java, printer normalizes
+			expected: `@SuppressWarnings(value = {"unchecked"})`, // preserve explicit "value = " as written
 		},
 	}
 

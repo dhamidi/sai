@@ -116,6 +116,15 @@ func (p *JavaPrettyPrinter) printCompilationUnit(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printPackageDecl(node *parser.Node) {
+	// Print any annotations first
+	for _, child := range node.Children {
+		if child.Kind == parser.KindAnnotation {
+			p.writeIndent()
+			p.printAnnotation(child)
+			p.write("\n")
+			p.atLineStart = true
+		}
+	}
 	p.writeIndent()
 	p.write("package ")
 	for _, child := range node.Children {
@@ -288,6 +297,8 @@ func (p *JavaPrettyPrinter) printRecordDecl(node *parser.Node) {
 		}
 	}
 
+	p.printTypeParameters(node)
+
 	params := node.FirstChildOfKind(parser.KindParameters)
 	if params != nil {
 		p.printParameters(params)
@@ -406,7 +417,9 @@ func (p *JavaPrettyPrinter) printAnnotationElement(node *parser.Node) {
 		}
 	}
 
-	if name != "" && name != "value" {
+	// Always print the element name if present, for round-trip correctness.
+	// Even though "value=" can be omitted in Java, we preserve it to match original source.
+	if name != "" {
 		p.write(name)
 		p.write(" = ")
 	}
@@ -467,11 +480,23 @@ func (p *JavaPrettyPrinter) printTypeParameters(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printTypeParameter(node *parser.Node) {
+	firstBound := true
 	for _, child := range node.Children {
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
+		if child.Kind == parser.KindAnnotation {
+			// Type parameter annotations like <@MyAnnotation T>
+			p.printAnnotation(child)
+			p.write(" ")
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
 			p.write(child.Token.Literal)
 		} else if child.Kind == parser.KindType {
-			p.write(" extends ")
+			// For intersection types like <T extends A & B>, first bound uses "extends",
+			// subsequent bounds use "&".
+			if firstBound {
+				p.write(" extends ")
+				firstBound = false
+			} else {
+				p.write(" & ")
+			}
 			p.printType(child)
 		}
 	}
@@ -535,14 +560,22 @@ func (p *JavaPrettyPrinter) printType(node *parser.Node) {
 		return
 	}
 
-	var hasTypeArgs bool
+	// Track if we've seen type arguments - if so, subsequent type names need a dot separator
+	// e.g., Outer<String>.Inner -> Outer, <String>, .Inner
+	sawTypeArgs := false
 	for _, child := range node.Children {
 		switch child.Kind {
 		case parser.KindIdentifier:
+			if sawTypeArgs {
+				p.write(".")
+			}
 			if child.Token != nil {
 				p.write(child.Token.Literal)
 			}
 		case parser.KindQualifiedName:
+			if sawTypeArgs {
+				p.write(".")
+			}
 			p.printQualifiedName(child)
 		case parser.KindParameterizedType:
 			p.printParameterizedType(child)
@@ -552,10 +585,9 @@ func (p *JavaPrettyPrinter) printType(node *parser.Node) {
 			p.printType(child)
 		case parser.KindTypeArguments:
 			p.printTypeArguments(child)
-			hasTypeArgs = true
+			sawTypeArgs = true
 		}
 	}
-	_ = hasTypeArgs
 }
 
 func (p *JavaPrettyPrinter) printParameterizedType(node *parser.Node) {
@@ -668,24 +700,21 @@ func (p *JavaPrettyPrinter) printClassBodyMember(child *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printEnumBody(node *parser.Node) {
-	block := node.FirstChildOfKind(parser.KindBlock)
 	var members []*parser.Node
 	var constants []*parser.Node
 
-	var children []*parser.Node
-	if block != nil {
-		children = block.Children
-	} else {
-		children = node.Children
-	}
-
-	for _, child := range children {
+	// Enum constants and members are direct children of the EnumDecl node.
+	// Do NOT look for a Block child - any Block inside an enum is a static initializer,
+	// not a body wrapper.
+	for _, child := range node.Children {
 		if child.Kind == parser.KindFieldDecl && p.isEnumConstant(child) {
 			constants = append(constants, child)
 		} else if child.Kind == parser.KindFieldDecl || child.Kind == parser.KindMethodDecl ||
 			child.Kind == parser.KindConstructorDecl || child.Kind == parser.KindClassDecl ||
 			child.Kind == parser.KindInterfaceDecl || child.Kind == parser.KindEnumDecl ||
-			child.Kind == parser.KindRecordDecl || child.Kind == parser.KindAnnotationDecl {
+			child.Kind == parser.KindRecordDecl || child.Kind == parser.KindAnnotationDecl ||
+			child.Kind == parser.KindBlock {
+			// KindBlock here is a static initializer, treat it as a member
 			members = append(members, child)
 		}
 	}
@@ -722,6 +751,16 @@ func (p *JavaPrettyPrinter) isEnumConstant(node *parser.Node) bool {
 }
 
 func (p *JavaPrettyPrinter) printEnumConstant(node *parser.Node) {
+	// Print annotations first
+	for _, child := range node.Children {
+		if child.Kind == parser.KindAnnotation {
+			p.printAnnotation(child)
+			p.write("\n")
+			p.atLineStart = true
+			p.writeIndent()
+		}
+	}
+
 	for _, child := range node.Children {
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
 			p.write(child.Token.Literal)
@@ -741,20 +780,12 @@ func (p *JavaPrettyPrinter) printFieldDecl(node *parser.Node) {
 		p.printModifiers(modifiers)
 	}
 
+	// Find the type
 	var fieldType *parser.Node
-	var names []string
-	var initializer *parser.Node
-
 	for _, child := range node.Children {
 		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			fieldType = child
-		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
-			names = append(names, child.Token.Literal)
-		} else if child.Kind == parser.KindModifiers {
-			// Already handled above
-		} else {
-			// Any other child is likely an initializer expression
-			initializer = child
+			break
 		}
 	}
 
@@ -763,16 +794,49 @@ func (p *JavaPrettyPrinter) printFieldDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	for i, name := range names {
-		if i > 0 {
-			p.write(", ")
+	// Print declarators: each is an identifier optionally followed by an initializer.
+	// The AST flattens everything, so we need to use source positions to distinguish
+	// between variable names and initializers when the initializer is also an Identifier.
+	// Between a variable name and its initializer there's '=' in the source.
+	// Between two variable names (when there's no initializer) there's ',' in the source.
+	first := true
+	i := 0
+	var prevChild *parser.Node
+	prevWasName := false // Track if previous child was a variable name
+	for i < len(node.Children) {
+		child := node.Children[i]
+		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			i++
+			continue
 		}
-		p.write(name)
-	}
 
-	if initializer != nil {
-		p.write(" = ")
-		p.printExpr(initializer)
+		// Check if this child is an initializer for the previous variable by looking
+		// for '=' in the source between them. Only check if previous child was an
+		// identifier (variable name) - if it was an initializer, current must be new var.
+		isInitializer := false
+		if prevChild != nil && prevWasName {
+			isInitializer = p.hasAssignBetween(prevChild, child)
+		}
+
+		if isInitializer {
+			p.write(" = ")
+			p.printExpr(child)
+			prevWasName = false
+		} else {
+			// This is a new variable name
+			if !first {
+				p.write(", ")
+			}
+			first = false
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(child.Token.Literal)
+			} else {
+				p.printExpr(child)
+			}
+			prevWasName = (child.Kind == parser.KindIdentifier)
+		}
+		prevChild = child
+		i++
 	}
 
 	p.write(";\n")
@@ -811,6 +875,7 @@ func (p *JavaPrettyPrinter) printMethodDecl(node *parser.Node) {
 	var params *parser.Node
 	var throwsList *parser.Node
 	var body *parser.Node
+	var defaultValue *parser.Node // For annotation methods
 
 	for _, child := range node.Children {
 		switch child.Kind {
@@ -826,6 +891,9 @@ func (p *JavaPrettyPrinter) printMethodDecl(node *parser.Node) {
 			throwsList = child
 		case parser.KindBlock:
 			body = child
+		case parser.KindLiteral, parser.KindArrayInit, parser.KindFieldAccess, parser.KindAnnotation:
+			// Annotation method default value
+			defaultValue = child
 		}
 	}
 
@@ -845,6 +913,10 @@ func (p *JavaPrettyPrinter) printMethodDecl(node *parser.Node) {
 	if body != nil {
 		p.write(" ")
 		p.printBlock(body)
+	} else if defaultValue != nil {
+		p.write(" default ")
+		p.printExpr(defaultValue)
+		p.write(";\n")
 	} else {
 		p.write(";\n")
 	}
@@ -1079,6 +1151,7 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 	first := true
 	i := 0
 	var prevChild *parser.Node
+	prevWasName := false // Track if previous child was a variable name (Identifier)
 	for i < len(node.Children) {
 		child := node.Children[i]
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
@@ -1087,15 +1160,17 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 		}
 
 		// Check if this child is an initializer for the previous variable by looking
-		// for '=' in the source between them.
+		// for '=' in the source between them. Only check if previous child was an
+		// identifier (variable name) - if it was an initializer, current must be new var.
 		isInitializer := false
-		if prevChild != nil {
+		if prevChild != nil && prevWasName {
 			isInitializer = p.hasAssignBetween(prevChild, child)
 		}
 
 		if isInitializer {
 			p.write(" = ")
 			p.printExpr(child)
+			prevWasName = false
 		} else {
 			// This is a new variable name
 			if !first {
@@ -1107,6 +1182,7 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 			} else {
 				p.printExpr(child)
 			}
+			prevWasName = (child.Kind == parser.KindIdentifier)
 		}
 		prevChild = child
 		i++
@@ -1888,6 +1964,12 @@ func (p *JavaPrettyPrinter) printExplicitConstructorInvocation(node *parser.Node
 	p.writeIndent()
 	for _, child := range node.Children {
 		switch child.Kind {
+		case parser.KindIdentifier:
+			// Qualifier for super call: outer.super(...)
+			if child.Token != nil {
+				p.write(child.Token.Literal)
+				p.write(".")
+			}
 		case parser.KindThis:
 			p.write("this")
 		case parser.KindSuper:
@@ -2281,11 +2363,15 @@ func (p *JavaPrettyPrinter) printParenExpr(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printLambdaExpr(node *parser.Node) {
 	params := node.FirstChildOfKind(parser.KindParameters)
+	var paramIdentifier *parser.Node
+
 	if params != nil {
 		p.printParameters(params)
 	} else {
+		// Single parameter without parentheses: x -> body
 		for _, child := range node.Children {
 			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				paramIdentifier = child
 				p.write(child.Token.Literal)
 				break
 			}
@@ -2294,15 +2380,21 @@ func (p *JavaPrettyPrinter) printLambdaExpr(node *parser.Node) {
 
 	p.write(" -> ")
 
+	// Find and print the lambda body. Skip Parameters and the single param identifier.
 	for _, child := range node.Children {
+		if child.Kind == parser.KindParameters {
+			continue
+		}
+		if child == paramIdentifier {
+			continue
+		}
+		// This is the body
 		if child.Kind == parser.KindBlock {
 			p.printBlock(child)
-			return
-		}
-		if child.Kind != parser.KindParameters && child.Kind != parser.KindIdentifier {
+		} else {
 			p.printExpr(child)
-			return
 		}
+		return
 	}
 }
 
@@ -2329,6 +2421,11 @@ func (p *JavaPrettyPrinter) printClassLiteral(node *parser.Node) {
 	for _, child := range node.Children {
 		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			p.printType(child)
+		} else if child.Kind == parser.KindQualifiedName {
+			p.printQualifiedName(child)
+		} else if child.Kind == parser.KindFieldAccess {
+			// For qualified class names like java.lang.Enum.class
+			p.printFieldAccess(child)
 		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
 			p.write(child.Token.Literal)
 		}

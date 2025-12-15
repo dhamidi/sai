@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/dhamidi/sai/project"
 	"github.com/spf13/cobra"
 )
 
@@ -31,15 +32,23 @@ The project must be compiled first with 'sai compile'.`,
 }
 
 func runRun(programArgs []string, verbose bool) error {
-	projectID, err := detectProjectID()
+	proj, err := project.Load()
 	if err != nil {
 		return err
 	}
 
+	mainMod := proj.Module("main")
+	if mainMod == nil {
+		return fmt.Errorf("no main module found in project %s", proj.ID)
+	}
+
+	// TODO: make main class configurable
+	mainClass := mainMod.FullName() + ".Cli"
+
 	javaArgs := []string{
 		"--enable-preview",
-		"-p", "lib:out",
-		"-m", fmt.Sprintf("%s.main/%s.main.Cli", projectID, projectID),
+		"-p", proj.ModulePath(true),
+		"-m", mainMod.FullName() + "/" + mainClass,
 	}
 	javaArgs = append(javaArgs, programArgs...)
 

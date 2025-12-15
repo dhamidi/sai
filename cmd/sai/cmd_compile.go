@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
+	"github.com/dhamidi/sai/project"
 	"github.com/spf13/cobra"
 )
 
@@ -18,11 +18,10 @@ func newCompileCmd() *cobra.Command {
 		Long: `Compile the Java project using javac.
 
 This command:
-  - Creates output directories (out/<project>.core, out/<project>.main)
-  - Compiles the core module first
-  - Compiles the main module (which depends on core)
+  - Creates output directories for each module
+  - Compiles modules in dependency order (core, then main)
 
-The project identifier is detected from the src/ directory structure.`,
+The project structure is detected from src/<project>/<module>/module-info.java files.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCompile(verbose)
 		},
@@ -34,73 +33,60 @@ The project identifier is detected from the src/ directory structure.`,
 }
 
 func runCompile(verbose bool) error {
-	projectID, err := detectProjectID()
+	proj, err := project.Load()
 	if err != nil {
 		return err
 	}
 
-	coreOutDir := filepath.Join("out", projectID+".core")
-	mainOutDir := filepath.Join("out", projectID+".main")
-	if err := os.MkdirAll(coreOutDir, 0755); err != nil {
-		return fmt.Errorf("create %s: %w", coreOutDir, err)
-	}
-	if err := os.MkdirAll(mainOutDir, 0755); err != nil {
-		return fmt.Errorf("create %s: %w", mainOutDir, err)
-	}
+	// Compile modules in order: core first, then main
+	// TODO: implement proper dependency resolution from module-info.java
+	compileOrder := []string{"core", "main"}
 
-	coreSrcDir := filepath.Join("src", projectID, "core")
-	coreModuleInfo := filepath.Join(coreSrcDir, "module-info.java")
-
-	coreJavaFiles, err := filepath.Glob(filepath.Join(coreSrcDir, "*.java"))
-	if err != nil {
-		return fmt.Errorf("glob core java files: %w", err)
-	}
-
-	coreArgs := []string{"--enable-preview", "--source", "25", "-p", "lib", "-d", coreOutDir, coreModuleInfo}
-	for _, f := range coreJavaFiles {
-		if f != coreModuleInfo {
-			coreArgs = append(coreArgs, f)
+	for _, moduleName := range compileOrder {
+		mod := proj.Module(moduleName)
+		if mod == nil {
+			continue
 		}
-	}
 
-	fmt.Printf("Compiling %s.core...\n", projectID)
-	if verbose {
-		fmt.Printf("+ javac %s\n", formatArgs(coreArgs))
-	}
-	javacCore := exec.Command("javac", coreArgs...)
-	javacCore.Stdout = os.Stdout
-	javacCore.Stderr = os.Stderr
-	if err := javacCore.Run(); err != nil {
-		return fmt.Errorf("compile core: %w", err)
-	}
-
-	mainSrcDir := filepath.Join("src", projectID, "main")
-	mainModuleInfo := filepath.Join(mainSrcDir, "module-info.java")
-
-	mainJavaFiles, err := filepath.Glob(filepath.Join(mainSrcDir, "*.java"))
-	if err != nil {
-		return fmt.Errorf("glob main java files: %w", err)
-	}
-
-	mainArgs := []string{"--enable-preview", "--source", "25", "-p", "lib:out", "-d", mainOutDir, mainModuleInfo}
-	for _, f := range mainJavaFiles {
-		if f != mainModuleInfo {
-			mainArgs = append(mainArgs, f)
+		if err := compileModule(proj, mod, verbose); err != nil {
+			return err
 		}
-	}
-
-	fmt.Printf("Compiling %s.main...\n", projectID)
-	if verbose {
-		fmt.Printf("+ javac %s\n", formatArgs(mainArgs))
-	}
-	javacMain := exec.Command("javac", mainArgs...)
-	javacMain.Stdout = os.Stdout
-	javacMain.Stderr = os.Stderr
-	if err := javacMain.Run(); err != nil {
-		return fmt.Errorf("compile main: %w", err)
 	}
 
 	fmt.Println("Compilation successful!")
+	return nil
+}
+
+func compileModule(proj *project.Project, mod *project.Module, verbose bool) error {
+	if err := mod.EnsureOutDir(); err != nil {
+		return err
+	}
+
+	javaFiles, err := mod.JavaFiles(true)
+	if err != nil {
+		return err
+	}
+
+	args := []string{
+		"--enable-preview",
+		"--source", "25",
+		"-p", proj.ModulePath(true),
+		"-d", mod.OutDir,
+	}
+	args = append(args, javaFiles...)
+
+	fmt.Printf("Compiling %s...\n", mod.FullName())
+	if verbose {
+		fmt.Printf("+ javac %s\n", formatArgs(args))
+	}
+
+	javac := exec.Command("javac", args...)
+	javac.Stdout = os.Stdout
+	javac.Stderr = os.Stderr
+	if err := javac.Run(); err != nil {
+		return fmt.Errorf("compile %s: %w", mod.Name, err)
+	}
+
 	return nil
 }
 
@@ -126,34 +112,4 @@ func needsQuoting(s string) bool {
 		}
 	}
 	return false
-}
-
-func detectProjectID() (string, error) {
-	entries, err := os.ReadDir("src")
-	if err != nil {
-		return "", fmt.Errorf("read src directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			corePath := filepath.Join("src", entry.Name(), "core")
-			mainPath := filepath.Join("src", entry.Name(), "main")
-
-			coreExists := false
-			mainExists := false
-
-			if info, err := os.Stat(corePath); err == nil && info.IsDir() {
-				coreExists = true
-			}
-			if info, err := os.Stat(mainPath); err == nil && info.IsDir() {
-				mainExists = true
-			}
-
-			if coreExists && mainExists {
-				return entry.Name(), nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("could not detect project ID: no src/<project>/{core,main} structure found")
 }

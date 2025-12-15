@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
+	"github.com/dhamidi/sai/project"
 	"github.com/spf13/cobra"
 )
 
@@ -41,53 +41,29 @@ func runTest(junitArgs []string, verbose bool) error {
 		return err
 	}
 
-	projectID, err := detectProjectID()
+	proj, err := project.Load()
 	if err != nil {
 		return err
 	}
 
-	// Check if test module exists
-	testSrcDir := filepath.Join("src", projectID, "test")
-	if _, err := os.Stat(testSrcDir); os.IsNotExist(err) {
-		return fmt.Errorf("no test module found at %s", testSrcDir)
-	}
-
-	// Create test output directory
-	testOutDir := filepath.Join("out", projectID+".test")
-	if err := os.MkdirAll(testOutDir, 0755); err != nil {
-		return fmt.Errorf("create %s: %w", testOutDir, err)
+	testMod := proj.Module("test")
+	if testMod == nil {
+		return fmt.Errorf("no test module found in project %s", proj.ID)
 	}
 
 	// Compile test module
-	testModuleInfo := filepath.Join(testSrcDir, "module-info.java")
-	testJavaFiles, err := filepath.Glob(filepath.Join(testSrcDir, "*.java"))
-	if err != nil {
-		return fmt.Errorf("glob test java files: %w", err)
-	}
-
-	testArgs := []string{"-p", "lib:out", "-d", testOutDir, testModuleInfo}
-	for _, f := range testJavaFiles {
-		if f != testModuleInfo {
-			testArgs = append(testArgs, f)
-		}
-	}
-
-	fmt.Printf("Compiling %s.test...\n", projectID)
-	if verbose {
-		fmt.Printf("+ javac %s\n", formatArgs(testArgs))
-	}
-	javacTest := exec.Command("javac", testArgs...)
-	javacTest.Stdout = os.Stdout
-	javacTest.Stderr = os.Stderr
-	if err := javacTest.Run(); err != nil {
-		return fmt.Errorf("compile test: %w", err)
+	if err := compileModule(proj, testMod, verbose); err != nil {
+		return err
 	}
 
 	// Run tests using the programmatic TestRunner
+	// TODO: make test runner class configurable
+	testRunnerClass := testMod.FullName() + ".TestRunner"
+
 	javaArgs := []string{
-		"-p", "out:lib",
+		"-p", proj.ModulePath(true),
 		"--add-modules", "org.junit.jupiter.engine",
-		"-m", fmt.Sprintf("%s.test/%s.test.TestRunner", projectID, projectID),
+		"-m", testMod.FullName() + "/" + testRunnerClass,
 	}
 
 	fmt.Println("\nRunning tests...")
