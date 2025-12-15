@@ -1039,26 +1039,12 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 		p.printModifiers(modifiers)
 	}
 
+	// Find the type
 	var varType *parser.Node
-	var name string
-	var initializer *parser.Node
-
 	for _, child := range node.Children {
-		switch child.Kind {
-		case parser.KindType, parser.KindArrayType:
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			varType = child
-		case parser.KindIdentifier:
-			// Only take the first identifier as the variable name
-			// Subsequent identifiers are part of the initializer
-			if name == "" && child.Token != nil {
-				name = child.Token.Literal
-			} else if varType != nil && name != "" {
-				initializer = child
-			}
-		default:
-			if varType != nil && name != "" {
-				initializer = child
-			}
+			break
 		}
 	}
 
@@ -1067,11 +1053,40 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	p.write(name)
+	// Print declarators: each is an identifier optionally followed by an initializer
+	// Structure after type: identifier [initializer], identifier [initializer], ...
+	first := true
+	i := 0
+	for i < len(node.Children) {
+		child := node.Children[i]
+		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			i++
+			continue
+		}
 
-	if initializer != nil {
-		p.write(" = ")
-		p.printExpr(initializer)
+		// This should be an identifier (variable name)
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if !first {
+				p.write(", ")
+			}
+			first = false
+			p.write(child.Token.Literal)
+			i++
+
+			// Check if next child is an initializer (not an identifier and not modifiers/type)
+			if i < len(node.Children) {
+				next := node.Children[i]
+				if next.Kind != parser.KindIdentifier && next.Kind != parser.KindModifiers &&
+					next.Kind != parser.KindType && next.Kind != parser.KindArrayType {
+					p.write(" = ")
+					p.printExpr(next)
+					i++
+				}
+			}
+		} else {
+			// Unexpected child, skip
+			i++
+		}
 	}
 
 	p.write(";\n")
@@ -1184,8 +1199,10 @@ func (p *JavaPrettyPrinter) printForStmt(node *parser.Node) {
 	}
 	p.write("; ")
 
+	// Print condition (any expression that's not ForInit, ForUpdate, or a statement)
 	for _, child := range node.Children {
-		if child.Kind != parser.KindForInit && child.Kind != parser.KindForUpdate && child.Kind != parser.KindBlock {
+		if child.Kind != parser.KindForInit && child.Kind != parser.KindForUpdate &&
+			!p.isStatementKind(child.Kind) {
 			p.printExpr(child)
 			break
 		}
@@ -1198,9 +1215,29 @@ func (p *JavaPrettyPrinter) printForStmt(node *parser.Node) {
 	}
 	p.write(") ")
 
-	block := node.FirstChildOfKind(parser.KindBlock)
-	if block != nil {
-		p.printBlock(block)
+	// Find and print the body statement (last non-ForInit, non-ForUpdate child that's a statement)
+	var body *parser.Node
+	for _, child := range node.Children {
+		if child.Kind != parser.KindForInit && child.Kind != parser.KindForUpdate &&
+			p.isStatementKind(child.Kind) {
+			body = child
+		}
+	}
+
+	if body != nil {
+		if body.Kind == parser.KindBlock {
+			p.printBlock(body)
+		} else if body.Kind == parser.KindEmptyStmt {
+			p.write(";\n")
+			p.atLineStart = true
+		} else {
+			// Single statement body
+			p.write("\n")
+			p.atLineStart = true
+			p.indent++
+			p.printStatement(body)
+			p.indent--
+		}
 	} else {
 		p.write(";\n")
 		p.atLineStart = true
@@ -1223,26 +1260,12 @@ func (p *JavaPrettyPrinter) printForInit(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
+	// Find the type
 	var varType *parser.Node
-	var name string
-	var initializer *parser.Node
-
 	for _, child := range node.Children {
-		switch child.Kind {
-		case parser.KindType, parser.KindArrayType:
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			varType = child
-		case parser.KindIdentifier:
-			// Only take the first identifier as the variable name
-			// Subsequent identifiers are part of the initializer
-			if name == "" && child.Token != nil {
-				name = child.Token.Literal
-			} else if varType != nil && name != "" {
-				initializer = child
-			}
-		default:
-			if varType != nil && name != "" {
-				initializer = child
-			}
+			break
 		}
 	}
 
@@ -1251,11 +1274,39 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	p.write(name)
+	// Print declarators: each is an identifier optionally followed by an initializer
+	first := true
+	i := 0
+	for i < len(node.Children) {
+		child := node.Children[i]
+		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			i++
+			continue
+		}
 
-	if initializer != nil {
-		p.write(" = ")
-		p.printExpr(initializer)
+		// This should be an identifier (variable name)
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if !first {
+				p.write(", ")
+			}
+			first = false
+			p.write(child.Token.Literal)
+			i++
+
+			// Check if next child is an initializer (not an identifier and not modifiers/type)
+			if i < len(node.Children) {
+				next := node.Children[i]
+				if next.Kind != parser.KindIdentifier && next.Kind != parser.KindModifiers &&
+					next.Kind != parser.KindType && next.Kind != parser.KindArrayType {
+					p.write(" = ")
+					p.printExpr(next)
+					i++
+				}
+			}
+		} else {
+			// Unexpected child, skip
+			i++
+		}
 	}
 }
 
@@ -1270,28 +1321,12 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 		}
 	}
 
+	// Find the type
 	var varType *parser.Node
-	var name string
-	var initializer *parser.Node
-
 	for _, child := range node.Children {
-		switch child.Kind {
-		case parser.KindType, parser.KindArrayType:
+		if child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			varType = child
-		case parser.KindIdentifier:
-			// Only take the first identifier as the variable name
-			// Subsequent identifiers are part of the initializer
-			if name == "" && child.Token != nil {
-				name = child.Token.Literal
-			} else if varType != nil && name != "" {
-				initializer = child
-			}
-		case parser.KindModifiers:
-			// Already handled above
-		default:
-			if varType != nil && name != "" {
-				initializer = child
-			}
+			break
 		}
 	}
 
@@ -1300,11 +1335,39 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 		p.write(" ")
 	}
 
-	p.write(name)
+	// Print declarators: each is an identifier optionally followed by an initializer
+	first := true
+	i := 0
+	for i < len(node.Children) {
+		child := node.Children[i]
+		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
+			i++
+			continue
+		}
 
-	if initializer != nil {
-		p.write(" = ")
-		p.printExpr(initializer)
+		// This should be an identifier (variable name)
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if !first {
+				p.write(", ")
+			}
+			first = false
+			p.write(child.Token.Literal)
+			i++
+
+			// Check if next child is an initializer (not an identifier and not modifiers/type)
+			if i < len(node.Children) {
+				next := node.Children[i]
+				if next.Kind != parser.KindIdentifier && next.Kind != parser.KindModifiers &&
+					next.Kind != parser.KindType && next.Kind != parser.KindArrayType {
+					p.write(" = ")
+					p.printExpr(next)
+					i++
+				}
+			}
+		} else {
+			// Unexpected child, skip
+			i++
+		}
 	}
 }
 
@@ -2251,6 +2314,20 @@ func (p *JavaPrettyPrinter) writeIndent() {
 
 func (p *JavaPrettyPrinter) write(s string) {
 	p.w.Write([]byte(s))
+}
+
+// isStatementKind returns true if the node kind represents a statement
+func (p *JavaPrettyPrinter) isStatementKind(kind parser.NodeKind) bool {
+	switch kind {
+	case parser.KindBlock, parser.KindEmptyStmt, parser.KindExprStmt, parser.KindIfStmt,
+		parser.KindForStmt, parser.KindEnhancedForStmt, parser.KindWhileStmt, parser.KindDoStmt,
+		parser.KindSwitchStmt, parser.KindSwitchExpr, parser.KindReturnStmt, parser.KindBreakStmt,
+		parser.KindContinueStmt, parser.KindThrowStmt, parser.KindTryStmt, parser.KindSynchronizedStmt,
+		parser.KindAssertStmt, parser.KindYieldStmt, parser.KindLocalVarDecl, parser.KindLocalClassDecl,
+		parser.KindLabeledStmt:
+		return true
+	}
+	return false
 }
 
 func PrettyPrintJava(source []byte) ([]byte, error) {
