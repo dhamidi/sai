@@ -756,13 +756,31 @@ func (p *JavaPrettyPrinter) printExtendsImplements(node *parser.Node) {
 
 	permitsClause := node.FirstChildOfKind(parser.KindPermitsClause)
 	if permitsClause != nil {
-		p.write(" permits ")
 		types := permitsClause.ChildrenOfKind(parser.KindType)
-		for i, t := range types {
-			if i > 0 {
-				p.write(", ")
+		if len(types) > 3 {
+			// Long permits clause: format on separate lines in groups of 3
+			p.write("\n")
+			p.write("        permits ")
+			for i, t := range types {
+				if i > 0 {
+					if i%3 == 0 {
+						// Start a new line every 3 types
+						p.write(",\n                ")
+					} else {
+						p.write(", ")
+					}
+				}
+				p.printType(t)
 			}
-			p.printType(t)
+		} else {
+			// Short permits clause: keep on same line
+			p.write(" permits ")
+			for i, t := range types {
+				if i > 0 {
+					p.write(", ")
+				}
+				p.printType(t)
+			}
 		}
 	}
 }

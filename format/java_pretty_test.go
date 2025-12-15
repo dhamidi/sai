@@ -1441,3 +1441,96 @@ func TestPrintModuleInfo(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintLongPermitsClause(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:  "short permits stays on one line",
+			input: `sealed interface Shape permits Circle, Square, Triangle {}`,
+			expected: `sealed interface Shape permits Circle, Square, Triangle {
+}
+`,
+		},
+		{
+			name:  "four permits splits to separate line",
+			input: `sealed interface Shape permits Circle, Square, Triangle, Rectangle {}`,
+			expected: `sealed interface Shape
+        permits Circle, Square, Triangle,
+                Rectangle {
+}
+`,
+		},
+		{
+			name:  "six permits in groups of three",
+			input: `sealed interface Shape permits Circle, Square, Triangle, Rectangle, Pentagon, Hexagon {}`,
+			expected: `sealed interface Shape
+        permits Circle, Square, Triangle,
+                Rectangle, Pentagon, Hexagon {
+}
+`,
+		},
+		{
+			name:  "seven permits in groups of three",
+			input: `sealed interface Shape permits Circle, Square, Triangle, Rectangle, Pentagon, Hexagon, Heptagon {}`,
+			expected: `sealed interface Shape
+        permits Circle, Square, Triangle,
+                Rectangle, Pentagon, Hexagon,
+                Heptagon {
+}
+`,
+		},
+		{
+			name:  "sealed class with long permits",
+			input: `sealed class Animal permits Dog, Cat, Bird, Fish, Snake {}`,
+			expected: `sealed class Animal
+        permits Dog, Cat, Bird,
+                Fish, Snake {
+}
+`,
+		},
+		{
+			name:  "sealed interface with extends and long permits",
+			input: `sealed interface Container extends Iterable permits List, Set, Map, Queue, Deque {}`,
+			expected: `sealed interface Container extends Iterable
+        permits List, Set, Map,
+                Queue, Deque {
+}
+`,
+		},
+		{
+			name:  "sealed class with implements and long permits",
+			input: `sealed class Widget implements Serializable, Cloneable permits Button, Label, TextField, TextArea, ComboBox {}`,
+			expected: `sealed class Widget implements Serializable, Cloneable
+        permits Button, Label, TextField,
+                TextArea, ComboBox {
+}
+`,
+		},
+		{
+			name:  "permits with qualified type names",
+			input: `sealed interface Buffer permits ByteBuffer, CharBuffer, ShortBuffer, IntBuffer, LongBuffer, FloatBuffer, DoubleBuffer {}`,
+			expected: `sealed interface Buffer
+        permits ByteBuffer, CharBuffer, ShortBuffer,
+                IntBuffer, LongBuffer, FloatBuffer,
+                DoubleBuffer {
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("permits clause formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
