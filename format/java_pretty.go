@@ -366,6 +366,22 @@ func (p *JavaPrettyPrinter) printModifiers(node *parser.Node) {
 	}
 }
 
+// printModifiersInline prints modifiers inline (without newlines after annotations)
+func (p *JavaPrettyPrinter) printModifiersInline(node *parser.Node) {
+	for _, child := range node.Children {
+		if child.Kind == parser.KindComment || child.Kind == parser.KindLineComment {
+			continue
+		}
+		if child.Kind == parser.KindAnnotation {
+			p.printAnnotation(child)
+			p.write(" ")
+		} else if child.Token != nil {
+			p.write(child.Token.Literal)
+			p.write(" ")
+		}
+	}
+}
+
 func (p *JavaPrettyPrinter) printAnnotation(node *parser.Node) {
 	p.write("@")
 	hasValue := false
@@ -1415,6 +1431,12 @@ func (p *JavaPrettyPrinter) printForInit(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
+	// Print modifiers (including annotations) inline
+	modifiers := node.FirstChildOfKind(parser.KindModifiers)
+	if modifiers != nil {
+		p.printModifiersInline(modifiers)
+	}
+
 	// Find the type
 	var varType *parser.Node
 	for _, child := range node.Children {
@@ -1429,38 +1451,31 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	// Print declarators: each is an identifier optionally followed by an initializer
+	// Print declarators: pattern is varName [= initializer], varName [= initializer], ...
+	// The AST structure is: [Type] [name1] [init1] [name2] [init2] ...
+	// After Type, odd-indexed children are variable names, even-indexed are initializers
 	first := true
-	i := 0
-	for i < len(node.Children) {
-		child := node.Children[i]
+	expectingVarName := true
+	for _, child := range node.Children {
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
-			i++
 			continue
 		}
 
-		// This should be an identifier (variable name)
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
-			if !first {
-				p.write(", ")
-			}
-			first = false
-			p.write(child.Token.Literal)
-			i++
-
-			// Check if next child is an initializer (not an identifier and not modifiers/type)
-			if i < len(node.Children) {
-				next := node.Children[i]
-				if next.Kind != parser.KindIdentifier && next.Kind != parser.KindModifiers &&
-					next.Kind != parser.KindType && next.Kind != parser.KindArrayType {
-					p.write(" = ")
-					p.printExpr(next)
-					i++
+		if expectingVarName {
+			// This should be a variable name (identifier)
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				if !first {
+					p.write(", ")
 				}
+				first = false
+				p.write(child.Token.Literal)
+				expectingVarName = false // next child will be initializer or variable name
 			}
 		} else {
-			// Unexpected child, skip
-			i++
+			// This is an initializer
+			p.write(" = ")
+			p.printExpr(child)
+			expectingVarName = true // next will be another variable name
 		}
 	}
 }
