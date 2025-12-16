@@ -653,20 +653,51 @@ func (p *JavaPrettyPrinter) printSwitchStmt(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printSwitchCase(node *parser.Node) {
 	labels := node.ChildrenOfKind(parser.KindSwitchLabel)
+
+	// Collect non-label children (the case body)
+	var bodyChildren []*parser.Node
+	for _, child := range node.Children {
+		if child.Kind == parser.KindSwitchLabel {
+			continue
+		}
+		if child.Kind == parser.KindLineComment || child.Kind == parser.KindComment {
+			continue
+		}
+		bodyChildren = append(bodyChildren, child)
+	}
+
+	// Check if this is an arrow case with a single expression statement
+	hasArrow := false
+	for _, label := range labels {
+		for _, child := range label.Children {
+			if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Kind == parser.TokenArrow {
+				hasArrow = true
+				break
+			}
+		}
+	}
+
+	// For arrow cases with a single expression, print on same line
+	if hasArrow && len(bodyChildren) == 1 && p.isSingleLineArrowBody(bodyChildren[0]) {
+		for _, label := range labels {
+			p.writeIndent()
+			p.printSwitchLabelInline(label)
+		}
+		p.write(" ")
+		p.printArrowBodyInline(bodyChildren[0])
+		p.write("\n")
+		p.atLineStart = true
+		return
+	}
+
+	// Default behavior: print label then body on separate lines
 	for _, label := range labels {
 		p.writeIndent()
 		p.printSwitchLabel(label)
 	}
 
 	p.indent++
-	for _, child := range node.Children {
-		if child.Kind == parser.KindSwitchLabel {
-			continue
-		}
-		// Skip comment nodes - they're handled by emitCommentsBeforeLine
-		if child.Kind == parser.KindLineComment || child.Kind == parser.KindComment {
-			continue
-		}
+	for _, child := range bodyChildren {
 		p.emitCommentsBeforeLine(child.Span.Start.Line)
 		p.printStatement(child)
 	}
@@ -738,12 +769,124 @@ func (p *JavaPrettyPrinter) printSwitchLabel(node *parser.Node) {
 	p.atLineStart = true
 }
 
+// printSwitchLabelInline prints the switch label without trailing newline
+func (p *JavaPrettyPrinter) printSwitchLabelInline(node *parser.Node) {
+	var caseExprs []*parser.Node
+	var guard *parser.Node
+	var hasArrow bool
+	var isDefault bool
+
+	for _, child := range node.Children {
+		switch child.Kind {
+		case parser.KindGuard:
+			guard = child
+		case parser.KindIdentifier:
+			if child.Token != nil {
+				switch child.Token.Kind {
+				case parser.TokenArrow:
+					hasArrow = true
+				case parser.TokenDefault:
+					isDefault = true
+				default:
+					caseExprs = append(caseExprs, child)
+				}
+			} else {
+				caseExprs = append(caseExprs, child)
+			}
+		default:
+			caseExprs = append(caseExprs, child)
+		}
+	}
+
+	if len(caseExprs) == 0 {
+		p.write("default")
+	} else if isDefault {
+		p.write("case ")
+		for i, expr := range caseExprs {
+			if i > 0 {
+				p.write(", ")
+			}
+			p.printCaseExpr(expr)
+		}
+		p.write(", default")
+	} else {
+		p.write("case ")
+		for i, expr := range caseExprs {
+			if i > 0 {
+				p.write(", ")
+			}
+			p.printCaseExpr(expr)
+		}
+	}
+
+	if guard != nil {
+		p.write(" when ")
+		if len(guard.Children) > 0 {
+			p.printExpr(guard.Children[0])
+		}
+	}
+
+	if hasArrow {
+		p.write(" ->")
+	} else {
+		p.write(":")
+	}
+}
+
+// isSingleLineArrowBody returns true if the body should be printed on the same line as the arrow
+func (p *JavaPrettyPrinter) isSingleLineArrowBody(node *parser.Node) bool {
+	switch node.Kind {
+	case parser.KindExprStmt:
+		// Expression statements are single-line friendly
+		return true
+	case parser.KindThrowStmt:
+		// throw statements are single-line friendly
+		return true
+	case parser.KindBlock:
+		// Empty blocks or blocks with content should go on new lines
+		return false
+	case parser.KindYieldStmt:
+		// yield statements are single-line friendly
+		return true
+	default:
+		return false
+	}
+}
+
+// printArrowBodyInline prints the arrow case body without indent/newlines
+func (p *JavaPrettyPrinter) printArrowBodyInline(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindExprStmt:
+		if len(node.Children) > 0 {
+			p.printExpr(node.Children[0])
+		}
+		p.write(";")
+	case parser.KindThrowStmt:
+		p.write("throw ")
+		if len(node.Children) > 0 {
+			p.printExpr(node.Children[0])
+		}
+		p.write(";")
+	case parser.KindYieldStmt:
+		p.write("yield ")
+		if len(node.Children) > 0 {
+			p.printExpr(node.Children[0])
+		}
+		p.write(";")
+	default:
+		// Fallback: print as statement (shouldn't reach here)
+		p.printStatement(node)
+	}
+}
+
 func (p *JavaPrettyPrinter) printCaseExpr(node *parser.Node) {
 	switch node.Kind {
 	case parser.KindTypePattern:
 		p.printTypePattern(node)
 	case parser.KindRecordPattern:
 		p.printRecordPattern(node)
+	case parser.KindMatchAllPattern:
+		p.write("_")
 	default:
 		p.printExpr(node)
 	}
@@ -791,7 +934,7 @@ func (p *JavaPrettyPrinter) printRecordPattern(node *parser.Node) {
 	p.write("(")
 	first := true
 	for _, child := range node.Children {
-		if child.Kind == parser.KindTypePattern || child.Kind == parser.KindRecordPattern {
+		if child.Kind == parser.KindTypePattern || child.Kind == parser.KindRecordPattern || child.Kind == parser.KindMatchAllPattern {
 			if !first {
 				p.write(", ")
 			}

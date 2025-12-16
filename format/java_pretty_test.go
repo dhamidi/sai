@@ -1606,6 +1606,497 @@ func TestPrintEnumInlineComments(t *testing.T) {
 	}
 }
 
+func TestPrintInstanceofPatternEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		// Type patterns
+		{
+			name:     "simple type pattern",
+			input:    "x instanceof String s",
+			expected: "x instanceof String s",
+		},
+		{
+			name:     "type pattern with final",
+			input:    "x instanceof final String s",
+			expected: "x instanceof final String s",
+		},
+		{
+			name:     "type pattern with generic type",
+			input:    "x instanceof List<String> list",
+			expected: "x instanceof List<String> list",
+		},
+		{
+			name:     "type pattern with array type",
+			input:    "x instanceof int[] arr",
+			expected: "x instanceof int[] arr",
+		},
+		{
+			name:     "type pattern with 2D array",
+			input:    "x instanceof String[][] matrix",
+			expected: "x instanceof String[][] matrix",
+		},
+		// Record patterns
+		{
+			name:     "simple record pattern",
+			input:    "x instanceof Point(var a, var b)",
+			expected: "x instanceof Point(var a, var b)",
+		},
+		{
+			name:     "record pattern with typed components",
+			input:    "x instanceof Point(int a, int b)",
+			expected: "x instanceof Point(int a, int b)",
+		},
+		{
+			name:     "record pattern with mixed var and typed",
+			input:    "x instanceof Pair(String s, var x)",
+			expected: "x instanceof Pair(String s, var x)",
+		},
+		{
+			name:     "nested record pattern",
+			input:    "x instanceof Outer(Inner(var a), var b)",
+			expected: "x instanceof Outer(Inner(var a), var b)",
+		},
+		{
+			name:     "deeply nested record pattern",
+			input:    "x instanceof A(B(C(var x)))",
+			expected: "x instanceof A(B(C(var x)))",
+		},
+		{
+			name:     "record pattern with generic type",
+			input:    "x instanceof Box<String>(var s)",
+			expected: "x instanceof Box<String>(var s)",
+		},
+		{
+			name:     "record pattern single component",
+			input:    "x instanceof Wrapper(var value)",
+			expected: "x instanceof Wrapper(var value)",
+		},
+		{
+			name:     "record pattern three components",
+			input:    "x instanceof Triple(var a, var b, var c)",
+			expected: "x instanceof Triple(var a, var b, var c)",
+		},
+		{
+			name:     "record pattern with qualified type",
+			input:    "x instanceof java.awt.Point(var x, var y)",
+			expected: "x instanceof java.awt.Point(var x, var y)",
+		},
+		// Edge cases with expressions
+		{
+			name:     "instanceof in method call",
+			input:    "handle(obj instanceof String s)",
+			expected: "handle(obj instanceof String s)",
+		},
+		{
+			name:     "instanceof with method call receiver",
+			input:    "getObject() instanceof String s",
+			expected: "getObject() instanceof String s",
+		},
+		{
+			name:     "instanceof in ternary",
+			input:    "obj instanceof String s ? s.length() : 0",
+			expected: "obj instanceof String s ? s.length() : 0",
+		},
+		{
+			name:     "instanceof with logical and",
+			input:    "obj instanceof String s && s.length() > 0",
+			expected: "obj instanceof String s && s.length() > 0",
+		},
+		{
+			name:     "chained instanceof with or",
+			input:    "x instanceof String s || x instanceof Integer i",
+			expected: "x instanceof String s || x instanceof Integer i",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatExpr(t, tt.input)
+			if got != tt.expected {
+				t.Errorf("formatExpr(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintRecordPatternInClassContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "empty record pattern",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof EmptyRecord()) {
+            process();
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof EmptyRecord()) {
+            process();
+        }
+    }
+}
+`,
+		},
+		{
+			name: "record pattern with underscore wildcard",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof Point(var x, _)) {
+            useX(x);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof Point(var x, _)) {
+            useX(x);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "multiple underscore wildcards",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof Triple(_, var y, _)) {
+            useY(y);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof Triple(_, var y, _)) {
+            useY(y);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "final on record pattern in if",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof final Point(var x, var y)) {
+            System.out.println(x + y);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof final Point(var x, var y)) {
+            System.out.println(x + y);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "nested record with final inner patterns",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof Outer(final Inner(var x), var y)) {
+            process(x, y);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof Outer(final Inner(var x), var y)) {
+            process(x, y);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "chained else-if with different patterns",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof String s) {
+            handleString(s);
+        } else if (o instanceof Point(var x, var y)) {
+            handlePoint(x, y);
+        } else if (o instanceof Circle(Point(var cx, var cy), var r)) {
+            handleCircle(cx, cy, r);
+        } else if (o instanceof Integer i) {
+            handleInt(i);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof String s) {
+            handleString(s);
+        } else if (o instanceof Point(var x, var y)) {
+            handlePoint(x, y);
+        } else if (o instanceof Circle(Point(var cx, var cy), var r)) {
+            handleCircle(cx, cy, r);
+        } else if (o instanceof Integer i) {
+            handleInt(i);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "record pattern in while condition",
+			input: `class X {
+    void process(Queue<Object> queue) {
+        Object item;
+        while ((item = queue.poll()) != null && item instanceof Point(var x, var y)) {
+            plot(x, y);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void process(Queue<Object> queue) {
+        Object item;
+        while ((item = queue.poll()) != null && item instanceof Point(var x, var y)) {
+            plot(x, y);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "record pattern with array component type",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof ArrayHolder(int[] data)) {
+            processArray(data);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof ArrayHolder(int[] data)) {
+            processArray(data);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "record pattern with generic component",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof Container(List<String> items)) {
+            processItems(items);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof Container(List<String> items)) {
+            processItems(items);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "deeply nested generic record pattern",
+			input: `class X {
+    void foo(Object o) {
+        if (o instanceof Box<Pair<Integer, String>>(Pair(Integer i, String s))) {
+            handle(i, s);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Object o) {
+        if (o instanceof Box<Pair<Integer, String>>(Pair(Integer i, String s))) {
+            handle(i, s);
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintSwitchWithPatternMatching(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "switch with type patterns",
+			input: `class X {
+    String describe(Object o) {
+        return switch (o) {
+            case String s -> "String: " + s;
+            case Integer i -> "Integer: " + i;
+            case null -> "null";
+            default -> "unknown";
+        };
+    }
+}`,
+			expected: `class X {
+
+    String describe(Object o) {
+        return switch (o) {
+            case String s -> "String: " + s;
+            case Integer i -> "Integer: " + i;
+            case null -> "null";
+            default -> "unknown";
+        };
+    }
+}
+`,
+		},
+		{
+			name: "switch with record patterns",
+			input: `class X {
+    void process(Shape s) {
+        switch (s) {
+            case Circle(Point(var x, var y), var r) -> drawCircle(x, y, r);
+            case Rectangle(Point(var x, var y), var w, var h) -> drawRect(x, y, w, h);
+            default -> throw new IllegalArgumentException();
+        }
+    }
+}`,
+			expected: `class X {
+
+    void process(Shape s) {
+        switch (s) {
+        case Circle(Point(var x, var y), var r) -> drawCircle(x, y, r);
+        case Rectangle(Point(var x, var y), var w, var h) -> drawRect(x, y, w, h);
+        default -> throw new IllegalArgumentException();
+        }
+    }
+}
+`,
+		},
+		{
+			name: "switch with guarded patterns",
+			input: `class X {
+    String classify(Object o) {
+        return switch (o) {
+            case String s when s.isEmpty() -> "empty string";
+            case String s when s.length() > 10 -> "long string";
+            case String s -> "string";
+            case Integer i when i > 0 -> "positive";
+            case Integer i when i < 0 -> "negative";
+            case Integer i -> "zero";
+            default -> "other";
+        };
+    }
+}`,
+			expected: `class X {
+
+    String classify(Object o) {
+        return switch (o) {
+            case String s when s.isEmpty() -> "empty string";
+            case String s when s.length() > 10 -> "long string";
+            case String s -> "string";
+            case Integer i when i > 0 -> "positive";
+            case Integer i when i < 0 -> "negative";
+            case Integer i -> "zero";
+            default -> "other";
+        };
+    }
+}
+`,
+		},
+		{
+			name: "switch with record pattern and guard",
+			input: `class X {
+    void process(Object o) {
+        switch (o) {
+            case Point(var x, var y) when x == y -> handleDiagonal(x);
+            case Point(var x, var y) when x > y -> handleAboveDiagonal(x, y);
+            case Point(var x, var y) -> handleBelowDiagonal(x, y);
+            default -> {}
+        }
+    }
+}`,
+			expected: `class X {
+
+    void process(Object o) {
+        switch (o) {
+        case Point(var x, var y) when x == y -> handleDiagonal(x);
+        case Point(var x, var y) when x > y -> handleAboveDiagonal(x, y);
+        case Point(var x, var y) -> handleBelowDiagonal(x, y);
+        default ->
+            {
+            }
+        }
+    }
+}
+`,
+		},
+		{
+			name: "switch with underscore pattern",
+			input: `class X {
+    int count(Object o) {
+        return switch (o) {
+            case Point(var x, _) -> 1;
+            case Circle(_, var r) -> 2;
+            case null, default -> 0;
+        };
+    }
+}`,
+			expected: `class X {
+
+    int count(Object o) {
+        return switch (o) {
+            case Point(var x, _) -> 1;
+            case Circle(_, var r) -> 2;
+            case null, default -> 0;
+        };
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
 func TestPrintFlowSubscriberInlineDefinition(t *testing.T) {
 	input := `class Example {
     void subscribe() {
