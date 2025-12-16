@@ -17,7 +17,7 @@ Sai is a lightweight Java toolchain written in Go. It parses `.java` and `.class
 - **Parse** — Analyze `.java` source files and `.class` bytecode
 - **Dump** — Extract class models in JSON, Java, or line-based formats  
 - **Scan** — Batch process directories, JARs, and ZIP archives
-- **LSP** — Language Server Protocol support for editor integration
+
 - **Web UI** — Interactive browser-based code explorer
 
 ## Installation
@@ -75,12 +75,6 @@ sai scan library.jar
 
 # With custom timeout
 sai scan ./src -t 30s
-```
-
-### Start the LSP server
-
-```bash
-sai lsp
 ```
 
 ### Launch the web UI

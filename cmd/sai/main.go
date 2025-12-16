@@ -15,7 +15,7 @@ func main() {
 	rootCmd.AddCommand(newParseCmd())
 	rootCmd.AddCommand(newUICmd())
 	rootCmd.AddCommand(newScanCmd())
-	rootCmd.AddCommand(newLSPCmd())
+
 	rootCmd.AddCommand(newDumpCmd())
 	rootCmd.AddCommand(newFmtCmd())
 	rootCmd.AddCommand(newAddCmd())

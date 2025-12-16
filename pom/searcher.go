@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const DefaultSearchURL = "https://search.maven.org/solrsearch/select"
@@ -18,7 +19,7 @@ type Searcher struct {
 func NewSearcher() *Searcher {
 	return &Searcher{
 		BaseURL:    DefaultSearchURL,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
