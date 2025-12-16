@@ -31,13 +31,26 @@ Subcommands:
 
 func newBakeJarCmd() *cobra.Command {
 	var (
-		mainClass string
-		verbose   bool
-		output    string
+		verbose bool
+		output  string
 	)
 
+	// Discover entrypoints for help text and validation
+	entrypoints := discoverEntrypoints()
+	entrypointMap := make(map[string]project.Entrypoint)
+	var slugs []string
+	for _, ep := range entrypoints {
+		entrypointMap[ep.Slug] = ep
+		slugs = append(slugs, ep.Slug)
+	}
+
+	var entrypointsHelp string
+	if len(slugs) > 0 {
+		entrypointsHelp = fmt.Sprintf("\n\nAvailable entrypoints: %s\nDefault: cli", strings.Join(slugs, ", "))
+	}
+
 	cmd := &cobra.Command{
-		Use:   "jar",
+		Use:   "jar [entrypoint]",
 		Short: "Create a custom runtime image using jlink",
 		Long: `Create a custom Java runtime image using jlink.
 
@@ -49,22 +62,31 @@ This command:
 The output is a self-contained directory with a launcher script.
 
 Examples:
-  sai bake jar                           # Default output to dist/<project-id>/
-  sai bake jar --main-class myapp.main.App
-  sai bake jar -o dist/release`,
+  sai bake jar                           # Default: dist/cli/
+  sai bake jar drop-zone-app             # Output: dist/drop-zone-app/
+  sai bake jar cli -o dist/release` + entrypointsHelp,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return slugs, cobra.ShellCompDirectiveNoFileComp
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBakeJar(mainClass, output, verbose)
+			entrypoint := "cli"
+			if len(args) > 0 {
+				entrypoint = args[0]
+			}
+			return runBakeJar(entrypoint, output, verbose, entrypointMap, slugs)
 		},
 	}
 
-	cmd.Flags().StringVarP(&mainClass, "main-class", "m", "", "main class (default: <project>.main.Cli)")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "output directory (default: dist/<project-id>)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "output directory (default: dist/<entrypoint>)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print exact commands being executed")
 
 	return cmd
 }
 
-func runBakeJar(mainClass, output string, verbose bool) error {
+func runBakeJar(entrypoint, output string, verbose bool, entrypointMap map[string]project.Entrypoint, validSlugs []string) error {
 	// Step 1: Compile the project
 	if err := runCompile(verbose); err != nil {
 		return fmt.Errorf("compile: %w", err)
@@ -80,12 +102,19 @@ func runBakeJar(mainClass, output string, verbose bool) error {
 		return fmt.Errorf("no main module found in project %s", proj.ID)
 	}
 
-	// Set defaults
-	if mainClass == "" {
-		mainClass = mainMod.FullName() + ".Cli"
+	// Resolve entrypoint to main class
+	ep, ok := entrypointMap[entrypoint]
+	if !ok {
+		if len(validSlugs) == 0 {
+			return fmt.Errorf("entrypoint %q not found (no entrypoints discovered in project)", entrypoint)
+		}
+		return fmt.Errorf("entrypoint %q not found\n\nAvailable entrypoints: %s", entrypoint, strings.Join(validSlugs, ", "))
 	}
+	mainClass := ep.FullName
+
+	// Set defaults - use entrypoint slug for output directory name
 	if output == "" {
-		output = filepath.Join("dist", proj.ID)
+		output = filepath.Join("dist", entrypoint)
 	}
 
 	// Step 2: Create mlib/ directory and modular JARs

@@ -13,15 +13,28 @@ import (
 
 func newBakeNativeCmd() *cobra.Command {
 	var (
-		mainClass   string
 		verbose     bool
 		output      string
 		installMise bool
 		extraArgs   []string
 	)
 
+	// Discover entrypoints for help text and validation
+	entrypoints := discoverEntrypoints()
+	entrypointMap := make(map[string]project.Entrypoint)
+	var slugs []string
+	for _, ep := range entrypoints {
+		entrypointMap[ep.Slug] = ep
+		slugs = append(slugs, ep.Slug)
+	}
+
+	var entrypointsHelp string
+	if len(slugs) > 0 {
+		entrypointsHelp = fmt.Sprintf("\n\nAvailable entrypoints: %s\nDefault: cli", strings.Join(slugs, ", "))
+	}
+
 	cmd := &cobra.Command{
-		Use:   "native",
+		Use:   "native [entrypoint]",
 		Short: "Create a native executable using GraalVM native-image",
 		Long: `Create a native executable using GraalVM native-image.
 
@@ -34,16 +47,26 @@ This command:
 If GraalVM is not found, use --install to install it via mise.
 
 Examples:
-  sai bake native                        # Create dist/<project-id>
+  sai bake native                        # Default: dist/cli
+  sai bake native drop-zone-app          # Output: dist/drop-zone-app
   sai bake native --install              # Install GraalVM via mise if needed
-  sai bake native -o dist/myapp-linux`,
+  sai bake native cli -o dist/myapp` + entrypointsHelp,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return slugs, cobra.ShellCompDirectiveNoFileComp
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runBakeNative(mainClass, output, verbose, installMise, extraArgs)
+			entrypoint := "cli"
+			if len(args) > 0 {
+				entrypoint = args[0]
+			}
+			return runBakeNative(entrypoint, output, verbose, installMise, extraArgs, entrypointMap, slugs)
 		},
 	}
 
-	cmd.Flags().StringVarP(&mainClass, "main-class", "m", "", "main class (default: <project>.main.Cli)")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "output file (default: dist/<project-id>)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "output file (default: dist/<entrypoint>)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print exact commands being executed")
 	cmd.Flags().BoolVar(&installMise, "install", false, "install GraalVM via mise if not available")
 	cmd.Flags().StringArrayVar(&extraArgs, "native-arg", nil, "additional arguments to pass to native-image")
@@ -51,7 +74,7 @@ Examples:
 	return cmd
 }
 
-func runBakeNative(mainClass, output string, verbose, installMise bool, extraArgs []string) error {
+func runBakeNative(entrypoint, output string, verbose, installMise bool, extraArgs []string, entrypointMap map[string]project.Entrypoint, validSlugs []string) error {
 	// Step 1: Check for native-image
 	nativeImagePath, err := findNativeImage()
 	if err != nil {
@@ -87,12 +110,19 @@ func runBakeNative(mainClass, output string, verbose, installMise bool, extraArg
 		return fmt.Errorf("no main module found in project %s", proj.ID)
 	}
 
-	// Set defaults
-	if mainClass == "" {
-		mainClass = mainMod.FullName() + ".Cli"
+	// Resolve entrypoint to main class
+	ep, ok := entrypointMap[entrypoint]
+	if !ok {
+		if len(validSlugs) == 0 {
+			return fmt.Errorf("entrypoint %q not found (no entrypoints discovered in project)", entrypoint)
+		}
+		return fmt.Errorf("entrypoint %q not found\n\nAvailable entrypoints: %s", entrypoint, strings.Join(validSlugs, ", "))
 	}
+	mainClass := ep.FullName
+
+	// Set defaults - use entrypoint slug for output name
 	if output == "" {
-		output = filepath.Join("dist", proj.ID)
+		output = filepath.Join("dist", entrypoint)
 	}
 
 	// Ensure dist directory exists
