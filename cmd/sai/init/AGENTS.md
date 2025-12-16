@@ -44,6 +44,17 @@ sai fmt src/Main.java        # Print formatted output
 sai fmt -w src/Main.java     # Overwrite file in place
 ```
 
+### Documentation
+
+```bash
+sai doc java.util            # List classes and subpackages in a package
+sai doc java.util.List       # Show documentation for a class
+sai doc java.util.List.add   # Show documentation for a method
+sai doc String               # Short for java.lang.String
+```
+
+Use `sai doc` to explore the JDK API and look up method signatures and javadoc.
+
 ## Project Structure
 
 ```
