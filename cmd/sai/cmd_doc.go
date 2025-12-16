@@ -2,7 +2,6 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/dhamidi/sai/java"
+	"github.com/dhamidi/sai/java/javadoc"
 	"github.com/dhamidi/sai/java/parser"
 	"github.com/spf13/cobra"
 )
@@ -72,6 +72,11 @@ func runDoc(name string) error {
 		return showDocFromSource(source, className, memberName)
 	}
 
+	// Try lib/ JARs (compiled class files without source)
+	if model, err := findClassInLibJars(className); err == nil {
+		return showDocFromModel(model, memberName)
+	}
+
 	// Try JDK src.zip
 	javaHome, err := findJavaHome()
 	if err != nil {
@@ -88,10 +93,68 @@ func runDoc(name string) error {
 
 	source, err = findClassSourceInZip(srcZipPath, className)
 	if err != nil {
-		return fmt.Errorf("class %s not found in src/ or JDK", className)
+		return fmt.Errorf("class %s not found in src/, lib/, or JDK", className)
 	}
 
 	return showDocFromSource(source, className, memberName)
+}
+
+func findClassInLibJars(className string) (*java.ClassModel, error) {
+	classPath := strings.ReplaceAll(className, ".", "/") + ".class"
+
+	libDir, err := os.Open("lib")
+	if err != nil {
+		return nil, err
+	}
+	defer libDir.Close()
+
+	entries, err := libDir.ReadDir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jar") {
+			continue
+		}
+
+		jarPath := filepath.Join("lib", entry.Name())
+		r, err := zip.OpenReader(jarPath)
+		if err != nil {
+			continue
+		}
+
+		for _, f := range r.File {
+			if f.Name == classPath {
+				rc, err := f.Open()
+				if err != nil {
+					r.Close()
+					continue
+				}
+				model, err := java.ClassModelFromReader(rc)
+				rc.Close()
+				r.Close()
+				if err != nil {
+					return nil, err
+				}
+				return model, nil
+			}
+		}
+		r.Close()
+	}
+
+	return nil, fmt.Errorf("class %s not found in lib/", className)
+}
+
+func showDocFromModel(model *java.ClassModel, memberName string) error {
+	if memberName == "" {
+		printClassDoc(model)
+	} else {
+		if err := printMemberDoc(model, memberName); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func showDocFromSource(source []byte, className, memberName string) error {
@@ -225,6 +288,9 @@ func listPackageContentsAll(packageName string) error {
 	// Check src/ directory first
 	findPackageContentsInDir("src", packagePath, seenClasses, &classes, subpackages)
 
+	// Check lib/ JARs
+	findPackageContentsInLibJars(packagePath, seenClasses, &classes, subpackages)
+
 	// Check JDK src.zip
 	javaHome, _ := findJavaHome()
 	if javaHome != "" {
@@ -312,6 +378,58 @@ func scanPackageDir(dir string, seen map[string]bool, classes *[]string, subpack
 				seen[className] = true
 			}
 		}
+	}
+}
+
+func findPackageContentsInLibJars(packagePath string, seen map[string]bool, classes *[]string, subpackages map[string]bool) {
+	libDir, err := os.Open("lib")
+	if err != nil {
+		return
+	}
+	defer libDir.Close()
+
+	entries, err := libDir.ReadDir(-1)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jar") {
+			continue
+		}
+
+		jarPath := filepath.Join("lib", entry.Name())
+		r, err := zip.OpenReader(jarPath)
+		if err != nil {
+			continue
+		}
+
+		for _, f := range r.File {
+			if !strings.HasPrefix(f.Name, packagePath+"/") {
+				continue
+			}
+			if !strings.HasSuffix(f.Name, ".class") {
+				continue
+			}
+
+			remaining := f.Name[len(packagePath)+1:]
+			if slashIdx := strings.Index(remaining, "/"); slashIdx >= 0 {
+				// This is a subpackage
+				subpkg := remaining[:slashIdx]
+				if len(subpkg) > 0 && subpkg[0] >= 'a' && subpkg[0] <= 'z' {
+					subpackages[subpkg] = true
+				}
+			} else {
+				// Direct class in this package
+				className := strings.TrimSuffix(remaining, ".class")
+				// Skip inner classes and synthetic classes
+				if !seen[className] && !strings.Contains(className, "$") && className != "package-info" && className != "module-info" {
+					*classes = append(*classes, className)
+					seen[className] = true
+				}
+			}
+		}
+		r.Close()
 	}
 }
 
@@ -933,66 +1051,9 @@ func formatTypeModel(t java.TypeModel) string {
 	return s
 }
 
-func formatJavadoc(javadoc string) string {
-	lines := strings.Split(javadoc, "\n")
-	var result []string
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "/**" || line == "*/" {
-			continue
-		}
-		line = strings.TrimPrefix(line, "* ")
-		line = strings.TrimPrefix(line, "*")
-		result = append(result, line)
-	}
-
-	text := strings.Join(result, "\n")
-	text = strings.TrimSpace(text)
-
-	text = removeHTMLTags(text)
-
-	return text
-}
-
-func removeHTMLTags(s string) string {
-	re := regexp.MustCompile(`<[^>]*>`)
-	s = re.ReplaceAllString(s, "")
-
-	codeRe := regexp.MustCompile(`{@code\s+([^}]*)}`)
-	s = codeRe.ReplaceAllString(s, "`$1`")
-
-	linkRe := regexp.MustCompile(`{@link\s+([^}]*)}`)
-	s = linkRe.ReplaceAllString(s, "$1")
-
-	var buf bytes.Buffer
-	for i := 0; i < len(s); i++ {
-		if s[i] == '&' {
-			end := strings.Index(s[i:], ";")
-			if end > 0 && end < 10 {
-				entity := s[i : i+end+1]
-				switch entity {
-				case "&lt;":
-					buf.WriteString("<")
-				case "&gt;":
-					buf.WriteString(">")
-				case "&amp;":
-					buf.WriteString("&")
-				case "&quot;":
-					buf.WriteString("\"")
-				case "&nbsp;":
-					buf.WriteString(" ")
-				default:
-					buf.WriteString(entity)
-				}
-				i += end
-				continue
-			}
-		}
-		buf.WriteByte(s[i])
-	}
-
-	return buf.String()
+func formatJavadoc(s string) string {
+	doc := javadoc.Parse(s)
+	return javadoc.Format(doc)
 }
 
 func filterPublicMethods(methods []java.MethodModel) []java.MethodModel {
