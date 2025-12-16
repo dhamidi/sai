@@ -2376,12 +2376,22 @@ func (p *Parser) parsePattern() *Node {
 		return p.parseMatchAllPattern()
 	}
 
+	// Handle optional 'final' modifier in pattern matching (Java 16+)
+	var finalTok *Token
+	if p.check(TokenFinal) {
+		tok := p.advance()
+		finalTok = &tok
+	}
+
 	// Parse the type first, then decide based on what follows
 	typeNode := p.parseType()
 
 	if p.check(TokenLParen) {
 		// RecordPattern: Type ( ComponentPatternList )
 		node := p.startNode(KindRecordPattern)
+		if finalTok != nil {
+			node.AddChild(&Node{Kind: KindIdentifier, Token: finalTok, Span: finalTok.Span})
+		}
 		node.AddChild(typeNode)
 		p.advance() // consume (
 		if !p.check(TokenRParen) {
@@ -2403,6 +2413,9 @@ func (p *Parser) parsePattern() *Node {
 
 	// TypePattern: Type identifier (contextual keywords can be variable names)
 	node := p.startNode(KindTypePattern)
+	if finalTok != nil {
+		node.AddChild(&Node{Kind: KindIdentifier, Token: finalTok, Span: finalTok.Span})
+	}
 	node.AddChild(typeNode)
 	if p.isIdentifierLike() {
 		tok := p.advance()
@@ -2931,17 +2944,8 @@ func (p *Parser) parseRelationalExpr() *Node {
 			node := p.startNode(KindInstanceofExpr)
 			node.AddChild(left)
 			p.advance()
-			// Handle optional 'final' modifier in pattern matching (Java 16+)
-			if p.check(TokenFinal) {
-				tok := p.advance()
-				node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
-			}
-			node.AddChild(p.parseType())
-			// Pattern variable can be an identifier or contextual keyword like 'record'
-			if p.isIdentifierLike() {
-				tok := p.advance()
-				node.AddChild(&Node{Kind: KindIdentifier, Token: &tok, Span: tok.Span})
-			}
+			// Use parsePattern() to handle type patterns, record patterns, and final modifier
+			node.AddChild(p.parsePattern())
 			left = p.finishNode(node)
 		} else {
 			break

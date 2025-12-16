@@ -750,6 +750,14 @@ func (p *JavaPrettyPrinter) printCaseExpr(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printTypePattern(node *parser.Node) {
+	// Check for optional 'final' modifier (first identifier child with literal "final")
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "final" {
+			p.write("final ")
+			break
+		}
+	}
+
 	typeNode := node.FirstChildOfKind(parser.KindType)
 	if typeNode == nil {
 		typeNode = node.FirstChildOfKind(parser.KindArrayType)
@@ -757,8 +765,10 @@ func (p *JavaPrettyPrinter) printTypePattern(node *parser.Node) {
 	if typeNode != nil {
 		p.printType(typeNode)
 	}
+
+	// Print the pattern variable (identifier that is not 'final')
 	for _, child := range node.Children {
-		if child.Kind == parser.KindIdentifier && child.Token != nil {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal != "final" {
 			p.write(" ")
 			p.write(child.Token.Literal)
 		}
@@ -766,6 +776,14 @@ func (p *JavaPrettyPrinter) printTypePattern(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printRecordPattern(node *parser.Node) {
+	// Check for optional 'final' modifier
+	for _, child := range node.Children {
+		if child.Kind == parser.KindIdentifier && child.Token != nil && child.Token.Literal == "final" {
+			p.write("final ")
+			break
+		}
+	}
+
 	typeNode := node.FirstChildOfKind(parser.KindType)
 	if typeNode != nil {
 		p.printType(typeNode)

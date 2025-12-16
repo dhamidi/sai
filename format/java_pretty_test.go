@@ -1605,3 +1605,76 @@ func TestPrintEnumInlineComments(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintFlowSubscriberInlineDefinition(t *testing.T) {
+	input := `class Example {
+    void subscribe() {
+        publisher.subscribe(new Flow.Subscriber<Object>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(Object item) {
+                if (item instanceof Point(var x, var y)) {
+                    System.out.println(x + ", " + y);
+                } else if (item instanceof String s) {
+                    var upper = (String) s.toUpperCase();
+                    System.out.println(upper);
+                }
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                throwable.printStackTrace();
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println("Done");
+            }
+        });
+    }
+}`
+	expected := `class Example {
+
+    void subscribe() {
+        publisher.subscribe(new Flow.Subscriber<Object>() {
+
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(Object item) {
+                if (item instanceof Point(var x, var y)) {
+                    System.out.println(x + ", " + y);
+                } else if (item instanceof String s) {
+                    var upper = (String) s.toUpperCase();
+                    System.out.println(upper);
+                }
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                throwable.printStackTrace();
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println("Done");
+            }
+        });
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("Flow.Subscriber inline definition formatting mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}

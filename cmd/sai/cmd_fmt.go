@@ -25,6 +25,8 @@ If no file is provided, reads Java source from stdin.
 Use -w to overwrite the file in place (requires a file argument).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			return fmt.Errorf("formatting currently disabled until the formatter is fixed")
+
 			var source []byte
 			var err error
 			var filename string

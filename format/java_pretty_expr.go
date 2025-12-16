@@ -699,30 +699,36 @@ func (p *JavaPrettyPrinter) printInstanceofExpr(node *parser.Node) {
 		p.printExpr(children[0])
 		p.write(" instanceof ")
 
-		// Parse remaining children: [final?] type [patternVar?]
-		idx := 1
-
-		// Check for optional 'final' modifier
-		if idx < len(children) && children[idx].Kind == parser.KindIdentifier &&
-			children[idx].Token != nil && children[idx].Token.Literal == "final" {
-			p.write("final ")
-			idx++
-		}
-
-		// Print the type
-		if idx < len(children) {
-			if children[idx].Kind == parser.KindType || children[idx].Kind == parser.KindArrayType {
-				p.printType(children[idx])
-			} else {
-				p.printExpr(children[idx])
+		// The second child is now a pattern node (TypePattern or RecordPattern)
+		pattern := children[1]
+		switch pattern.Kind {
+		case parser.KindTypePattern:
+			p.printTypePattern(pattern)
+		case parser.KindRecordPattern:
+			p.printRecordPattern(pattern)
+		default:
+			// Fallback for old-style parsing (type + optional identifier)
+			idx := 1
+			// Check for optional 'final' modifier
+			if idx < len(children) && children[idx].Kind == parser.KindIdentifier &&
+				children[idx].Token != nil && children[idx].Token.Literal == "final" {
+				p.write("final ")
+				idx++
 			}
-			idx++
-		}
-
-		// Check for optional pattern variable (Java 16+ pattern matching)
-		if idx < len(children) && children[idx].Kind == parser.KindIdentifier {
-			p.write(" ")
-			p.write(children[idx].Token.Literal)
+			// Print the type
+			if idx < len(children) {
+				if children[idx].Kind == parser.KindType || children[idx].Kind == parser.KindArrayType {
+					p.printType(children[idx])
+				} else {
+					p.printExpr(children[idx])
+				}
+				idx++
+			}
+			// Check for optional pattern variable
+			if idx < len(children) && children[idx].Kind == parser.KindIdentifier {
+				p.write(" ")
+				p.write(children[idx].Token.Literal)
+			}
 		}
 	}
 }
