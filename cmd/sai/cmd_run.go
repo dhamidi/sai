@@ -59,6 +59,7 @@ The project must be compiled first with 'sai compile'.` + entrypointsHelp,
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print exact command being executed")
+	cmd.Flags().SetInterspersed(false) // Stop parsing flags after entrypoint
 
 	return cmd
 }
