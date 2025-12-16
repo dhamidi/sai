@@ -2097,6 +2097,1950 @@ func TestPrintSwitchWithPatternMatching(t *testing.T) {
 	}
 }
 
+func TestPrintForLoopEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "for loop with multiple initializers",
+			input: `class X {
+    void foo() {
+        for (int i = 0, j = 10; i < j; i++, j--) {
+            process(i, j);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (int i = 0, j = 10; i < j; i++, j--) {
+            process(i, j);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "for loop with empty initializer",
+			input: `class X {
+    void foo() {
+        int i = 0;
+        for (; i < 10; i++) {
+            process(i);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        int i = 0;
+        for (; i < 10; i++) {
+            process(i);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "for loop with empty condition",
+			input: `class X {
+    void foo() {
+        for (int i = 0; ; i++) {
+            if (i > 10) break;
+        }
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        for (int i = 0; ; i++) {\n            if (i > 10) \n                break;\n        }\n    }\n}\n",
+		},
+		{
+			name: "infinite for loop",
+			input: `class X {
+    void foo() {
+        for (;;) {
+            process();
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (; ; ) {
+            process();
+        }
+    }
+}
+`,
+		},
+		{
+			name: "for loop with single statement body",
+			input: `class X {
+    void foo() {
+        for (int i = 0; i < 10; i++)
+            process(i);
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        for (int i = 0; i < 10; i++) \n            process(i);\n    }\n}\n",
+		},
+		{
+			name: "for loop with empty body",
+			input: `class X {
+    void foo() {
+        for (int i = 0; i < 10; i++);
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        for (int i = 0; i < 10; i++) ;\n    }\n}\n",
+		},
+		{
+			name: "nested for loops",
+			input: `class X {
+    void foo() {
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                matrix[i][j] = i * j;
+            }
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                matrix[i][j] = i * j;
+            }
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintEnhancedForLoopEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "enhanced for with array",
+			input: `class X {
+    void foo() {
+        for (int x : array) {
+            process(x);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (int x : array) {
+            process(x);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "enhanced for with final modifier",
+			input: `class X {
+    void foo() {
+        for (final String item : items) {
+            process(item);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (final String item : items) {
+            process(item);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "enhanced for with generic type",
+			input: `class X {
+    void foo() {
+        for (Map.Entry<String, Integer> entry : map.entrySet()) {
+            process(entry.getKey(), entry.getValue());
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (Map.Entry<String, Integer> entry : map.entrySet()) {
+            process(entry.getKey(), entry.getValue());
+        }
+    }
+}
+`,
+		},
+		{
+			name: "enhanced for with var keyword",
+			input: `class X {
+    void foo() {
+        for (var item : items) {
+            process(item);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (var item : items) {
+            process(item);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "enhanced for with single statement body",
+			input: `class X {
+    void foo() {
+        for (String s : strings)
+            System.out.println(s);
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        for (String s : strings) \n            System.out.println(s);\n    }\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintWhileDoWhileEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "while with single statement body",
+			input: `class X {
+    void foo() {
+        while (condition)
+            process();
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        while (condition) \n            process();\n    }\n}\n",
+		},
+		{
+			name: "while with complex condition",
+			input: `class X {
+    void foo() {
+        while ((line = reader.readLine()) != null && !line.isEmpty()) {
+            process(line);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        while ((line = reader.readLine()) != null && !line.isEmpty()) {
+            process(line);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "do-while basic",
+			input: `class X {
+    void foo() {
+        do {
+            process();
+        } while (condition);
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        do {
+            process();
+        }
+        while (condition);
+    }
+}
+`,
+		},
+		{
+			name: "do-while with complex condition",
+			input: `class X {
+    void foo() {
+        do {
+            attempt++;
+            result = tryOperation();
+        } while (!result.isSuccess() && attempt < maxAttempts);
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        do {
+            attempt++;
+            result = tryOperation();
+        }
+        while (!result.isSuccess() && attempt < maxAttempts);
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintTryWithResourcesEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "try with single resource",
+			input: `class X {
+    void foo() {
+        try (InputStream is = new FileInputStream(file)) {
+            process(is);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try (InputStream is = new FileInputStream(file)) {
+            process(is);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "try with multiple resources",
+			input: `class X {
+    void foo() {
+        try (InputStream is = new FileInputStream(file); OutputStream os = new FileOutputStream(out)) {
+            copy(is, os);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try (InputStream is = new FileInputStream(file); OutputStream os = new FileOutputStream(out)) {
+            copy(is, os);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "try with resources and catch",
+			input: `class X {
+    void foo() {
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                process(line);
+            }
+        } catch (IOException e) {
+            handleError(e);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                process(line);
+            }
+        } catch (IOException e) {
+            handleError(e);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "try with resources catch and finally",
+			input: `class X {
+    void foo() {
+        try (Connection conn = getConnection()) {
+            executeQuery(conn);
+        } catch (SQLException e) {
+            log(e);
+        } finally {
+            cleanup();
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try (Connection conn = getConnection()) {
+            executeQuery(conn);
+        } catch (SQLException e) {
+            log(e);
+        } finally {
+            cleanup();
+        }
+    }
+}
+`,
+		},
+		{
+			name: "try with var keyword in resource",
+			input: `class X {
+    void foo() {
+        try (var reader = new BufferedReader(new FileReader(file))) {
+            process(reader);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try (var reader = new BufferedReader(new FileReader(file))) {
+            process(reader);
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintMultiCatchEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "multi-catch two exceptions",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException | SQLException e) {
+            handleError(e);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException | SQLException e) {
+            handleError(e);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "multi-catch three exceptions",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException | SQLException | ClassNotFoundException e) {
+            handleError(e);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException | SQLException | ClassNotFoundException e) {
+            handleError(e);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "multi-catch with final",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (final IOException | SQLException e) {
+            handleError(e);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (final IOException | SQLException e) {
+            handleError(e);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "multiple catch blocks with multi-catch",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException | SQLException e) {
+            handleDatabaseError(e);
+        } catch (RuntimeException e) {
+            handleRuntimeError(e);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (IOException | SQLException e) {
+            handleDatabaseError(e);
+        } catch (RuntimeException e) {
+            handleRuntimeError(e);
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintSynchronizedStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "synchronized on this",
+			input: `class X {
+    void foo() {
+        synchronized (this) {
+            counter++;
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        synchronized (this) {
+            counter++;
+        }
+    }
+}
+`,
+		},
+		{
+			name: "synchronized on lock object",
+			input: `class X {
+    void foo() {
+        synchronized (lock) {
+            sharedData.add(item);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        synchronized (lock) {
+            sharedData.add(item);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "synchronized on class literal",
+			input: `class X {
+    void foo() {
+        synchronized (X.class) {
+            staticCounter++;
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        synchronized (X.class) {
+            staticCounter++;
+        }
+    }
+}
+`,
+		},
+		{
+			name: "nested synchronized blocks",
+			input: `class X {
+    void foo() {
+        synchronized (lock1) {
+            synchronized (lock2) {
+                transferData();
+            }
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        synchronized (lock1) {
+            synchronized (lock2) {
+                transferData();
+            }
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintAssertStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "simple assert",
+			input: `class X {
+    void foo() {
+        assert condition;
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        assert condition;
+    }
+}
+`,
+		},
+		{
+			name: "assert with message",
+			input: `class X {
+    void foo() {
+        assert condition : "Condition failed";
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        assert condition : "Condition failed";
+    }
+}
+`,
+		},
+		{
+			name: "assert with complex condition",
+			input: `class X {
+    void foo() {
+        assert x > 0 && x < 100 : "x must be between 0 and 100";
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        assert x > 0 && x < 100 : "x must be between 0 and 100";
+    }
+}
+`,
+		},
+		{
+			name: "assert with method call message",
+			input: `class X {
+    void foo() {
+        assert isValid() : getErrorMessage();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        assert isValid() : getErrorMessage();
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintLabeledStatements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "labeled for loop with break",
+			input: `class X {
+    void foo() {
+        outer: for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                if (found) break outer;
+            }
+        }
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        outer:\n        for (int i = 0; i < 10; i++) {\n            for (int j = 0; j < 10; j++) {\n                if (found) \n                    break outer;\n            }\n        }\n    }\n}\n",
+		},
+		{
+			name: "labeled for loop with continue",
+			input: `class X {
+    void foo() {
+        outer: for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                if (skip) continue outer;
+            }
+        }
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        outer:\n        for (int i = 0; i < 10; i++) {\n            for (int j = 0; j < 10; j++) {\n                if (skip) \n                    continue outer;\n            }\n        }\n    }\n}\n",
+		},
+		{
+			name: "labeled while loop",
+			input: `class X {
+    void foo() {
+        loop: while (true) {
+            if (done) break loop;
+        }
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        loop:\n        while (true) {\n            if (done) \n                break loop;\n        }\n    }\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintStaticInitializers(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "static initializer block",
+			input: `class X {
+    static Map<String, Integer> map;
+    static {
+        map = new HashMap<>();
+        map.put("one", 1);
+        map.put("two", 2);
+    }
+}`,
+			expected: "class X {\n    static Map<String, Integer> map;\n    static {\n        map = new HashMap<>();\n        map.put(\"one\", 1);\n        map.put(\"two\", 2);\n    }\n}\n",
+		},
+		{
+			name: "multiple static initializers",
+			input: `class X {
+    static int a;
+    static {
+        a = computeA();
+    }
+    static int b;
+    static {
+        b = computeB();
+    }
+}`,
+			expected: "class X {\n    static int a;\n    static {\n        a = computeA();\n    }\n    static int b;\n    static {\n        b = computeB();\n    }\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintTraditionalSwitch(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "traditional switch with fallthrough",
+			input: `class X {
+    void foo(int x) {
+        switch (x) {
+            case 1:
+            case 2:
+                handleOneOrTwo();
+                break;
+            case 3:
+                handleThree();
+                break;
+            default:
+                handleDefault();
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(int x) {
+        switch (x) {
+        case 1:
+        case 2:
+            handleOneOrTwo();
+            break;
+        case 3:
+            handleThree();
+            break;
+        default:
+            handleDefault();
+        }
+    }
+}
+`,
+		},
+		{
+			name: "switch with enum",
+			input: `class X {
+    void foo(Day day) {
+        switch (day) {
+            case MONDAY:
+            case TUESDAY:
+            case WEDNESDAY:
+            case THURSDAY:
+            case FRIDAY:
+                System.out.println("Weekday");
+                break;
+            case SATURDAY:
+            case SUNDAY:
+                System.out.println("Weekend");
+                break;
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(Day day) {
+        switch (day) {
+        case MONDAY:
+        case TUESDAY:
+        case WEDNESDAY:
+        case THURSDAY:
+        case FRIDAY:
+            System.out.println("Weekday");
+            break;
+        case SATURDAY:
+        case SUNDAY:
+            System.out.println("Weekend");
+            break;
+        }
+    }
+}
+`,
+		},
+		{
+			name: "switch with string",
+			input: `class X {
+    void foo(String s) {
+        switch (s) {
+            case "hello":
+                greet();
+                break;
+            case "goodbye":
+                farewell();
+                break;
+            default:
+                unknown();
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(String s) {
+        switch (s) {
+        case "hello":
+            greet();
+            break;
+        case "goodbye":
+            farewell();
+            break;
+        default:
+            unknown();
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintSwitchExpression(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "switch expression with yield",
+			input: `class X {
+    int foo(int x) {
+        return switch (x) {
+            case 1 -> 10;
+            case 2 -> 20;
+            default -> {
+                int result = compute(x);
+                yield result;
+            }
+        };
+    }
+}`,
+			expected: `class X {
+
+    int foo(int x) {
+        return switch (x) {
+            case 1 -> 10;
+            case 2 -> 20;
+            default ->
+                {
+                    int result = compute(x);
+                    yield result;
+                }
+        };
+    }
+}
+`,
+		},
+		{
+			name: "switch expression with multiple case labels",
+			input: `class X {
+    String foo(int x) {
+        return switch (x) {
+            case 1, 2, 3 -> "small";
+            case 4, 5, 6 -> "medium";
+            default -> "large";
+        };
+    }
+}`,
+			expected: `class X {
+
+    String foo(int x) {
+        return switch (x) {
+            case 1, 2, 3 -> "small";
+            case 4, 5, 6 -> "medium";
+            default -> "large";
+        };
+    }
+}
+`,
+		},
+		{
+			name: "switch expression assigned to variable",
+			input: `class X {
+    void foo(Day day) {
+        int numLetters = switch (day) {
+            case MONDAY, FRIDAY, SUNDAY -> 6;
+            case TUESDAY -> 7;
+            case THURSDAY, SATURDAY -> 8;
+            case WEDNESDAY -> 9;
+        };
+    }
+}`,
+			expected: `class X {
+
+    void foo(Day day) {
+        int numLetters = switch (day) {
+            case MONDAY, FRIDAY, SUNDAY -> 6;
+            case TUESDAY -> 7;
+            case THURSDAY, SATURDAY -> 8;
+            case WEDNESDAY -> 9;
+        };
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintComplexLambdas(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "lambda with block body",
+			input: `class X {
+    void foo() {
+        list.forEach(item -> {
+            process(item);
+            log(item);
+        });
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        list.forEach(item -> {\n            process(item);\n            log(item);\n        }\n);\n    }\n}\n",
+		},
+		{
+			name: "lambda with multiple parameters",
+			input: `class X {
+    void foo() {
+        map.forEach((key, value) -> System.out.println(key + ": " + value));
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        map.forEach((key, value) -> System.out.println(key + ": " + value));
+    }
+}
+`,
+		},
+		{
+			name: "lambda with typed parameters",
+			input: `class X {
+    void foo() {
+        BiFunction<Integer, Integer, Integer> add = (Integer a, Integer b) -> a + b;
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        BiFunction<Integer, Integer, Integer> add = (Integer a, Integer b) -> a + b;
+    }
+}
+`,
+		},
+		{
+			name: "nested lambdas",
+			input: `class X {
+    void foo() {
+        list.stream().map(x -> y -> x + y).collect(Collectors.toList());
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        list.stream()
+            .map(x -> y -> x + y)
+            .collect(Collectors.toList());
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintVarKeyword(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "var with simple initialization",
+			input: `class X {
+    void foo() {
+        var x = 10;
+        var s = "hello";
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        var x = 10;
+        var s = "hello";
+    }
+}
+`,
+		},
+		{
+			name: "var with complex type inference",
+			input: `class X {
+    void foo() {
+        var list = new ArrayList<String>();
+        var map = new HashMap<String, List<Integer>>();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        var list = new ArrayList<String>();
+        var map = new HashMap<String, List<Integer>>();
+    }
+}
+`,
+		},
+		{
+			name: "var in for loop",
+			input: `class X {
+    void foo() {
+        for (var i = 0; i < 10; i++) {
+            process(i);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        for (var i = 0; i < 10; i++) {
+            process(i);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "var with method call",
+			input: `class X {
+    void foo() {
+        var result = someMethod();
+        var stream = list.stream();
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        var result = someMethod();
+        var stream = list.stream();
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintRecordDeclarations(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:  "simple record",
+			input: `record Point(int x, int y) {}`,
+			expected: `record Point(int x, int y) {
+}
+`,
+		},
+		{
+			name: "record with compact constructor",
+			input: `record Range(int lo, int hi) {
+    Range {
+        if (lo > hi) throw new IllegalArgumentException();
+    }
+}`,
+			expected: "record Range(int lo, int hi) {\n\n    Range() {\n        if (lo > hi) \n            throw new IllegalArgumentException();\n    }\n}\n",
+		},
+		{
+			name: "record with method",
+			input: `record Point(int x, int y) {
+    public double distance() {
+        return Math.sqrt(x * x + y * y);
+    }
+}`,
+			expected: `record Point(int x, int y) {
+
+    public double distance() {
+        return Math.sqrt(x * x + y * y);
+    }
+}
+`,
+		},
+		{
+			name:  "record with generic type",
+			input: `record Pair<T, U>(T first, U second) {}`,
+			expected: `record Pair<T, U>(T first, U second) {
+}
+`,
+		},
+		{
+			name:  "record implementing interface",
+			input: `record Point(int x, int y) implements Serializable {}`,
+			expected: `record Point(int x, int y) implements Serializable {
+}
+`,
+		},
+		{
+			name: "record with static field",
+			input: `record Point(int x, int y) {
+    static Point ORIGIN = new Point(0, 0);
+}`,
+			expected: "record Point(int x, int y) {\n    static Point ORIGIN = new Point(0, 0);\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintInterfaceDefaultStaticMethods(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "interface with default method",
+			input: `interface Greeter {
+    default void greet() {
+        System.out.println("Hello!");
+    }
+}`,
+			expected: `interface Greeter {
+
+    default void greet() {
+        System.out.println("Hello!");
+    }
+}
+`,
+		},
+		{
+			name: "interface with static method",
+			input: `interface Util {
+    static int add(int a, int b) {
+        return a + b;
+    }
+}`,
+			expected: `interface Util {
+
+    static int add(int a, int b) {
+        return a + b;
+    }
+}
+`,
+		},
+		{
+			name: "interface with default and abstract",
+			input: `interface Shape {
+    double area();
+    default String describe() {
+        return "A shape with area " + area();
+    }
+}`,
+			expected: `interface Shape {
+
+    double area();
+
+    default String describe() {
+        return "A shape with area " + area();
+    }
+}
+`,
+		},
+		{
+			name: "interface with private method",
+			input: `interface Logger {
+    default void log(String msg) {
+        logInternal("[LOG] " + msg);
+    }
+    private void logInternal(String msg) {
+        System.out.println(msg);
+    }
+}`,
+			expected: `interface Logger {
+
+    default void log(String msg) {
+        logInternal("[LOG] " + msg);
+    }
+
+    private void logInternal(String msg) {
+        System.out.println(msg);
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintEnumWithConstructorAndMethods(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "enum with constructor",
+			input: `enum Planet {
+    MERCURY(3.303e23, 2.4397e6),
+    VENUS(4.869e24, 6.0518e6),
+    EARTH(5.976e24, 6.37814e6);
+
+    private final double mass;
+    private final double radius;
+
+    Planet(double mass, double radius) {
+        this.mass = mass;
+        this.radius = radius;
+    }
+}`,
+			expected: "enum Planet {\n    MERCURY(3.303e23, 2.4397e6),\n    VENUS(4.869e24, 6.0518e6),\n    EARTH(5.976e24, 6.37814e6);\n    private final double mass;\n    private final double radius;\n\n    Planet(double mass, double radius) {\n        this.mass = mass;\n        this.radius = radius;\n    }\n}\n",
+		},
+		{
+			name: "enum with abstract method",
+			input: `enum Operation {
+    PLUS {
+        double apply(double x, double y) { return x + y; }
+    },
+    MINUS {
+        double apply(double x, double y) { return x - y; }
+    };
+
+    abstract double apply(double x, double y);
+}`,
+			expected: `enum Operation {
+    PLUS {
+
+        double apply(double x, double y) {
+            return x + y;
+        }
+    },
+    MINUS {
+
+        double apply(double x, double y) {
+            return x - y;
+        }
+    };
+
+    abstract double apply(double x, double y);
+}
+`,
+		},
+		{
+			name: "enum implementing interface",
+			input: `enum Direction implements Rotatable {
+    NORTH, EAST, SOUTH, WEST;
+
+    public Direction rotate() {
+        return values()[(ordinal() + 1) % 4];
+    }
+}`,
+			expected: `enum Direction implements Rotatable {
+    NORTH,
+    EAST,
+    SOUTH,
+    WEST;
+
+    public Direction rotate() {
+        return values()[(ordinal() + 1) % 4];
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintTextBlocks(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "simple text block",
+			input: `class X {
+    String html = """
+        <html>
+            <body>
+                <p>Hello</p>
+            </body>
+        </html>
+        """;
+}`,
+			expected: "class X {\n    String html = \"\"\"\n        <html>\n            <body>\n                <p>Hello</p>\n            </body>\n        </html>\n        \"\"\";\n}\n",
+		},
+		{
+			name: "text block with json",
+			input: `class X {
+    String json = """
+        {
+            "name": "test",
+            "value": 42
+        }
+        """;
+}`,
+			expected: "class X {\n    String json = \"\"\"\n        {\n            \"name\": \"test\",\n            \"value\": 42\n        }\n        \"\"\";\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintAnnotationsOnVariousElements(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "annotation on local variable",
+			input: `class X {
+    void foo() {
+        @SuppressWarnings("unchecked")
+        List<String> list = (List<String>) obj;
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        @SuppressWarnings("unchecked")
+        List<String> list = (List<String>) obj;
+    }
+}
+`,
+		},
+		{
+			name: "annotation on method parameter",
+			input: `class X {
+    void foo(@NonNull String s, @Nullable Integer i) {
+        process(s, i);
+    }
+}`,
+			expected: "class X {\n\n    void foo(@NonNull\n    String s, @Nullable\n    Integer i) {\n        process(s, i);\n    }\n}\n",
+		},
+		{
+			name: "multiple annotations on method",
+			input: `class X {
+    @Override
+    @Deprecated
+    @SuppressWarnings("deprecation")
+    public void foo() {
+        oldMethod();
+    }
+}`,
+			expected: `class X {
+
+    @Override
+    @Deprecated
+    @SuppressWarnings("deprecation")
+    public void foo() {
+        oldMethod();
+    }
+}
+`,
+		},
+		{
+			name: "annotation with array value",
+			input: `class X {
+    @SuppressWarnings({"unchecked", "deprecation", "rawtypes"})
+    void foo() {
+        process();
+    }
+}`,
+			expected: `class X {
+
+    @SuppressWarnings({"unchecked", "deprecation", "rawtypes"})
+    void foo() {
+        process();
+    }
+}
+`,
+		},
+		{
+			name: "annotation with named parameters",
+			input: `class X {
+    @RequestMapping(value = "/api", method = RequestMethod.GET)
+    void foo() {
+        process();
+    }
+}`,
+			expected: `class X {
+
+    @RequestMapping(value = "/api", method = RequestMethod.GET)
+    void foo() {
+        process();
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintInnerClasses(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "static nested class",
+			input: `class Outer {
+    static class Inner {
+        void foo() {
+            process();
+        }
+    }
+}`,
+			expected: "class Outer {\n    static class Inner {\n\n        void foo() {\n            process();\n        }\n    }\n}\n",
+		},
+		{
+			name: "non-static inner class",
+			input: `class Outer {
+    class Inner {
+        void foo() {
+            Outer.this.bar();
+        }
+    }
+}`,
+			expected: "class Outer {\n    class Inner {\n\n        void foo() {\n            Outer.this.bar();\n        }\n    }\n}\n",
+		},
+		{
+			name: "local class in method",
+			input: `class X {
+    void foo() {
+        class LocalHelper {
+            void help() {
+                process();
+            }
+        }
+        new LocalHelper().help();
+    }
+}`,
+			expected: "class X {\n\n    void foo() {\n        class LocalHelper {\n\n            void help() {\n                process();\n            }\n        }\n;\n        new LocalHelper().help();\n    }\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintGenericMethodsAndConstructors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "generic method",
+			input: `class X {
+    <T> T identity(T value) {
+        return value;
+    }
+}`,
+			expected: `class X {
+
+    <T> T identity(T value) {
+        return value;
+    }
+}
+`,
+		},
+		{
+			name: "generic method with bounds",
+			input: `class X {
+    <T extends Comparable<T>> T max(T a, T b) {
+        return a.compareTo(b) > 0 ? a : b;
+    }
+}`,
+			expected: `class X {
+
+    <T extends Comparable<T>> T max(T a, T b) {
+        return a.compareTo(b) > 0 ? a : b;
+    }
+}
+`,
+		},
+		{
+			name: "generic method with multiple type params",
+			input: `class X {
+    <K, V> Map<K, V> createMap(K key, V value) {
+        Map<K, V> map = new HashMap<>();
+        map.put(key, value);
+        return map;
+    }
+}`,
+			expected: `class X {
+
+    <K, V> Map<K, V> createMap(K key, V value) {
+        Map<K, V> map = new HashMap<>();
+        map.put(key, value);
+        return map;
+    }
+}
+`,
+		},
+		{
+			name: "generic constructor",
+			input: `class Box<T> {
+    T value;
+    <U extends T> Box(U value) {
+        this.value = value;
+    }
+}`,
+			expected: "class Box<T> {\n    T value;\n\n    <U extends T> Box(U value) {\n        this.value = value;\n    }\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintComplexGenerics(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "nested generic types",
+			input: `class X {
+    Map<String, List<Set<Integer>>> complex;
+}`,
+			expected: "class X {\n    Map<String, List<Set<Integer>>> complex;\n}\n",
+		},
+		{
+			name: "bounded wildcard types",
+			input: `class X {
+    void foo(List<? extends Number> nums, List<? super Integer> ints) {
+        process(nums, ints);
+    }
+}`,
+			expected: `class X {
+
+    void foo(List<? extends Number> nums, List<? super Integer> ints) {
+        process(nums, ints);
+    }
+}
+`,
+		},
+		{
+			name: "recursive type bounds",
+			input: `class Enum<E extends Enum<E>> {
+    int ordinal;
+}`,
+			expected: "class Enum<E extends Enum<E>> {\n    int ordinal;\n}\n",
+		},
+		{
+			name: "intersection types",
+			input: `class X {
+    <T extends Serializable & Comparable<T>> void foo(T value) {
+        process(value);
+    }
+}`,
+			expected: `class X {
+
+    <T extends Serializable & Comparable<T>> void foo(T value) {
+        process(value);
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrintVarargsAndArrays(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "varargs method",
+			input: `class X {
+    void foo(String... args) {
+        for (String arg : args) {
+            process(arg);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(String... args) {
+        for (String arg : args) {
+            process(arg);
+        }
+    }
+}
+`,
+		},
+		{
+			name: "varargs with preceding params",
+			input: `class X {
+    void foo(int count, String format, Object... args) {
+        process(count, format, args);
+    }
+}`,
+			expected: `class X {
+
+    void foo(int count, String format, Object... args) {
+        process(count, format, args);
+    }
+}
+`,
+		},
+		{
+			name: "array field declarations",
+			input: `class X {
+    int[] singleDim;
+    int[][] doubleDim;
+    String[][][] tripleDim;
+}`,
+			expected: "class X {\n    int[] singleDim;\n    int[][] doubleDim;\n    String[][][] tripleDim;\n}\n",
+		},
+		{
+			name: "array initializers",
+			input: `class X {
+    int[] nums = {1, 2, 3, 4, 5};
+    String[] strings = {"a", "b", "c"};
+    int[][] matrix = {{1, 2}, {3, 4}};
+}`,
+			expected: "class X {\n    int[] nums = {1, 2, 3, 4, 5};\n    String[] strings = {\"a\", \"b\", \"c\"};\n    int[][] matrix = {{1, 2}, {3, 4}};\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
 func TestPrintFlowSubscriberInlineDefinition(t *testing.T) {
 	input := `class Example {
     void subscribe() {
