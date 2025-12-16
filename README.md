@@ -91,6 +91,31 @@ sai ui -a :8080
 
 Then open http://localhost:8080 in your browser.
 
+## Project Structure
+
+A sai-managed Java project follows this structure:
+
+```
+myproject/
+├── src/
+│   └── myproject/
+│       ├── core/                # Logic module
+│       │   ├── module-info.java
+│       │   └── *.java
+│       └── main/                # Entrypoints module
+│           ├── module-info.java
+│           └── *.java
+├── lib/                         # Dependencies (JAR files)
+├── out/                         # Compiled classes
+├── mlib/                        # Modular JARs for jlink/jpackage
+└── dist/                        # Distribution output
+```
+
+### lib/ vs mlib/
+
+- **`lib/`** contains downloaded dependencies and is used during compilation (`javac -p lib`)
+- **`mlib/`** is a build artifact containing your project's modules packaged as JARs plus copies of dependencies from `lib/`. It serves as the module path for `jlink` and `jpackage`.
+
 ## License
 
 MIT
