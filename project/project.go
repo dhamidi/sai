@@ -320,3 +320,151 @@ func (m *Module) EnsureOutDir() error {
 	}
 	return nil
 }
+
+// Entrypoint represents a class with a main method that can be run.
+type Entrypoint struct {
+	ClassName string // Simple class name (e.g., "Cli", "DropZoneApp")
+	FullName  string // Fully qualified name (e.g., "sai.main.Cli")
+	Slug      string // Kebab-case name for CLI (e.g., "cli", "drop-zone-app")
+}
+
+// FindEntrypoints returns all classes in this module that have a main method.
+func (m *Module) FindEntrypoints() ([]Entrypoint, error) {
+	javaFiles, err := m.JavaFiles(false)
+	if err != nil {
+		return nil, err
+	}
+
+	var entrypoints []Entrypoint
+	for _, file := range javaFiles {
+		ep, ok, err := findEntrypointInFile(file, m)
+		if err != nil {
+			continue // skip files that fail to parse
+		}
+		if ok {
+			entrypoints = append(entrypoints, ep)
+		}
+	}
+
+	return entrypoints, nil
+}
+
+// findEntrypointInFile checks if a Java file contains a class with a main method.
+func findEntrypointInFile(path string, m *Module) (Entrypoint, bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return Entrypoint{}, false, err
+	}
+	defer f.Close()
+
+	p := parser.ParseCompilationUnit(f)
+	root := p.Finish()
+	if root == nil {
+		return Entrypoint{}, false, fmt.Errorf("failed to parse %s", path)
+	}
+
+	// Find the class declaration
+	classDecl := root.FirstChildOfKind(parser.KindClassDecl)
+	if classDecl == nil {
+		return Entrypoint{}, false, nil
+	}
+
+	// Get class name from identifier
+	classIdent := classDecl.FirstChildOfKind(parser.KindIdentifier)
+	if classIdent == nil {
+		return Entrypoint{}, false, nil
+	}
+	className := classIdent.TokenLiteral()
+
+	// Check if there's a main method
+	if !hasMainMethod(classDecl) {
+		return Entrypoint{}, false, nil
+	}
+
+	// Build the package name from the file path relative to module source dir
+	relPath, err := filepath.Rel(m.SrcDir, path)
+	if err != nil {
+		return Entrypoint{}, false, err
+	}
+	dir := filepath.Dir(relPath)
+	var packagePrefix string
+	if dir != "." {
+		packagePrefix = strings.ReplaceAll(dir, string(filepath.Separator), ".") + "."
+	}
+
+	fullName := m.FullName() + "." + packagePrefix + className
+
+	return Entrypoint{
+		ClassName: className,
+		FullName:  fullName,
+		Slug:      classNameToSlug(className),
+	}, true, nil
+}
+
+// hasMainMethod checks if a class declaration contains a public static void main method.
+func hasMainMethod(classDecl *parser.Node) bool {
+	// Methods are inside a Block child of the class declaration
+	classBody := classDecl.FirstChildOfKind(parser.KindBlock)
+	if classBody == nil {
+		return false
+	}
+
+	for _, child := range classBody.Children {
+		if child.Kind != parser.KindMethodDecl {
+			continue
+		}
+
+		// Check method name
+		methodIdent := child.FirstChildOfKind(parser.KindIdentifier)
+		if methodIdent == nil || methodIdent.TokenLiteral() != "main" {
+			continue
+		}
+
+		// Check modifiers for public and static
+		modifiers := child.FirstChildOfKind(parser.KindModifiers)
+		if modifiers == nil {
+			continue
+		}
+
+		hasPublic := false
+		hasStatic := false
+		for _, mod := range modifiers.Children {
+			if mod.TokenLiteral() == "public" {
+				hasPublic = true
+			}
+			if mod.TokenLiteral() == "static" {
+				hasStatic = true
+			}
+		}
+		if !hasPublic || !hasStatic {
+			continue
+		}
+
+		// Check return type is void
+		typeNode := child.FirstChildOfKind(parser.KindType)
+		if typeNode == nil {
+			continue
+		}
+		typeIdent := typeNode.FirstChildOfKind(parser.KindIdentifier)
+		if typeIdent == nil || typeIdent.TokenLiteral() != "void" {
+			continue
+		}
+
+		// Found a valid main method
+		return true
+	}
+	return false
+}
+
+// classNameToSlug converts a PascalCase class name to kebab-case.
+// e.g., "DropZoneApp" -> "drop-zone-app", "Cli" -> "cli"
+func classNameToSlug(name string) string {
+	var result strings.Builder
+	for i, r := range name {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result.WriteRune('-')
+		}
+		result.WriteRune(r)
+	}
+	return strings.ToLower(result.String())
+}
