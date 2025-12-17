@@ -111,7 +111,32 @@ func (p *JavaPrettyPrinter) printAssignExpr(node *parser.Node) {
 
 func (p *JavaPrettyPrinter) printTernaryExpr(node *parser.Node) {
 	children := node.Children
-	if len(children) >= 3 {
+	if len(children) < 3 {
+		return
+	}
+
+	condLen := p.measureExpr(children[0])
+	trueLen := p.measureExpr(children[1])
+	falseLen := p.measureExpr(children[2])
+	totalLen := condLen + 3 + trueLen + 3 + falseLen // " ? " and " : "
+
+	shouldWrap := p.column+totalLen > p.maxColumn
+
+	if shouldWrap {
+		p.printExpr(children[0])
+		p.write("\n")
+		p.atLineStart = true
+		p.indent++
+		p.writeIndent()
+		p.write("? ")
+		p.printExpr(children[1])
+		p.write("\n")
+		p.atLineStart = true
+		p.writeIndent()
+		p.write(": ")
+		p.printExpr(children[2])
+		p.indent--
+	} else {
 		p.printExpr(children[0])
 		p.write(" ? ")
 		p.printExpr(children[1])
@@ -140,13 +165,44 @@ func (p *JavaPrettyPrinter) printCallExpr(node *parser.Node) {
 }
 
 func (p *JavaPrettyPrinter) printArguments(node *parser.Node) {
-	first := true
-	for _, child := range node.Children {
-		if !first {
-			p.write(", ")
+	if len(node.Children) == 0 {
+		return
+	}
+
+	var totalLen int
+	for i, child := range node.Children {
+		if i > 0 {
+			totalLen += 2 // ", "
 		}
-		p.printExpr(child)
-		first = false
+		totalLen += p.measureExpr(child)
+	}
+
+	shouldWrap := p.column+totalLen > p.maxColumn && len(node.Children) > 1
+
+	if shouldWrap {
+		p.write("\n")
+		p.atLineStart = true
+		p.indent++
+		for i, child := range node.Children {
+			p.writeIndent()
+			p.printExpr(child)
+			if i < len(node.Children)-1 {
+				p.write(",")
+			}
+			p.write("\n")
+			p.atLineStart = true
+		}
+		p.indent--
+		p.writeIndent()
+	} else {
+		first := true
+		for _, child := range node.Children {
+			if !first {
+				p.write(", ")
+			}
+			p.printExpr(child)
+			first = false
+		}
 	}
 }
 
@@ -370,7 +426,7 @@ func isBuilderEndMethod(name string) bool {
 // isChainStarterMethod returns true if the method name is a "starter" that should stay on the same line as the base
 func isChainStarterMethod(name string) bool {
 	switch name {
-	case "stream", "parallelStream", "string", "builder", "of", "from", "create", "newBuilder":
+	case "stream", "parallelStream", "string", "builder", "of", "from", "create", "newBuilder", "values":
 		return true
 	}
 	return false
@@ -384,27 +440,26 @@ func (p *JavaPrettyPrinter) printMethodChain(node *parser.Node, baseIndent int) 
 		return
 	}
 
-	// Determine if first method should stay on same line as base
+	// Mark elements that should stay on the same line as the previous element
 	// This happens when:
-	// 1. First method is a "starter" method (stream, string, builder, etc.)
-	// 2. First method is a "begin" method (object, array, etc.)
-	firstMethodOnSameLine := false
-	if len(elements) > 1 && !elements[1].isBase {
-		firstMethodOnSameLine = isChainStarterMethod(elements[1].methodName) || isBuilderBeginMethod(elements[1].methodName)
+	// 1. The current method is a "starter" method (stream, values, etc.)
+	// 2. The previous element was also a starter method (chaining starters)
+	stayOnSameLine := make([]bool, len(elements))
+	for i := 1; i < len(elements); i++ {
+		elem := elements[i]
+		if elem.isBase {
+			continue
+		}
+		// Stay on same line if this is a starter method
+		if isChainStarterMethod(elem.methodName) {
+			stayOnSameLine[i] = true
+		}
 	}
 
 	// Calculate indentation levels for begin/end methods
 	indentLevels := make([]int, len(elements))
 	currentLevel := 0
-	startIdx := 1
-	if firstMethodOnSameLine {
-		startIdx = 2
-		// Check if first method is a begin method
-		if len(elements) > 1 && isBuilderBeginMethod(elements[1].methodName) {
-			currentLevel = 1
-		}
-	}
-	for i := startIdx; i < len(elements); i++ {
+	for i := 1; i < len(elements); i++ {
 		elem := elements[i]
 		if isBuilderEndMethod(elem.methodName) {
 			currentLevel--
@@ -419,7 +474,8 @@ func (p *JavaPrettyPrinter) printMethodChain(node *parser.Node, baseIndent int) 
 	}
 
 	// Print the chain
-	firstMethodPrinted := false
+	prevHadWrappedArgs := false
+	prevWasStarterOnNewLine := false // Track if prev starter was forced to new line
 	for i, elem := range elements {
 		if elem.isBase {
 			if elem.baseNode != nil {
@@ -427,8 +483,11 @@ func (p *JavaPrettyPrinter) printMethodChain(node *parser.Node, baseIndent int) 
 			} else if elem.methodName != "" {
 				p.write(elem.methodName)
 			}
-		} else if !firstMethodPrinted && firstMethodOnSameLine {
-			// First method call stays on the same line as base
+			prevWasStarterOnNewLine = false
+		} else if stayOnSameLine[i] && (!prevHadWrappedArgs || prevWasStarterOnNewLine) {
+			// Stay on the same line as previous element when:
+			// 1. This is a starter and the previous call didn't have wrapped args, OR
+			// 2. This is a starter and the previous element was also a starter on a new line
 			p.write(".")
 			if elem.typeArgs != nil {
 				p.printTypeArguments(elem.typeArgs)
@@ -439,27 +498,42 @@ func (p *JavaPrettyPrinter) printMethodChain(node *parser.Node, baseIndent int) 
 				p.printArguments(elem.args)
 				p.write(")")
 			}
-			firstMethodPrinted = true
+			prevHadWrappedArgs = false
+			prevWasStarterOnNewLine = false
 		} else {
 			// Method calls go on new lines
 			p.write("\n")
 			p.atLineStart = true
+			// Track if this is a starter going to a new line
+			prevWasStarterOnNewLine = stayOnSameLine[i]
+			// Reset since we already forced a new line
+			prevHadWrappedArgs = false
 			// Base indentation + 1 for chain + additional for nested builders
 			chainIndent := baseIndent + 1 + indentLevels[i]
 			for j := 0; j < chainIndent; j++ {
 				p.write(p.indentStr)
 			}
+			p.atLineStart = false // We've written content now
 			p.write(".")
 			if elem.typeArgs != nil {
 				p.printTypeArguments(elem.typeArgs)
 			}
 			p.write(elem.methodName)
 			if elem.args != nil {
+				// Save and adjust indent for arguments
+				savedIndent := p.indent
+				p.indent = chainIndent
+				columnBefore := p.column
 				p.write("(")
 				p.printArguments(elem.args)
 				p.write(")")
+				p.indent = savedIndent
+				// If column decreased, we wrapped to new lines
+				prevHadWrappedArgs = p.column < columnBefore || p.atLineStart
+				if prevHadWrappedArgs {
+					prevWasStarterOnNewLine = false
+				}
 			}
-			firstMethodPrinted = true
 		}
 	}
 }

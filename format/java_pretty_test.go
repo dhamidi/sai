@@ -2085,9 +2085,14 @@ func TestPrintSwitchWithPatternMatching(t *testing.T) {
 
     void process(Shape s) {
         switch (s) {
-        case Circle(Point(var x, var y), var r) -> drawCircle(x, y, r);
-        case Rectangle(Point(var x, var y), var w, var h) -> drawRect(x, y, w, h);
-        default -> throw new IllegalArgumentException();
+            case Circle(Point(var x, var y), var r) -> drawCircle(x, y, r);
+            case Rectangle(Point(var x, var y), var w, var h) -> drawRect(
+                x,
+                y,
+                w,
+                h
+            );
+            default -> throw new IllegalArgumentException();
         }
     }
 }
@@ -2140,12 +2145,10 @@ func TestPrintSwitchWithPatternMatching(t *testing.T) {
 
     void process(Object o) {
         switch (o) {
-        case Point(var x, var y) when x == y -> handleDiagonal(x);
-        case Point(var x, var y) when x > y -> handleAboveDiagonal(x, y);
-        case Point(var x, var y) -> handleBelowDiagonal(x, y);
-        default ->
-            {
-            }
+            case Point(var x, var y) when x == y -> handleDiagonal(x);
+            case Point(var x, var y) when x > y -> handleAboveDiagonal(x, y);
+            case Point(var x, var y) -> handleBelowDiagonal(x, y);
+            default -> {}
         }
     }
 }
@@ -2244,7 +2247,15 @@ func TestPrintForLoopEdgeCases(t *testing.T) {
         }
     }
 }`,
-			expected: "class X {\n\n    void foo() {\n        for (int i = 0; ; i++) {\n            if (i > 10) \n                break;\n        }\n    }\n}\n",
+			expected: `class X {
+
+    void foo() {
+        for (int i = 0; ; i++) {
+            if (i > 10) break;
+        }
+    }
+}
+`,
 		},
 		{
 			name: "infinite for loop",
@@ -2990,7 +3001,18 @@ func TestPrintLabeledStatements(t *testing.T) {
         }
     }
 }`,
-			expected: "class X {\n\n    void foo() {\n        outer:\n        for (int i = 0; i < 10; i++) {\n            for (int j = 0; j < 10; j++) {\n                if (found) \n                    break outer;\n            }\n        }\n    }\n}\n",
+			expected: `class X {
+
+    void foo() {
+        outer:
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                if (found) break outer;
+            }
+        }
+    }
+}
+`,
 		},
 		{
 			name: "labeled for loop with continue",
@@ -3003,7 +3025,18 @@ func TestPrintLabeledStatements(t *testing.T) {
         }
     }
 }`,
-			expected: "class X {\n\n    void foo() {\n        outer:\n        for (int i = 0; i < 10; i++) {\n            for (int j = 0; j < 10; j++) {\n                if (skip) \n                    continue outer;\n            }\n        }\n    }\n}\n",
+			expected: `class X {
+
+    void foo() {
+        outer:
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                if (skip) continue outer;
+            }
+        }
+    }
+}
+`,
 		},
 		{
 			name: "labeled while loop",
@@ -3014,7 +3047,16 @@ func TestPrintLabeledStatements(t *testing.T) {
         }
     }
 }`,
-			expected: "class X {\n\n    void foo() {\n        loop:\n        while (true) {\n            if (done) \n                break loop;\n        }\n    }\n}\n",
+			expected: `class X {
+
+    void foo() {
+        loop:
+        while (true) {
+            if (done) break loop;
+        }
+    }
+}
+`,
 		},
 	}
 
@@ -3105,15 +3147,15 @@ func TestPrintTraditionalSwitch(t *testing.T) {
 
     void foo(int x) {
         switch (x) {
-        case 1:
-        case 2:
-            handleOneOrTwo();
-            break;
-        case 3:
-            handleThree();
-            break;
-        default:
-            handleDefault();
+            case 1:
+            case 2:
+                handleOneOrTwo();
+                break;
+            case 3:
+                handleThree();
+                break;
+            default:
+                handleDefault();
         }
     }
 }
@@ -3142,17 +3184,17 @@ func TestPrintTraditionalSwitch(t *testing.T) {
 
     void foo(Day day) {
         switch (day) {
-        case MONDAY:
-        case TUESDAY:
-        case WEDNESDAY:
-        case THURSDAY:
-        case FRIDAY:
-            System.out.println("Weekday");
-            break;
-        case SATURDAY:
-        case SUNDAY:
-            System.out.println("Weekend");
-            break;
+            case MONDAY:
+            case TUESDAY:
+            case WEDNESDAY:
+            case THURSDAY:
+            case FRIDAY:
+                System.out.println("Weekday");
+                break;
+            case SATURDAY:
+            case SUNDAY:
+                System.out.println("Weekend");
+                break;
         }
     }
 }
@@ -3178,14 +3220,14 @@ func TestPrintTraditionalSwitch(t *testing.T) {
 
     void foo(String s) {
         switch (s) {
-        case "hello":
-            greet();
-            break;
-        case "goodbye":
-            farewell();
-            break;
-        default:
-            unknown();
+            case "hello":
+                greet();
+                break;
+            case "goodbye":
+                farewell();
+                break;
+            default:
+                unknown();
         }
     }
 }
@@ -3232,11 +3274,10 @@ func TestPrintSwitchExpression(t *testing.T) {
         return switch (x) {
             case 1 -> 10;
             case 2 -> 20;
-            default ->
-                {
-                    int result = compute(x);
-                    yield result;
-                }
+            default -> {
+                int result = compute(x);
+                yield result;
+            }
         };
     }
 }
@@ -3565,11 +3606,9 @@ func TestPrintRecordDeclarations(t *testing.T) {
 		expected string
 	}{
 		{
-			name:  "simple record",
-			input: `record Point(int x, int y) {}`,
-			expected: `record Point(int x, int y) {
-}
-`,
+			name:     "simple record",
+			input:    `record Point(int x, int y) {}`,
+			expected: "record Point(int x, int y) {}\n",
 		},
 		{
 			name: "record with compact constructor",
@@ -3578,7 +3617,13 @@ func TestPrintRecordDeclarations(t *testing.T) {
         if (lo > hi) throw new IllegalArgumentException();
     }
 }`,
-			expected: "record Range(int lo, int hi) {\n\n    Range() {\n        if (lo > hi) \n            throw new IllegalArgumentException();\n    }\n}\n",
+			expected: `record Range(int lo, int hi) {
+
+    Range() {
+        if (lo > hi) throw new IllegalArgumentException();
+    }
+}
+`,
 		},
 		{
 			name: "record with method",
@@ -3596,18 +3641,14 @@ func TestPrintRecordDeclarations(t *testing.T) {
 `,
 		},
 		{
-			name:  "record with generic type",
-			input: `record Pair<T, U>(T first, U second) {}`,
-			expected: `record Pair<T, U>(T first, U second) {
-}
-`,
+			name:     "record with generic type",
+			input:    `record Pair<T, U>(T first, U second) {}`,
+			expected: "record Pair<T, U>(T first, U second) {}\n",
 		},
 		{
-			name:  "record implementing interface",
-			input: `record Point(int x, int y) implements Serializable {}`,
-			expected: `record Point(int x, int y) implements Serializable {
-}
-`,
+			name:     "record implementing interface",
+			input:    `record Point(int x, int y) implements Serializable {}`,
+			expected: "record Point(int x, int y) implements Serializable {}\n",
 		},
 		{
 			name: "record with static field",
@@ -4234,6 +4275,86 @@ func TestPrintVarargsAndArrays(t *testing.T) {
 	}
 }
 
+func TestPreserveIntentionalBlankLines(t *testing.T) {
+	// Blank lines that create logical sections in the input should be preserved
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "blank lines between statement groups",
+			input: `class X {
+    void setup() {
+        // Initialize resources
+        resource1 = createResource();
+        resource2 = createResource();
+
+        // Configure settings
+        config.setOption("a", true);
+        config.setOption("b", false);
+
+        // Start processing
+        processor.start();
+    }
+}`,
+			expected: `class X {
+
+    void setup() {
+        // Initialize resources
+        resource1 = createResource();
+        resource2 = createResource();
+
+        // Configure settings
+        config.setOption("a", true);
+        config.setOption("b", false);
+
+        // Start processing
+        processor.start();
+    }
+}
+`,
+		},
+		{
+			name: "no blank line added before comment in if block",
+			input: `class X {
+    void process() {
+        if (children.length == 0) {
+            // Leaf node - only add if it has actual data
+            if (node.keys().length > 0) {
+                keys.add(prefix);
+            }
+        }
+    }
+}`,
+			expected: `class X {
+
+    void process() {
+        if (children.length == 0) {
+            // Leaf node - only add if it has actual data
+            if (node.keys().length > 0) {
+                keys.add(prefix);
+            }
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("Intentional blank lines not preserved:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
 func TestPrintFlowSubscriberInlineDefinition(t *testing.T) {
 	input := `class Example {
     void subscribe() {
@@ -4304,5 +4425,175 @@ func TestPrintFlowSubscriberInlineDefinition(t *testing.T) {
 	}
 	if string(output) != expected {
 		t.Errorf("Flow.Subscriber inline definition formatting mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+// Tests for formatting issues found in HTTPInMemoryCache.java, AppStore.java, and RootState.java
+func TestSwitchCaseArrowIndentation(t *testing.T) {
+	// From AppStore.java: switch case arrow blocks should be properly indented
+	input := `class X {
+    void accept(Object action) {
+        switch (action) {
+        case Action.One(var x) ->
+            {
+                process(x);
+            }
+        case Action.Two(var y) ->
+            {
+                handle(y);
+            }
+        }
+    }
+}`
+	expected := `class X {
+
+    void accept(Object action) {
+        switch (action) {
+            case Action.One(var x) -> {
+                process(x);
+            }
+            case Action.Two(var y) -> {
+                handle(y);
+            }
+        }
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("switch case arrow indentation mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+func TestLongMethodChainWrapping(t *testing.T) {
+	// From AppStore.java: long method chains should be wrapped for readability
+	input := `class X {
+    List<Item> getAllItems() {
+        return snapshots.values().stream().flatMap(List::stream).collect(java.util.stream.Collectors.toMap(Item::key, item -> item, (a, b) -> a.timestamp().isAfter(b.timestamp()) ? a : b)).values().stream().sorted(Comparator.comparing(Item::timestamp).reversed()).limit(MAX_ITEMS).toList();
+    }
+}`
+	expected := `class X {
+
+    List<Item> getAllItems() {
+        return snapshots.values().stream()
+            .flatMap(List::stream)
+            .collect(java.util.stream.Collectors.toMap(
+                Item::key,
+                item -> item,
+                (a, b) -> a.timestamp().isAfter(b.timestamp()) ? a : b
+            ))
+            .values().stream()
+            .sorted(Comparator.comparing(Item::timestamp).reversed())
+            .limit(MAX_ITEMS)
+            .toList();
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("long method chain wrapping mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+func TestLongRecordParameterWrapping(t *testing.T) {
+	// From RootState.java: records with many parameters should wrap each parameter
+	input := `public record RootState(AccountFormData addAccount, View currentView, Optional<ThreadSummary> tickerItem, boolean loading, Flow.Publisher<AppEvent> events, Consumer<AppAction> dispatch, FeedState feedState, Set<String> followedUsernames) {
+}`
+	expected := `public record RootState(
+    AccountFormData addAccount,
+    View currentView,
+    Optional<ThreadSummary> tickerItem,
+    boolean loading,
+    Flow.Publisher<AppEvent> events,
+    Consumer<AppAction> dispatch,
+    FeedState feedState,
+    Set<String> followedUsernames
+) {}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("long record parameter wrapping mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+func TestLongTernaryWrapping(t *testing.T) {
+	// From HTTPInMemoryCache.java: long ternary expressions should be wrapped
+	input := `class X {
+    void foo() {
+        Optional<String> ifNoneMatch = entry.etag() != null && !entry.etag().isEmpty() ? Optional.of(entry.etag()) : Optional.empty();
+    }
+}`
+	expected := `class X {
+
+    void foo() {
+        Optional<String> ifNoneMatch = entry.etag() != null && !entry.etag().isEmpty()
+            ? Optional.of(entry.etag())
+            : Optional.empty();
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("long ternary wrapping mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+func TestEmptyMethodBodyFormatting(t *testing.T) {
+	// From AppStore.java: empty method bodies should be on same line
+	input := `class X {
+    @Override
+    public void onComplete() {
+    }
+}`
+	expected := `class X {
+
+    @Override
+    public void onComplete() {}
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("empty method body formatting mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
+	}
+}
+
+func TestSingleLineIfReturn(t *testing.T) {
+	// From RootState.java: simple single-statement if should stay on one line
+	input := `class X {
+    List<Item> bufferItems() {
+        if (items.isEmpty())
+            return List.of();
+        return items.subList(0, 1);
+    }
+}`
+	expected := `class X {
+
+    List<Item> bufferItems() {
+        if (items.isEmpty()) return List.of();
+        return items.subList(0, 1);
+    }
+}
+`
+	output, err := PrettyPrintJava([]byte(input))
+	if err != nil {
+		t.Fatalf("PrettyPrintJava error: %v", err)
+	}
+	if string(output) != expected {
+		t.Errorf("single line if return mismatch:\ngot:\n%s\nwant:\n%s", output, expected)
 	}
 }

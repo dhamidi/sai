@@ -385,15 +385,29 @@ func (p *JavaPrettyPrinter) printRecordDecl(node *parser.Node) {
 
 	p.printExtendsImplements(node)
 
-	p.write(" {\n")
-	p.atLineStart = true
-	p.indent++
+	block := node.FirstChildOfKind(parser.KindBlock)
+	hasMembers := false
+	if block != nil {
+		for _, child := range block.Children {
+			switch child.Kind {
+			case parser.KindFieldDecl, parser.KindMethodDecl, parser.KindConstructorDecl,
+				parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl, parser.KindAnnotationDecl:
+				hasMembers = true
+			}
+		}
+	}
 
-	p.printClassBody(node)
-
-	p.indent--
-	p.writeIndent()
-	p.write("}\n")
+	if !hasMembers {
+		p.write(" {}\n")
+	} else {
+		p.write(" {\n")
+		p.atLineStart = true
+		p.indent++
+		p.printClassBody(node)
+		p.indent--
+		p.writeIndent()
+		p.write("}\n")
+	}
 	p.atLineStart = true
 	p.lastLine = node.Span.End.Line
 }
@@ -1137,25 +1151,58 @@ func (p *JavaPrettyPrinter) printParameters(node *parser.Node) {
 		return
 	}
 
-	p.write("(")
-	first := true
+	var params []*parser.Node
 	for _, child := range node.Children {
 		if child.Kind == parser.KindParameter {
-			if !first {
-				p.write(", ")
-			}
-			p.printParameter(child)
-			first = false
+			params = append(params, child)
 		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
-			// Lambda parameters can be simple identifiers without types
-			if !first {
-				p.write(", ")
-			}
-			p.write(child.Token.Literal)
-			first = false
+			params = append(params, child)
 		}
 	}
-	p.write(")")
+
+	totalLen := p.measureParameters(node)
+	shouldWrap := p.column+totalLen > p.maxColumn && len(params) > 1
+
+	if shouldWrap {
+		p.write("(\n")
+		p.atLineStart = true
+		p.indent++
+		for i, param := range params {
+			p.writeIndent()
+			if param.Kind == parser.KindParameter {
+				p.printParameter(param)
+			} else {
+				p.write(param.Token.Literal)
+			}
+			if i < len(params)-1 {
+				p.write(",")
+			}
+			p.write("\n")
+			p.atLineStart = true
+		}
+		p.indent--
+		p.writeIndent()
+		p.write(")")
+	} else {
+		p.write("(")
+		first := true
+		for _, child := range node.Children {
+			if child.Kind == parser.KindParameter {
+				if !first {
+					p.write(", ")
+				}
+				p.printParameter(child)
+				first = false
+			} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+				if !first {
+					p.write(", ")
+				}
+				p.write(child.Token.Literal)
+				first = false
+			}
+		}
+		p.write(")")
+	}
 }
 
 func (p *JavaPrettyPrinter) printParameter(node *parser.Node) {

@@ -5,6 +5,21 @@ import (
 )
 
 func (p *JavaPrettyPrinter) printBlock(node *parser.Node) {
+	// Check if block is empty (has no non-comment children)
+	isEmpty := true
+	for _, child := range node.Children {
+		if child.Kind != parser.KindLineComment && child.Kind != parser.KindComment {
+			isEmpty = false
+			break
+		}
+	}
+
+	if isEmpty {
+		p.write("{}\n")
+		p.atLineStart = true
+		return
+	}
+
 	p.write("{\n")
 	p.atLineStart = true
 	p.indent++
@@ -183,7 +198,11 @@ func (p *JavaPrettyPrinter) printReturnStmt(node *parser.Node) {
 	p.write("return")
 	for _, child := range node.Children {
 		p.write(" ")
-		p.printExpr(child)
+		if p.shouldFormatAsChain(child) {
+			p.printMethodChain(child, p.indent)
+		} else {
+			p.printExpr(child)
+		}
 	}
 	p.write(";\n")
 	p.atLineStart = true
@@ -211,10 +230,13 @@ func (p *JavaPrettyPrinter) printIfStmtInner(node *parser.Node, writeIndent bool
 }
 
 func (p *JavaPrettyPrinter) printBranchBodyWithElse(body *parser.Node, ifChildren []*parser.Node) {
+	hasElse := len(ifChildren) > 2
+
 	if body.Kind == parser.KindBlock {
 		p.write("{\n")
 		p.atLineStart = true
 		p.indent++
+		p.lastLine = body.Span.Start.Line
 
 		for _, child := range body.Children {
 			p.emitCommentsBeforeLine(child.Span.Start.Line)
@@ -225,7 +247,7 @@ func (p *JavaPrettyPrinter) printBranchBodyWithElse(body *parser.Node, ifChildre
 		p.writeIndent()
 		p.write("}")
 
-		if len(ifChildren) > 2 {
+		if hasElse {
 			elseBody := ifChildren[2]
 			if elseBody.Kind == parser.KindIfStmt {
 				p.write(" else ")
@@ -238,6 +260,11 @@ func (p *JavaPrettyPrinter) printBranchBodyWithElse(body *parser.Node, ifChildre
 			p.write("\n")
 			p.atLineStart = true
 		}
+	} else if !hasElse && p.isSingleLineIfBody(body) {
+		// Simple single-statement if without else: print on same line
+		p.printStatementInline(body)
+		p.write("\n")
+		p.atLineStart = true
 	} else {
 		p.write("\n")
 		p.atLineStart = true
@@ -245,11 +272,67 @@ func (p *JavaPrettyPrinter) printBranchBodyWithElse(body *parser.Node, ifChildre
 		p.printStatement(body)
 		p.indent--
 
-		if len(ifChildren) > 2 {
+		if hasElse {
 			p.writeIndent()
 			p.write("else ")
 			p.printBranchBody(ifChildren[2])
 		}
+	}
+}
+
+// isSingleLineIfBody returns true if the if body can be on the same line as the if
+func (p *JavaPrettyPrinter) isSingleLineIfBody(node *parser.Node) bool {
+	switch node.Kind {
+	case parser.KindReturnStmt:
+		// return X; is good for single line
+		return true
+	case parser.KindThrowStmt:
+		// throw X; is good for single line
+		return true
+	case parser.KindBreakStmt, parser.KindContinueStmt:
+		return true
+	default:
+		return false
+	}
+}
+
+// printStatementInline prints a statement without leading indent or trailing newline
+func (p *JavaPrettyPrinter) printStatementInline(node *parser.Node) {
+	switch node.Kind {
+	case parser.KindReturnStmt:
+		p.write("return")
+		if len(node.Children) > 0 {
+			p.write(" ")
+			p.printExpr(node.Children[0])
+		}
+		p.write(";")
+	case parser.KindThrowStmt:
+		p.write("throw ")
+		if len(node.Children) > 0 {
+			p.printExpr(node.Children[0])
+		}
+		p.write(";")
+	case parser.KindBreakStmt:
+		p.write("break")
+		for _, child := range node.Children {
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(" ")
+				p.write(child.Token.Literal)
+			}
+		}
+		p.write(";")
+	case parser.KindContinueStmt:
+		p.write("continue")
+		for _, child := range node.Children {
+			if child.Kind == parser.KindIdentifier && child.Token != nil {
+				p.write(" ")
+				p.write(child.Token.Literal)
+			}
+		}
+		p.write(";")
+	default:
+		// Fallback - shouldn't reach here for supported types
+		p.printStatement(node)
 	}
 }
 
@@ -561,11 +644,13 @@ func (p *JavaPrettyPrinter) printSwitchStmt(node *parser.Node) {
 	p.write(") {\n")
 	p.atLineStart = true
 
+	p.indent++
 	for _, child := range children[1:] {
 		if child.Kind == parser.KindSwitchCase {
 			p.printSwitchCase(child)
 		}
 	}
+	p.indent--
 
 	p.writeIndent()
 	p.write("}\n")
@@ -608,6 +693,17 @@ func (p *JavaPrettyPrinter) printSwitchCase(node *parser.Node) {
 		p.printArrowBodyInline(bodyChildren[0])
 		p.write("\n")
 		p.atLineStart = true
+		return
+	}
+
+	// For arrow cases with a block body, print block on same line as arrow
+	if hasArrow && len(bodyChildren) == 1 && bodyChildren[0].Kind == parser.KindBlock {
+		for _, label := range labels {
+			p.writeIndent()
+			p.printSwitchLabelInline(label)
+		}
+		p.write(" ")
+		p.printBlock(bodyChildren[0])
 		return
 	}
 

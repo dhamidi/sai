@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/dhamidi/sai/java/parser"
 )
@@ -17,6 +18,8 @@ type JavaPrettyPrinter struct {
 	indentStr    string
 	atLineStart  bool
 	lastLine     int
+	column       int // Current column position (0-indexed)
+	maxColumn    int // Maximum line length (default 80)
 }
 
 func NewJavaPrettyPrinter(w io.Writer) *JavaPrettyPrinter {
@@ -25,6 +28,8 @@ func NewJavaPrettyPrinter(w io.Writer) *JavaPrettyPrinter {
 		indentStr:   "    ",
 		atLineStart: true,
 		lastLine:    1,
+		column:      0,
+		maxColumn:   80,
 	}
 }
 
@@ -139,6 +144,69 @@ func (p *JavaPrettyPrinter) writeIndent() {
 
 func (p *JavaPrettyPrinter) write(s string) {
 	p.w.Write([]byte(s))
+	if idx := strings.LastIndex(s, "\n"); idx >= 0 {
+		p.column = len(s) - idx - 1
+	} else {
+		p.column += len(s)
+	}
+}
+
+func (p *JavaPrettyPrinter) newline() {
+	p.write("\n")
+	p.atLineStart = true
+	p.column = 0
+}
+
+func (p *JavaPrettyPrinter) wouldExceed(additionalChars int) bool {
+	return p.column+additionalChars > p.maxColumn
+}
+
+func (p *JavaPrettyPrinter) measureExpr(node *parser.Node) int {
+	var buf bytes.Buffer
+	mp := &JavaPrettyPrinter{
+		w:           &buf,
+		source:      p.source,
+		indentStr:   p.indentStr,
+		atLineStart: false,
+		column:      0,
+		maxColumn:   1000000, // Very high to prevent wrapping during measurement
+	}
+	mp.printExpr(node)
+	return buf.Len()
+}
+
+func (p *JavaPrettyPrinter) measureParameters(node *parser.Node) int {
+	if node == nil {
+		return 2 // "()"
+	}
+	var buf bytes.Buffer
+	mp := &JavaPrettyPrinter{
+		w:           &buf,
+		source:      p.source,
+		indentStr:   p.indentStr,
+		atLineStart: false,
+		column:      0,
+		maxColumn:   1000000,
+	}
+	mp.write("(")
+	first := true
+	for _, child := range node.Children {
+		if child.Kind == parser.KindParameter {
+			if !first {
+				mp.write(", ")
+			}
+			mp.printParameter(child)
+			first = false
+		} else if child.Kind == parser.KindIdentifier && child.Token != nil {
+			if !first {
+				mp.write(", ")
+			}
+			mp.write(child.Token.Literal)
+			first = false
+		}
+	}
+	mp.write(")")
+	return buf.Len()
 }
 
 // isStatementKind returns true if the node kind represents a statement
