@@ -58,7 +58,7 @@ Use -w to overwrite the file in place (requires a file argument).`,
 				}
 			}
 
-			output, err := format.PrettyPrintJava(source)
+			output, err := format.PrettyPrintJavaFile(source, filename)
 			if err != nil {
 				return fmt.Errorf("format: %w", err)
 			}
@@ -92,7 +92,7 @@ func formatDirectory(dir string) error {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
 
-		output, err := format.PrettyPrintJava(source)
+		output, err := format.PrettyPrintJavaFile(source, path)
 		if err != nil {
 			return fmt.Errorf("format %s: %w", path, err)
 		}

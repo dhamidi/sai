@@ -1,3 +1,9 @@
+---
+name: sai-fmt-testing
+description: |
+  Use this skill when the user asks you to test the sai fmt command
+  in a given project.
+---
 # Skill: Testing and Improving `sai fmt`
 
 ## When to Use
@@ -67,6 +73,7 @@ Confirm the test fails with the expected vs actual output.
 **Important:** Do not rely on heuristics in the formatter. If the AST lacks necessary information to produce correct output, fix the parser first to include that information.
 
 Common fix locations:
+
 - `java/parser/parser.go` - Add missing AST nodes or structure
 - `java/parser/node.go` - Add new node kinds if needed
 - `format/java_pretty.go` / `format/java_pretty_stmt.go` - Update formatter to use the improved AST
