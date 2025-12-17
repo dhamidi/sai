@@ -796,7 +796,7 @@ func (p *JavaPrettyPrinter) printLambdaExpr(node *parser.Node) {
 		}
 		// This is the body
 		if child.Kind == parser.KindBlock {
-			p.printBlock(child)
+			p.printBlockInline(child)
 		} else {
 			p.printExpr(child)
 		}

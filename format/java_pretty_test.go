@@ -1162,6 +1162,98 @@ func TestPrintTryCatchFinallyOnOneLine(t *testing.T) {
 	}
 }
 
+func TestPrintCatchBlockWithComment(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "empty catch with comment",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            // ignored
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            // ignored
+        }
+    }
+}
+`,
+		},
+		{
+			name: "empty catch with block comment",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            /* intentionally empty */
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            /* intentionally empty */
+        }
+    }
+}
+`,
+		},
+		{
+			name: "catch with comment before statement",
+			input: `class X {
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            // log the error
+            log(e);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        try {
+            riskyOperation();
+        } catch (Exception e) {
+            // log the error
+            log(e);
+        }
+    }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := PrettyPrintJava([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("PrettyPrintJava error: %v", err)
+			}
+			if string(output) != tt.expected {
+				t.Errorf("catch block formatting mismatch:\ngot:\n%s\nwant:\n%s", output, tt.expected)
+			}
+		})
+	}
+}
+
 func TestPrintMethodChainFormatting(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -3210,7 +3302,89 @@ func TestPrintComplexLambdas(t *testing.T) {
         });
     }
 }`,
-			expected: "class X {\n\n    void foo() {\n        list.forEach(item -> {\n            process(item);\n            log(item);\n        }\n);\n    }\n}\n",
+			expected: `class X {
+
+    void foo() {
+        list.forEach(item -> {
+            process(item);
+            log(item);
+        });
+    }
+}
+`,
+		},
+		{
+			name: "SwingUtilities invokeLater with try-catch",
+			input: `class X {
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                var app = new AmpVisor();
+                app.run();
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.exit(1);
+            }
+        });
+    }
+}`,
+			expected: `class X {
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                var app = new AmpVisor();
+                app.run();
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.exit(1);
+            }
+        });
+    }
+}
+`,
+		},
+		{
+			name: "lambda as second argument",
+			input: `class X {
+    void foo() {
+        executor.submit("task", () -> {
+            doWork();
+        });
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        executor.submit("task", () -> {
+            doWork();
+        });
+    }
+}
+`,
+		},
+		{
+			name: "chained call after lambda block",
+			input: `class X {
+    void foo() {
+        CompletableFuture.runAsync(() -> {
+            doWork();
+        }).thenRun(() -> {
+            cleanup();
+        });
+    }
+}`,
+			expected: `class X {
+
+    void foo() {
+        CompletableFuture.runAsync(() -> {
+            doWork();
+        }).thenRun(() -> {
+            cleanup();
+        });
+    }
+}
+`,
 		},
 		{
 			name: "lambda with multiple parameters",

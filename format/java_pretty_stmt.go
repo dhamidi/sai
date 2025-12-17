@@ -8,6 +8,7 @@ func (p *JavaPrettyPrinter) printBlock(node *parser.Node) {
 	p.write("{\n")
 	p.atLineStart = true
 	p.indent++
+	p.lastLine = node.Span.Start.Line
 
 	for _, child := range node.Children {
 		// Skip comment nodes - they're handled by emitCommentsBeforeLine
@@ -32,6 +33,7 @@ func (p *JavaPrettyPrinter) printBlockInline(node *parser.Node) {
 	p.write("{\n")
 	p.atLineStart = true
 	p.indent++
+	p.lastLine = node.Span.Start.Line
 
 	for _, child := range node.Children {
 		// Skip comment nodes - they're handled by emitCommentsBeforeLine
