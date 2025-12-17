@@ -13,6 +13,14 @@ sai add <groupId:artifactId:version>
 
 Dependencies are downloaded to `lib/`.
 
+### Listing and Searching Libraries
+
+```bash
+sai libs list                # List all dependencies in lib/
+sai libs search <query>      # Search Maven Central for libraries
+sai libs search -c <class>   # Search by class name
+```
+
 ### Getting the Classpath
 
 ```bash
@@ -64,7 +72,7 @@ src/
       module-info.java
     main/                    # Entrypoints module
       module-info.java
-lib/                         # Dependencies (JARs)
+lib/                         # Dependencies (JARs) - JUnit 5 pre-installed
 out/                         # Compiled classes
 mlib/                        # Modular JARs for jlink/jpackage
 ```
