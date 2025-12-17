@@ -276,6 +276,11 @@ func typeFromDeclaration(decl *parser.Node, resolver *typeResolver) string {
 			typeNode = child
 		case parser.KindNewExpr, parser.KindCallExpr:
 			initExpr = child
+		case parser.KindVarInitializer:
+			// Initializer is wrapped in KindVarInitializer - look inside for the actual expression
+			if len(child.Children) > 0 {
+				initExpr = child.Children[0]
+			}
 		case parser.KindIdentifier:
 			// Check for varargs marker "..."
 			if child.Token != nil && child.Token.Literal == "..." {

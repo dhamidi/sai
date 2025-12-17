@@ -1617,8 +1617,10 @@ func (p *Parser) parseField(modifiers *Node, typ *Node) *Node {
 		}
 
 		if p.check(TokenAssign) {
+			initNode := p.startNode(KindVarInitializer)
 			p.advance()
-			node.AddChild(p.parseVarInitializer())
+			initNode.AddChild(p.parseVarInitializer())
+			node.AddChild(p.finishNode(initNode))
 		}
 
 		if !p.check(TokenComma) {
@@ -1975,8 +1977,10 @@ func (p *Parser) parseLocalVarDecl() *Node {
 		}
 
 		if p.check(TokenAssign) {
+			initNode := p.startNode(KindVarInitializer)
 			p.advance()
-			node.AddChild(p.parseVarInitializer())
+			initNode.AddChild(p.parseVarInitializer())
+			node.AddChild(p.finishNode(initNode))
 		}
 
 		if !p.check(TokenComma) {
@@ -2201,8 +2205,10 @@ func (p *Parser) parseLocalVarDeclNoSemi() *Node {
 		}
 
 		if p.check(TokenAssign) {
+			initNode := p.startNode(KindVarInitializer)
 			p.advance()
-			node.AddChild(p.parseVarInitializer())
+			initNode.AddChild(p.parseVarInitializer())
+			node.AddChild(p.finishNode(initNode))
 		}
 
 		if !p.check(TokenComma) {
@@ -2546,8 +2552,10 @@ func (p *Parser) parseResource() *Node {
 			node.AddChild(id)
 		}
 		if p.check(TokenAssign) {
+			initNode := p.startNode(KindVarInitializer)
 			p.advance()
-			node.AddChild(p.parseExpression())
+			initNode.AddChild(p.parseExpression())
+			node.AddChild(p.finishNode(initNode))
 		}
 		return p.finishNode(node)
 	}

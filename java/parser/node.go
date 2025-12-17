@@ -86,6 +86,7 @@ const (
 	KindLocalVarDecl
 	KindLocalClassDecl
 	KindYieldStmt
+	KindVarInitializer
 
 	// Expressions
 	KindAssignExpr
@@ -188,6 +189,7 @@ var nodeKindNames = map[NodeKind]string{
 	KindLocalVarDecl:                  "LocalVarDecl",
 	KindLocalClassDecl:                "LocalClassDecl",
 	KindYieldStmt:                     "YieldStmt",
+	KindVarInitializer:                "VarInitializer",
 	KindAssignExpr:                    "AssignExpr",
 	KindTernaryExpr:                   "TernaryExpr",
 	KindBinaryExpr:                    "BinaryExpr",

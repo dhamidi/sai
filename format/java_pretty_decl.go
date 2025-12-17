@@ -949,53 +949,31 @@ func (p *JavaPrettyPrinter) printFieldDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	// Print declarators: each is an identifier optionally followed by an initializer.
-	// The AST flattens everything, so we need to use source positions to distinguish
-	// between variable names and initializers when the initializer is also an Identifier.
-	// Between a variable name and its initializer there's '=' in the source.
-	// Between two variable names (when there's no initializer) there's ',' in the source.
+	// Print declarators: pattern is varName [= initializer], varName [= initializer], ...
+	// The AST structure is: [Type] [name1] [VarInitializer?] [name2] [VarInitializer?] ...
 	first := true
-	i := 0
-	var prevChild *parser.Node
-	prevWasName := false // Track if previous child was a variable name
-	for i < len(node.Children) {
-		child := node.Children[i]
+	for _, child := range node.Children {
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
-			i++
 			continue
 		}
 
-		// Check if this child is an initializer for the previous variable by looking
-		// for '=' in the source between them. Only check if previous child was an
-		// identifier (variable name) - if it was an initializer, current must be new var.
-		isInitializer := false
-		if prevChild != nil && prevWasName {
-			isInitializer = p.hasAssignBetween(prevChild, child)
-		}
-
-		if isInitializer {
-			p.write(" = ")
-			if p.shouldFormatAsChain(child) {
-				p.printMethodChain(child, p.indent)
-			} else {
-				p.printExpr(child)
-			}
-			prevWasName = false
-		} else {
-			// This is a new variable name
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
 			if !first {
 				p.write(", ")
 			}
 			first = false
-			if child.Kind == parser.KindIdentifier && child.Token != nil {
-				p.write(child.Token.Literal)
-			} else {
-				p.printExpr(child)
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindVarInitializer {
+			p.write(" = ")
+			if len(child.Children) > 0 {
+				initExpr := child.Children[0]
+				if p.shouldFormatAsChain(initExpr) {
+					p.printMethodChain(initExpr, p.indent)
+				} else {
+					p.printExpr(initExpr)
+				}
 			}
-			prevWasName = (child.Kind == parser.KindIdentifier)
 		}
-		prevChild = child
-		i++
 	}
 
 	p.write(";\n")

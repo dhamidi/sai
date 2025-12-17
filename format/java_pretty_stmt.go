@@ -128,90 +128,41 @@ func (p *JavaPrettyPrinter) printLocalVarDecl(node *parser.Node) {
 		p.write(" ")
 	}
 
-	// Print declarators: each is an identifier optionally followed by an initializer.
-	// The AST flattens everything, so we need to use source positions to distinguish
-	// between variable names and initializers when the initializer is also an Identifier.
-	// Between a variable name and its initializer there's '=' in the source.
-	// Between two variable names (when there's no initializer) there's ',' in the source.
+	// Print declarators: pattern is varName [= initializer], varName [= initializer], ...
+	// The AST structure is: [Type] [name1] [VarInitializer?] [name2] [VarInitializer?] ...
 	first := true
-	i := 0
-	var prevChild *parser.Node
-	prevWasName := false // Track if previous child was a variable name (Identifier or UnnamedVariable)
-	for i < len(node.Children) {
-		child := node.Children[i]
+	for _, child := range node.Children {
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
-			i++
 			continue
 		}
 
-		// Check if this child is an initializer for the previous variable by looking
-		// for '=' in the source between them. Only check if previous child was an
-		// identifier (variable name) - if it was an initializer, current must be new var.
-		isInitializer := false
-		if prevChild != nil && prevWasName {
-			isInitializer = p.hasAssignBetween(prevChild, child)
-		}
-
-		if isInitializer {
-			p.write(" = ")
-			if p.shouldFormatAsChain(child) {
-				p.printMethodChain(child, p.indent)
-			} else {
-				p.printExpr(child)
-			}
-			prevWasName = false
-		} else {
-			// This is a new variable name
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
 			if !first {
 				p.write(", ")
 			}
 			first = false
-			if child.Kind == parser.KindIdentifier && child.Token != nil {
-				p.write(child.Token.Literal)
-			} else if child.Kind == parser.KindUnnamedVariable {
-				p.write("_")
-			} else {
-				p.printExpr(child)
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindUnnamedVariable {
+			if !first {
+				p.write(", ")
 			}
-			prevWasName = (child.Kind == parser.KindIdentifier || child.Kind == parser.KindUnnamedVariable)
+			first = false
+			p.write("_")
+		} else if child.Kind == parser.KindVarInitializer {
+			p.write(" = ")
+			if len(child.Children) > 0 {
+				initExpr := child.Children[0]
+				if p.shouldFormatAsChain(initExpr) {
+					p.printMethodChain(initExpr, p.indent)
+				} else {
+					p.printExpr(initExpr)
+				}
+			}
 		}
-		prevChild = child
-		i++
 	}
 
 	p.write(";\n")
 	p.atLineStart = true
-}
-
-// hasAssignBetween checks if there's an '=' token in the source between two nodes.
-// This is used to distinguish variable names from initializers in local var declarations.
-func (p *JavaPrettyPrinter) hasAssignBetween(prev, next *parser.Node) bool {
-	if p.source == nil {
-		return false
-	}
-	startOffset := prev.Span.End.Offset
-	endOffset := next.Span.Start.Offset
-	if startOffset < 0 || endOffset < 0 || startOffset >= endOffset {
-		return false
-	}
-	if endOffset > len(p.source) {
-		endOffset = len(p.source)
-	}
-	between := p.source[startOffset:endOffset]
-	// Look for '=' that isn't part of '==' or '!=' or '<=' etc.
-	for i := 0; i < len(between); i++ {
-		if between[i] == '=' {
-			// Check it's not == or part of another operator
-			if i > 0 && (between[i-1] == '=' || between[i-1] == '!' || between[i-1] == '<' || between[i-1] == '>') {
-				continue
-			}
-			if i+1 < len(between) && between[i+1] == '=' {
-				continue
-			}
-			return true
-		}
-	}
-	return false
 }
 
 func (p *JavaPrettyPrinter) printExprStmt(node *parser.Node) {
@@ -406,47 +357,24 @@ func (p *JavaPrettyPrinter) printForLocalVarDecl(node *parser.Node) {
 	}
 
 	// Print declarators: pattern is varName [= initializer], varName [= initializer], ...
-	// The AST structure can be: [Type] [name1] [init1] [name2] [init2] ...
-	// OR: [Type] [name1] [name2] [init2] ... (when some vars have no initializer)
-	// Key insight: variable names are always KindIdentifier, initializers can be other expressions
-	// Two consecutive identifiers means the first is a var without initializer
+	// The AST structure is: [Type] [name1] [VarInitializer?] [name2] [VarInitializer?] ...
 	first := true
-	sawVarName := false
-	for i, child := range node.Children {
+	for _, child := range node.Children {
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
 			continue
 		}
 
 		if child.Kind == parser.KindIdentifier && child.Token != nil {
-			// This is a variable name
-			// If we saw a var name before and didn't see an initializer, the previous var had no initializer
-			if sawVarName {
-				// Previous variable had no initializer, this is a new variable
-				p.write(", ")
-			} else if !first {
+			if !first {
 				p.write(", ")
 			}
 			first = false
 			p.write(child.Token.Literal)
-			sawVarName = true
-
-			// Check if next child is also an identifier (meaning this var has no initializer)
-			// or if this is the last child (also no initializer)
-			hasInitializer := false
-			if i+1 < len(node.Children) {
-				next := node.Children[i+1]
-				if next.Kind != parser.KindIdentifier {
-					hasInitializer = true
-				}
-			}
-			if !hasInitializer {
-				sawVarName = true // still expecting to see an initializer or next var
-			}
-		} else {
-			// This is an initializer expression
+		} else if child.Kind == parser.KindVarInitializer {
 			p.write(" = ")
-			p.printExpr(child)
-			sawVarName = false
+			if len(child.Children) > 0 {
+				p.printExpr(child.Children[0])
+			}
 		}
 	}
 }
@@ -471,46 +399,37 @@ func (p *JavaPrettyPrinter) printLocalVarDeclInline(node *parser.Node) {
 		p.write(" ")
 	}
 
-	// Print declarators using same logic as printLocalVarDecl
+	// Print declarators: pattern is varName [= initializer], varName [= initializer], ...
+	// The AST structure is: [Type] [name1] [VarInitializer?] [name2] [VarInitializer?] ...
 	first := true
-	i := 0
-	var prevChild *parser.Node
-	for i < len(node.Children) {
-		child := node.Children[i]
+	for _, child := range node.Children {
 		if child.Kind == parser.KindModifiers || child.Kind == parser.KindType || child.Kind == parser.KindArrayType {
-			i++
 			continue
 		}
 
-		// Check if this child is an initializer for the previous variable
-		isInitializer := false
-		if prevChild != nil {
-			isInitializer = p.hasAssignBetween(prevChild, child)
-		}
-
-		if isInitializer {
-			p.write(" = ")
-			if p.shouldFormatAsChain(child) {
-				p.printMethodChain(child, p.indent)
-			} else {
-				p.printExpr(child)
-			}
-		} else {
-			// This is a new variable name
+		if child.Kind == parser.KindIdentifier && child.Token != nil {
 			if !first {
 				p.write(", ")
 			}
 			first = false
-			if child.Kind == parser.KindIdentifier && child.Token != nil {
-				p.write(child.Token.Literal)
-			} else if child.Kind == parser.KindUnnamedVariable {
-				p.write("_")
-			} else {
-				p.printExpr(child)
+			p.write(child.Token.Literal)
+		} else if child.Kind == parser.KindUnnamedVariable {
+			if !first {
+				p.write(", ")
+			}
+			first = false
+			p.write("_")
+		} else if child.Kind == parser.KindVarInitializer {
+			p.write(" = ")
+			if len(child.Children) > 0 {
+				initExpr := child.Children[0]
+				if p.shouldFormatAsChain(initExpr) {
+					p.printMethodChain(initExpr, p.indent)
+				} else {
+					p.printExpr(initExpr)
+				}
 			}
 		}
-		prevChild = child
-		i++
 	}
 }
 

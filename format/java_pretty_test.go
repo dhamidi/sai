@@ -2307,6 +2307,25 @@ func TestPrintForLoopEdgeCases(t *testing.T) {
 }
 `,
 		},
+		{
+			name: "for loop initializer from variable",
+			input: `class X {
+    void foo(int lineEnd) {
+        for (int i = lineEnd; i > 0; i--) {
+            process(i);
+        }
+    }
+}`,
+			expected: `class X {
+
+    void foo(int lineEnd) {
+        for (int i = lineEnd; i > 0; i--) {
+            process(i);
+        }
+    }
+}
+`,
+		},
 	}
 
 	for _, tt := range tests {
