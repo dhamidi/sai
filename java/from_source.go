@@ -881,6 +881,19 @@ func extractInterfaceBodyMembers(block *parser.Node, model *ClassModel, resolver
 			}
 			method.Visibility = VisibilityPublic
 			model.Methods = append(model.Methods, method)
+		case parser.KindClassDecl, parser.KindInterfaceDecl, parser.KindEnumDecl, parser.KindRecordDecl:
+			inner := classModelFromClassDeclNested(child, model.Name, resolver, jf)
+			inner.Visibility = VisibilityPublic // Inner types in interfaces are implicitly public
+			inner.IsStatic = true               // Inner types in interfaces are implicitly static
+			model.InnerClasses = append(model.InnerClasses, InnerClassModel{
+				InnerClass: inner.Name,
+				OuterClass: model.Name,
+				InnerName:  inner.SimpleName,
+				Visibility: inner.Visibility,
+				IsStatic:   inner.IsStatic,
+				IsFinal:    inner.IsFinal,
+				IsAbstract: inner.IsAbstract,
+			})
 		}
 	}
 }

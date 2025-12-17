@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -72,7 +73,11 @@ func runDoc(name string) error {
 		return showDocFromSource(source, className, memberName)
 	}
 
-	// Try lib/ JARs (compiled class files without source)
+	// Try lib/ JARs - prefer sources JAR if available
+	if source, err := findClassSourceInLibJars(className); err == nil {
+		return showDocFromSource(source, className, memberName)
+	}
+	// Fall back to compiled class files without source
 	if model, err := findClassInLibJars(className); err == nil {
 		return showDocFromModel(model, memberName)
 	}
@@ -97,6 +102,81 @@ func runDoc(name string) error {
 	}
 
 	return showDocFromSource(source, className, memberName)
+}
+
+// findClassSourceInLibJars looks for Java source in sources JARs that match library JARs containing the class
+func findClassSourceInLibJars(className string) ([]byte, error) {
+	classPath := strings.ReplaceAll(className, ".", "/") + ".class"
+	sourcePath := strings.ReplaceAll(className, ".", "/") + ".java"
+
+	entries, err := os.ReadDir("lib")
+	if err != nil {
+		return nil, err
+	}
+
+	// Build index of sources JARs
+	sourcesIndex := buildSourcesJarIndex("lib")
+	if len(sourcesIndex) == 0 {
+		return nil, fmt.Errorf("no sources JARs found")
+	}
+
+	// Find which library JAR contains this class
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jar") {
+			continue
+		}
+
+		jarPath := filepath.Join("lib", entry.Name())
+		r, err := zip.OpenReader(jarPath)
+		if err != nil {
+			continue
+		}
+
+		hasClass := false
+		for _, f := range r.File {
+			if f.Name == classPath {
+				hasClass = true
+				break
+			}
+		}
+		r.Close()
+
+		if !hasClass {
+			continue
+		}
+
+		// Found the library JAR containing the class, now look for matching sources JAR
+		sourcesJar, ok := findSourcesJarForLibrary(jarPath, sourcesIndex)
+		if !ok {
+			continue
+		}
+
+		// Read source from sources JAR
+		sr, err := zip.OpenReader(sourcesJar)
+		if err != nil {
+			continue
+		}
+
+		for _, f := range sr.File {
+			if f.Name == sourcePath {
+				rc, err := f.Open()
+				if err != nil {
+					sr.Close()
+					continue
+				}
+				data, err := io.ReadAll(rc)
+				rc.Close()
+				sr.Close()
+				if err != nil {
+					return nil, err
+				}
+				return data, nil
+			}
+		}
+		sr.Close()
+	}
+
+	return nil, fmt.Errorf("source for %s not found in lib/ sources JARs", className)
 }
 
 func findClassInLibJars(className string) (*java.ClassModel, error) {
@@ -167,7 +247,18 @@ func showDocFromSource(source []byte, className, memberName string) error {
 		return fmt.Errorf("no class found for %s", className)
 	}
 
-	model := models[0]
+	// Find the model matching the requested class name
+	var model *java.ClassModel
+	for _, m := range models {
+		if m.Name == className {
+			model = m
+			break
+		}
+	}
+	if model == nil {
+		// Fall back to first model if no exact match
+		model = models[0]
+	}
 
 	if memberName == "" {
 		printClassDoc(model)
@@ -181,31 +272,47 @@ func showDocFromSource(source []byte, className, memberName string) error {
 }
 
 func findLocalClassSource(className string) ([]byte, error) {
-	// Convert class name to path: com.example.Foo -> com/example/Foo.java
-	classPath := strings.ReplaceAll(className, ".", "/") + ".java"
-
-	// Check in src/ directory
-	candidates := []string{
-		filepath.Join("src", classPath),
-	}
-
-	// Also check for modular structure: src/module.name/package/Class.java
-	srcDir, err := os.Open("src")
-	if err == nil {
-		entries, err := srcDir.ReadDir(-1)
-		srcDir.Close()
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() {
-					candidates = append(candidates, filepath.Join("src", entry.Name(), classPath))
-				}
-			}
+	// Try the class name as-is and progressively try outer class names
+	// e.g., for com.example.Outer.Inner, try:
+	//   com/example/Outer/Inner.java
+	//   com/example/Outer.java (inner class case)
+	classNames := []string{className}
+	for current := className; strings.Contains(current, "."); {
+		lastDot := strings.LastIndex(current, ".")
+		current = current[:lastDot]
+		// Only add as candidate if the part after the dot starts with uppercase (inner class)
+		remaining := className[lastDot+1:]
+		if len(remaining) > 0 && remaining[0] >= 'A' && remaining[0] <= 'Z' {
+			classNames = append(classNames, current)
 		}
 	}
 
-	for _, candidate := range candidates {
-		if data, err := os.ReadFile(candidate); err == nil {
-			return data, nil
+	for _, name := range classNames {
+		classPath := strings.ReplaceAll(name, ".", "/") + ".java"
+
+		// Check in src/ directory
+		candidates := []string{
+			filepath.Join("src", classPath),
+		}
+
+		// Also check for modular structure: src/module.name/package/Class.java
+		srcDir, err := os.Open("src")
+		if err == nil {
+			entries, err := srcDir.ReadDir(-1)
+			srcDir.Close()
+			if err == nil {
+				for _, entry := range entries {
+					if entry.IsDir() {
+						candidates = append(candidates, filepath.Join("src", entry.Name(), classPath))
+					}
+				}
+			}
+		}
+
+		for _, candidate := range candidates {
+			if data, err := os.ReadFile(candidate); err == nil {
+				return data, nil
+			}
 		}
 	}
 
@@ -858,6 +965,13 @@ func printClassDoc(model *java.ClassModel) {
 	printClassSignature(model)
 	fmt.Println()
 
+	if len(model.RecordComponents) > 0 {
+		fmt.Println("\nComponents:")
+		for _, rc := range model.RecordComponents {
+			fmt.Printf("    %s %s\n", formatTypeModel(rc.Type), rc.Name)
+		}
+	}
+
 	publicMethods := filterPublicMethods(model.Methods)
 	if len(publicMethods) > 0 {
 		fmt.Println("\nMethods:")
@@ -871,6 +985,14 @@ func printClassDoc(model *java.ClassModel) {
 		fmt.Println("\nFields:")
 		for _, f := range publicFields {
 			fmt.Printf("    %s\n", formatFieldSignature(f))
+		}
+	}
+
+	publicInnerClasses := filterPublicInnerClasses(model.InnerClasses, model.Name)
+	if len(publicInnerClasses) > 0 {
+		fmt.Println("\nInner Types:")
+		for _, ic := range publicInnerClasses {
+			fmt.Printf("    %s\n", ic.InnerClass)
 		}
 	}
 }
@@ -1074,4 +1196,128 @@ func filterPublicFields(fields []java.FieldModel) []java.FieldModel {
 		}
 	}
 	return result
+}
+
+func filterPublicInnerClasses(innerClasses []java.InnerClassModel, outerClass string) []java.InnerClassModel {
+	var result []java.InnerClassModel
+	for _, ic := range innerClasses {
+		if ic.Visibility == java.VisibilityPublic && ic.OuterClass == outerClass {
+			result = append(result, ic)
+		}
+	}
+	return result
+}
+
+// libraryID identifies a library by its Maven coordinates
+type libraryID struct {
+	GroupID    string
+	ArtifactID string
+	Version    string
+}
+
+// readLibraryID extracts Maven coordinates from a JAR's META-INF/maven/.../pom.properties
+func readLibraryID(jarPath string) (libraryID, error) {
+	r, err := zip.OpenReader(jarPath)
+	if err != nil {
+		return libraryID{}, err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		if strings.HasPrefix(f.Name, "META-INF/maven/") && strings.HasSuffix(f.Name, "/pom.properties") {
+			rc, err := f.Open()
+			if err != nil {
+				continue
+			}
+			id, err := parsePomProperties(rc)
+			rc.Close()
+			if err == nil {
+				return id, nil
+			}
+		}
+	}
+	return libraryID{}, fmt.Errorf("no pom.properties found in %s", jarPath)
+}
+
+// parsePomProperties parses a pom.properties file into a libraryID
+func parsePomProperties(r io.Reader) (libraryID, error) {
+	var id libraryID
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if idx := strings.Index(line, "="); idx >= 0 {
+			key := strings.TrimSpace(line[:idx])
+			value := strings.TrimSpace(line[idx+1:])
+			switch key {
+			case "groupId":
+				id.GroupID = value
+			case "artifactId":
+				id.ArtifactID = value
+			case "version":
+				id.Version = value
+			}
+		}
+	}
+	if id.GroupID == "" || id.ArtifactID == "" {
+		return libraryID{}, fmt.Errorf("incomplete pom.properties")
+	}
+	return id, scanner.Err()
+}
+
+// buildSourcesJarIndex builds a map from libraryID to sources JAR path
+// Sources JARs are identified by containing .java files (not .class files)
+func buildSourcesJarIndex(libDir string) map[libraryID]string {
+	index := make(map[libraryID]string)
+
+	entries, err := os.ReadDir(libDir)
+	if err != nil {
+		return index
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jar") {
+			continue
+		}
+		jarPath := filepath.Join(libDir, entry.Name())
+		if !isSourcesJar(jarPath) {
+			continue
+		}
+		if id, err := readLibraryID(jarPath); err == nil {
+			index[id] = jarPath
+		}
+	}
+	return index
+}
+
+// isSourcesJar returns true if the JAR contains .java source files (and no .class files)
+func isSourcesJar(jarPath string) bool {
+	r, err := zip.OpenReader(jarPath)
+	if err != nil {
+		return false
+	}
+	defer r.Close()
+
+	hasJava := false
+	for _, f := range r.File {
+		if strings.HasSuffix(f.Name, ".class") {
+			return false
+		}
+		if strings.HasSuffix(f.Name, ".java") {
+			hasJava = true
+		}
+	}
+	return hasJava
+}
+
+// findSourcesJarForLibrary finds the sources JAR that matches the given library JAR
+func findSourcesJarForLibrary(jarPath string, sourcesIndex map[libraryID]string) (string, bool) {
+	id, err := readLibraryID(jarPath)
+	if err != nil {
+		return "", false
+	}
+	sourcesJar, ok := sourcesIndex[id]
+	return sourcesJar, ok
 }
